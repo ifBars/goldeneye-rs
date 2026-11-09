@@ -3002,10 +3002,16 @@ mod tests {
             "original_history_verified":false,"native_timing_verified":false,"base_state_sha256":"1".repeat(64),
             "prelude_state_sha256":"2".repeat(64),"world_state_sha256":"3".repeat(64),
             "persistent_state_sha256":"4".repeat(64),"state_sha256":"5".repeat(64),
+            "scope":"Authored retained allocations and scratch-pending reset checkpoint"});
+        let shared = json!({
             "shared_count":1,"shared_live_leases":1,"shared_allocations":3,"shared_native_bytes":63680,"shared_host_capacity_bytes":64000,
             "shared_reset_calls":1,"shared_entry_noops":98,"shared_cache_stores":1,"shared_reset_complete":false,
             "runtime_base_reset_complete":true,"derived_reset_prefix_complete":true,
-            "shared_state_sha256":"6".repeat(64),"reset_state_sha256":"7".repeat(64),"scope":"Authored retained allocations and scratch-pending reset checkpoint"});
+            "shared_state_sha256":"6".repeat(64),"reset_state_sha256":"7".repeat(64)});
+        world["player_initialization"]
+            .as_object_mut()
+            .unwrap()
+            .extend(shared.as_object().unwrap().clone());
         probe
     }
 
