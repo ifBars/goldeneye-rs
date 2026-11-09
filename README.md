@@ -4,7 +4,7 @@ An independent Rust rewrite of **GoldenEye 007 for Wii (2010)**, targeting nativ
 Windows. The long-term goal is to reproduce the original game's behavior.
 
 This is early development. Startup screens, logo movies, title animation, menu
-audio, Options and Extras work. New Game loads the Tutorial world and reaches
+audio, sound/screen settings and Extras navigation work. New Game loads the Tutorial world and reaches
 **Preparing player**. Player initialization, the gameplay camera and playable
 missions are still incomplete. Asset inspection and rendering tools are also
 included.

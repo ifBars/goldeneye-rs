@@ -152,6 +152,13 @@ impl Buffer {
 
 /// One independent host-clock voice. A completed voice retains its Arc until a
 /// control-thread call retires it: the callback never frees a final PCM owner.
+#[cfg_attr(
+    not(any(windows, test)),
+    expect(
+        dead_code,
+        reason = "Playback cursors are consumed by the Windows output callback outside tests."
+    )
+)]
 struct OneShot {
     _id: u64,
     samples: Arc<[i16]>,
