@@ -99,6 +99,12 @@ impl Session {
             );
             return Ok(PlayerAttemptOutcome::InProgress(attempt));
         }
+        // 801b65b8 reads the matching metadata before PlayerNew allocation and
+        // reset. Descriptor word30=0 above preserves this exact raw argument.
+        // A present but unknown field stays None until its actual consumer.
+        let source_flag_raw = self
+            .member_snapshot(self.session_id, self.user_id)?
+            .source_flag_raw();
         if !registry.catalog_ready() {
             return Ok(PlayerAttemptOutcome::Gated(PlayerGate::CatalogNotReady));
         }
@@ -121,6 +127,7 @@ impl Session {
             selection: selected.selection,
             pose,
             dependency: PlayerDependency::OwnerInitialization,
+            source_flag_raw,
         };
         self.player_load = Some(attempt);
         Ok(PlayerAttemptOutcome::Started(PlayerRequest(attempt)))

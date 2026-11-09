@@ -94,3 +94,13 @@ impl ge_core::mission::player::constructor::TailProvider for Tail<'_> {
             .vector_bits())
     }
 }
+
+pub(super) struct FlagNotifications<'a> {
+    pub hook: &'a world_hooks::Attempt,
+}
+impl base_handler::ConstructorFlagProvider for FlagNotifications<'_> {
+    fn mark_constructor_flag_dirty(&mut self, _: u32) -> Result<()> {
+        self.hook.ensure_current()?;
+        anyhow::bail!("bound constructor interface needs its actual dirty-channel provider")
+    }
+}

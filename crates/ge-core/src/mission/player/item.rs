@@ -3,6 +3,45 @@
 use super::identity::{ComponentId, ItemId, PhysicsId, PlayerId, WorldId};
 use anyhow::{Result, ensure};
 
+/// Reached wrapperless derived-factory fields, separate from actor membership.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WrapperlessFactory {
+    numeric_id: u32,
+    word_174: u32,
+    word_178: u32,
+    word_17c: u32,
+    word_184: u32,
+    cache_index: u32,
+    wrapper_bound: bool,
+    key: u32,
+    resource_cache_index: u32,
+    attachment_bound: bool,
+    byte_8e: u8,
+}
+impl WrapperlessFactory {
+    pub fn numeric_id(&self) -> u32 {
+        self.numeric_id
+    }
+    pub fn wrapper_bound(&self) -> bool {
+        self.wrapper_bound
+    }
+    pub fn key(&self) -> u32 {
+        self.key
+    }
+    pub fn cache_index(&self) -> u32 {
+        self.cache_index
+    }
+    pub fn resource_cache_index(&self) -> u32 {
+        self.resource_cache_index
+    }
+    pub fn attachment_bound(&self) -> bool {
+        self.attachment_bound
+    }
+    pub fn byte_8e(&self) -> u8 {
+        self.byte_8e
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Payload {
     SelfNode,
@@ -48,6 +87,8 @@ pub struct Item {
     zone: u16,
     priority: u8,
     word_180: Option<u32>,
+    factory_prefix: Option<[u32; 3]>,
+    factory: Option<WrapperlessFactory>,
 }
 impl Item {
     pub(super) fn from_constructor(world: WorldId, id: ItemId, memberships: usize) -> Result<Self> {
@@ -75,6 +116,8 @@ impl Item {
             zone: u16::MAX,
             priority: 0,
             word_180: None,
+            factory_prefix: None,
+            factory: None,
         })
     }
     pub fn id(&self) -> ItemId {
@@ -124,6 +167,66 @@ impl Item {
     }
     pub fn word_180(&self) -> Option<u32> {
         self.word_180
+    }
+    pub fn factory(&self) -> Option<&WrapperlessFactory> {
+        self.factory.as_ref()
+    }
+    pub fn factory_prefix_initialized(&self) -> bool {
+        self.factory_prefix.is_some()
+    }
+    /// Source derived-type installation and +178/+17c/+184 stores happen
+    /// before the registry consumes its numeric ID and may fail allocation.
+    pub fn begin_wrapperless_factory(&mut self) -> Result<()> {
+        ensure!(
+            self.factory_prefix.is_none() && self.factory.is_none(),
+            "wrapperless item factory already started"
+        );
+        ensure!(
+            self.registration == Registration::Constructed,
+            "wrapperless factory must precede actor registration"
+        );
+        self.factory_prefix = Some([0; 3]);
+        Ok(())
+    }
+    /// Complete only the supported wrapperless factory after its actual
+    /// persistent numeric-registry append. Actor/component registration stays
+    /// separate; no PlayerNew/EXItem readiness is inferred from this receipt.
+    pub fn finish_wrapperless_factory(
+        &mut self,
+        receipt: &super::item_registry::RegistrationReceipt,
+    ) -> Result<()> {
+        ensure!(
+            receipt.item() == self.id,
+            "item factory registration receipt belongs to another item"
+        );
+        ensure!(
+            self.factory.is_none(),
+            "wrapperless item factory already completed"
+        );
+        ensure!(
+            self.factory_prefix == Some([0; 3]),
+            "wrapperless item factory prefix has not run"
+        );
+        ensure!(
+            self.registration == Registration::Constructed,
+            "wrapperless factory must precede actor registration"
+        );
+        self.factory = Some(WrapperlessFactory {
+            numeric_id: receipt.numeric_id(),
+            word_174: 0,
+            word_178: 0,
+            word_17c: 0,
+            word_184: 0,
+            cache_index: u32::MAX,
+            wrapper_bound: false,
+            key: u32::MAX,
+            resource_cache_index: u32::MAX,
+            attachment_bound: false,
+            byte_8e: 0,
+        });
+        self.word_180 = Some(0);
+        self.position = [0; 4];
+        Ok(())
     }
     /// Actual caller writes before binding the player handler.
     pub fn prepare_player_owner(&mut self) {
@@ -224,6 +327,30 @@ impl Item {
             }
             Registration::Complete => emit(2),
             Registration::Failed => emit(3),
+        }
+        emit(u32::from(self.factory_prefix.is_some()));
+        if let Some(prefix) = self.factory_prefix {
+            for value in prefix {
+                emit(value);
+            }
+        }
+        emit(u32::from(self.factory.is_some()));
+        if let Some(factory) = self.factory {
+            for value in [
+                factory.numeric_id,
+                factory.word_174,
+                factory.word_178,
+                factory.word_17c,
+                factory.word_184,
+                factory.cache_index,
+                u32::from(factory.wrapper_bound),
+                factory.key,
+                factory.resource_cache_index,
+                u32::from(factory.attachment_bound),
+                u32::from(factory.byte_8e),
+            ] {
+                emit(value);
+            }
         }
     }
 }

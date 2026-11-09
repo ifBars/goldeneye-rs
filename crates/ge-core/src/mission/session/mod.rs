@@ -3,6 +3,7 @@
 //! This owns no provider, native handle, world or player. Host callbacks report
 //! actual operation outcomes; request construction alone never activates a
 //! session. Live world/catalog completion remains outside this module.
+pub mod member_snapshot;
 pub mod player_load;
 mod readiness;
 mod readiness_load;
@@ -129,6 +130,7 @@ pub struct Session {
     backend: u32,
     descriptor: Option<Descriptor>,
     managers: Option<Managers>,
+    member_snapshot: Option<member_snapshot::MemberSnapshot>,
     pending: Option<SessionId>,
     active: Option<SessionId>,
     source_create_counter: u32,
@@ -151,6 +153,7 @@ impl Session {
             backend: 0,
             descriptor: None,
             managers: None,
+            member_snapshot: None,
             pending: None,
             active: None,
             source_create_counter: 8,
@@ -213,6 +216,10 @@ impl Session {
                         created_byte_raw: 0,
                     },
                 });
+                self.member_snapshot = Some(member_snapshot::MemberSnapshot::from_constructor(
+                    self.session_id,
+                    self.user_id,
+                ));
                 self.stage = Stage::Admitting;
             }
             OperationResult::Failed => self.stage = Stage::Failed(Failure::Create),
@@ -262,6 +269,7 @@ impl Session {
         self.active = None;
         self.descriptor = None;
         self.managers = None;
+        self.member_snapshot = None;
         self.readiness_load = None;
         self.player_load = None;
         self.lifecycle_byte_40 = 0;

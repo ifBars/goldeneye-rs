@@ -3,6 +3,7 @@
 mod evidence;
 mod loadout;
 mod providers;
+mod virtual_init;
 use super::{actors::Definitions, resource_states, world_hooks};
 use anyhow::{Result, ensure};
 pub use evidence::Evidence;
@@ -30,6 +31,8 @@ pub(super) struct Owned {
     lease: Lease,
     reset: PendingReset,
     loadout: loadout::Sources,
+    flag: Option<base_handler::ConstructorFlagReceipt>,
+    virtual_init: virtual_init::Owned,
     operations: usize,
     catalog_entries: usize,
     rng_reads: usize,
@@ -110,6 +113,16 @@ impl Owned {
         };
         reset.finish_tail(&mut prelude, &mut tail)?;
         hook.complete_player_reset(lease, &reset)?;
+        let flag = if let Some(raw) = request.source_flag_raw() {
+            Some(base.apply_constructor_flag(
+                &reset.completion()?,
+                raw,
+                0,
+                &mut providers::FlagNotifications { hook },
+            )?)
+        } else {
+            None
+        };
         hook.ensure_current()?;
         Ok(Self {
             request,
@@ -118,14 +131,67 @@ impl Owned {
             lease,
             reset,
             loadout,
+            flag,
+            virtual_init: virtual_init::Owned::new(),
             operations,
             catalog_entries,
             rng_reads: provider.rng_reads,
             resource_resets: provider.resource_resets,
         })
     }
-    pub fn evidence(&self, world: &World, hook: &world_hooks::Attempt) -> Result<Evidence> {
+    pub fn identity(&self) -> PlayerId {
+        self.base.player()
+    }
+    pub fn matches_attempt(
+        &self,
+        attempt: ge_core::mission::session::player_load::PlayerAttempt,
+    ) -> bool {
+        self.request.attempt() == attempt.attempt()
+            && self.request.session() == attempt.session()
+            && self.request.user() == attempt.user()
+            && self.request.source_flag_raw() == attempt.source_flag_raw()
+    }
+    pub fn dependency(&self) -> ge_core::mission::session::player_load::PlayerDependency {
+        use ge_core::mission::session::player_load::PlayerDependency;
+        if self.flag.is_none() {
+            PlayerDependency::SourceUserFlag
+        } else if self.virtual_init.stage() == virtual_init::Stage::HandlerKindPending {
+            PlayerDependency::PhysicsInitialization
+        } else {
+            PlayerDependency::OwnerInitialization
+        }
+    }
+    pub fn initialize_virtual(
+        &mut self,
+        context: &crate::mission::MissionContext,
+        world: &mut World,
+        registry: &mut ge_core::mission::player::item_registry::Registry,
+        hook: &world_hooks::Attempt,
+    ) -> Result<()> {
         hook.ensure_current()?;
-        evidence::build(self, world, hook)
+        if self.flag.is_none() {
+            return Ok(());
+        }
+        self.virtual_init.initialize(
+            &mut self.base,
+            world,
+            registry,
+            |position| {
+                hook.ensure_current()?;
+                super::world::zones::player_origin(context, position)
+            },
+            |item| hook.player_registration_mask(item),
+        )?;
+        hook.ensure_current()?;
+        Ok(())
+    }
+    pub fn evidence(
+        &self,
+        world: &World,
+        registry: &ge_core::mission::player::item_registry::Registry,
+        hook: &world_hooks::Attempt,
+    ) -> Result<Evidence> {
+        hook.ensure_current()?;
+        evidence::build(self, world, registry, hook)
     }
 }

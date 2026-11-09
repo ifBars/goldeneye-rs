@@ -4,6 +4,21 @@ use ge_core::mission::triggers::zone;
 
 pub(super) struct Worlds<'a, 'b>(pub &'a [TriggerMap<'b>]);
 
+pub(in crate::game) fn player_origin(
+    context: &crate::mission::MissionContext,
+    position: [u32; 4],
+) -> Result<zone::Context> {
+    let maps = context.trigger_maps()?;
+    zone::select(
+        &mut Worlds(&maps),
+        [position[0], position[1], position[2]],
+        zone::Budget {
+            maps: 128,
+            nodes: 65_536,
+        },
+    )
+}
+
 impl zone::Provider for Worlds<'_, '_> {
     fn loaded_count(&self) -> usize {
         self.0.len()

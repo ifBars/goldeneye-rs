@@ -31,7 +31,7 @@ fn request_uses_live_trigger_identity_and_pose_and_dispatches_once() {
         [0x3f80_0001, 0x8000_0000, 7, 0]
     );
     assert_eq!(request.pose().rotation_bits, [0, 0xbe80_0000, 0, 0]);
-    assert_eq!(request.source_flag_raw(), None);
+    assert_eq!(request.source_flag_raw(), Some(0));
     assert_eq!(request.attempt(), binding.attempt());
     assert_eq!(request.session(), binding.session());
     assert_eq!(request.user(), binding.user());

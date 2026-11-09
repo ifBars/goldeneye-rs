@@ -1,5 +1,6 @@
 use super::*;
 use crate::mission::{resource_state, source_rng};
+mod constructor_flag;
 mod runtime_reset;
 
 struct Providers {

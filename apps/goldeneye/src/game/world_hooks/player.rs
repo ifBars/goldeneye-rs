@@ -1,8 +1,10 @@
 //! Persistent player-constructor inputs. The operation queue is distinct from
 //! admission and loader work; reached reset writes survive cancellation.
+mod actors;
 mod constructor;
 mod scratch;
 use super::Attempt;
+pub(in crate::game) use actors::Actors;
 use anyhow::{Result, ensure};
 use ge_core::mission::{
     player::{config, constructor as player_constructor},
@@ -27,6 +29,7 @@ pub(super) struct Persistent {
     scratch: player_constructor::Scratch,
     reset_quad_bits: [u32; 4],
     reset_quad_reads: usize,
+    game_item: Option<ge_core::mission::player::identity::ItemId>,
 }
 impl Persistent {
     pub fn from_constructor() -> Self {
@@ -47,6 +50,7 @@ impl Persistent {
             // No original later mutation/history is claimed by this owner.
             reset_quad_bits: [0; 4],
             reset_quad_reads: 0,
+            game_item: None,
         }
     }
 }
@@ -123,7 +127,7 @@ impl Attempt {
             .map_err(|_| anyhow::anyhow!("player input owner lock is poisoned"))?;
         self.ensure_current()?;
         let mut hash = Sha256::new();
-        hash.update(b"ge_player_persistent_inputs_v3\0");
+        hash.update(b"ge_player_persistent_inputs_v4\0");
         hash.update(state.player.game_field_328_bits.to_be_bytes());
         hash.update([u8::from(state.player.reset_byte.is_some())]);
         if let Some(byte) = state.player.reset_byte {
@@ -134,6 +138,11 @@ impl Attempt {
             hash.update(word.to_be_bytes());
         }
         hash.update((state.player.reset_quad_reads as u64).to_be_bytes());
+        hash.update([u8::from(state.player.game_item.is_some())]);
+        if let Some(item) = state.player.game_item {
+            hash.update(item.world().get().to_be_bytes());
+            hash.update(item.get().to_be_bytes());
+        }
         for value in [
             state.player.runtime_float,
             state.player.multiplayer_byte.map(u32::from),

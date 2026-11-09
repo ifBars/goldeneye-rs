@@ -2,14 +2,17 @@
 //! Shared RNG, global and resource mutations execute through retained providers;
 //! no independent stream/store or completed player is manufactured here.
 mod basic;
+mod constructor_flag;
 mod generic;
 mod reset;
 mod runtime_reset;
 mod types;
+mod virtual_init;
+pub use constructor_flag::{ConstructorFlagProvider, ConstructorFlagReceipt};
 pub use runtime_reset::RuntimeResetProvider;
 pub use types::{BasicReceipt, Binding, Failure, Provider, ResetReceipt, Stage};
 
-use super::identity::PlayerId;
+use super::identity::{ItemId, PlayerId};
 use anyhow::{Result, ensure};
 use std::collections::BTreeMap;
 
@@ -26,6 +29,7 @@ pub struct Owner {
     completed_resets: usize,
     nested_initialized: bool,
     reset_string: Option<String>,
+    item: Option<ItemId>,
 }
 impl Owner {
     pub fn new(player: PlayerId) -> Self {
@@ -41,6 +45,7 @@ impl Owner {
             completed_resets: 0,
             nested_initialized: false,
             reset_string: None,
+            item: None,
         }
     }
     fn require(&self, stage: Stage) -> Result<()> {
@@ -83,6 +88,9 @@ impl Owner {
     pub const fn player(&self) -> PlayerId {
         self.player
     }
+    pub const fn item(&self) -> Option<ItemId> {
+        self.item
+    }
     pub const fn stage(&self) -> Stage {
         self.stage
     }
@@ -114,7 +122,7 @@ impl Owner {
     /// Versioned canonical scalar visitation, not a serialized native image.
     /// Width-specific maps preserve unknown padding and semantic bindings.
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(1);
+        emit(2);
         emit((self.player.get() >> 32) as u32);
         emit(self.player.get() as u32);
         emit(match self.stage {
@@ -129,6 +137,10 @@ impl Owner {
             Stage::RuntimeResetPrefix => 8,
             Stage::RuntimeResetTail => 9,
             Stage::RuntimeResetComplete => 10,
+            Stage::ConstructorFlagPrefix => 11,
+            Stage::ConstructorFlagComplete => 12,
+            Stage::VirtualItemBound => 13,
+            Stage::VirtualMotionComplete => 14,
         });
         emit(match self.failure {
             None => 0,
@@ -139,6 +151,7 @@ impl Owner {
             Some(Failure::RuntimeGlobalFloat) => 5,
             Some(Failure::RuntimeDescriptor) => 6,
             Some(Failure::RuntimeGlobalByte) => 7,
+            Some(Failure::ConstructorFlag) => 8,
         });
         for value in [self.reset_calls, self.completed_resets] {
             emit(((value as u64) >> 32) as u32);
@@ -168,6 +181,13 @@ impl Owner {
         for (&offset, &binding) in &self.bindings {
             emit(u32::from(offset));
             emit(binding.raw());
+        }
+        emit(u32::from(self.item.is_some()));
+        if let Some(item) = self.item {
+            for id in [item.world().get(), item.get()] {
+                emit((id >> 32) as u32);
+                emit(id as u32);
+            }
         }
     }
 }

@@ -5,5 +5,6 @@ pub mod constructor;
 pub mod identity;
 pub mod inventory;
 pub mod item;
+pub mod item_registry;
 pub mod physics;
 pub mod world;

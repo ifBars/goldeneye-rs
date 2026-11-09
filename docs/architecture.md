@@ -29,10 +29,15 @@ second reset. The persistent scratch owner, actual retained character row and
 default inventory now feed the remaining derived reset. Its default vector
 comes from the same verified supplied DATA owner as the weapon tables, while
 the shared quad has explicit startup-constructor ownership. Typed completion
-finishes the reset; an unbound incoming flag still stops the enclosing player
-constructor before virtual initialization. Cancelled constructors preserve
-their reached shared leases until native cache cleanup is implemented. Later
-PlayerNew initialization and completion remain required.
+finishes the reset. An identity-bound per-user metadata snapshot supplies the
+constructor flag captured before construction. Its consumer precedes virtual
+initialization, which now creates the wrapperless EXItem and numeric-ID record,
+queries the actual constructor-origin zone, registers actor memberships and
+binds the sparse physics capsule. Missing handler kind stops before activation.
+The controller arena retains the actual player/item/physics owners and registry
+rows across worker cancellation. Its world/arena mutex is separate from manager
+state, so reached reset/configuration writes can use their original owners.
+Native cleanup, later PlayerNew initialization and completion remain required.
 Frontend primary music/video advancement is suspended while accepted effects can
 finish; focus pause is separate, and Back restores the menu. The future world and
 camera remain in this window/device lifecycle, not a nested inspection viewer.

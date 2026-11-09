@@ -869,6 +869,118 @@ const PLAYER_HASHES: &[&str] = &[
     "loadout_state_sha256",
 ];
 
+const VIRTUAL_COUNTS: &[&str] = &[
+    "item_registry_records",
+    "item_registry_capacity",
+    "item_registry_growth",
+    "item_registry_counter",
+    "item_registry_native_bytes",
+    "item_registry_host_capacity_bytes",
+    "origin_zone_queries",
+    "origin_zone_nodes",
+    "desired_membership",
+    "item_membership",
+    "item_flags",
+    "item_priority",
+];
+const VIRTUAL_FLAGS: &[&str] = &[
+    "factory_complete",
+    "item_registry_bound",
+    "actor_registered",
+    "handler_bound",
+    "origin_zone_queried",
+    "physics_constructed",
+    "physics_backlink_bound",
+    "physics_activated",
+    "initializer_complete",
+];
+const VIRTUAL_HASHES: &[&str] = &[
+    "item_state_sha256",
+    "physics_state_sha256",
+    "registry_state_sha256",
+];
+
+/// A null pair is the explicit unknown-argument reset-only branch. Present
+/// objects prove retained owners, not physics activation or initializer return.
+fn validate_player_virtual_owners(player: &Value) -> Result<bool> {
+    let flag = &player["constructor_flag"];
+    let virtual_init = &player["virtual_initialization"];
+    if flag.is_null() && virtual_init.is_null() {
+        return Ok(false);
+    }
+    closed(
+        flag,
+        &[
+            "origin",
+            "raw",
+            "changed",
+            "interface_callbacks",
+            "original_history_verified",
+        ],
+    )?;
+    ensure!(
+        flag["origin"] == "captured_member_snapshot"
+            && count(flag, "raw")? <= 255
+            && flag["changed"].is_boolean()
+            && flag["interface_callbacks"] == 0
+            && flag["original_history_verified"] == false,
+        "captured constructor argument evidence is invalid"
+    );
+    let fields: Vec<_> = VIRTUAL_COUNTS
+        .iter()
+        .chain(VIRTUAL_FLAGS)
+        .chain(VIRTUAL_HASHES)
+        .copied()
+        .chain(["stage", "pending_dependency", "scope"])
+        .collect();
+    closed(virtual_init, &fields)?;
+    for field in VIRTUAL_COUNTS {
+        count(virtual_init, field)?;
+    }
+    let records = count(virtual_init, "item_registry_records")?;
+    let capacity = count(virtual_init, "item_registry_capacity")?;
+    ensure!(
+        virtual_init["stage"] == "physics_handler_kind_pending"
+            && virtual_init["pending_dependency"] == "handler_kind"
+            && VIRTUAL_FLAGS[..7]
+                .iter()
+                .all(|field| virtual_init[field] == true)
+            && virtual_init["physics_activated"] == false
+            && virtual_init["initializer_complete"] == false
+            && records >= 1
+            && records <= count(player, "world_items")?
+            && capacity >= records
+            && capacity <= u64::from(i32::MAX as u32)
+            && virtual_init["item_registry_growth"] == 16
+            && count(virtual_init, "item_registry_counter")? >= records
+            && count(virtual_init, "item_registry_counter")? <= u64::from(u32::MAX)
+            && capacity.checked_mul(8) == Some(count(virtual_init, "item_registry_native_bytes")?)
+            && count(virtual_init, "item_registry_native_bytes")? <= u64::from(u32::MAX)
+            && count(virtual_init, "item_registry_host_capacity_bytes")?
+                >= count(virtual_init, "item_registry_native_bytes")?
+            && virtual_init["origin_zone_queries"] == 1
+            && count(virtual_init, "origin_zone_nodes")? >= 1
+            && virtual_init["desired_membership"] == 0x2d
+            && virtual_init["item_membership"] == 0x2d
+            && virtual_init["item_flags"] == 0x2b
+            && virtual_init["item_priority"] == 255
+            && count(player, "actor_registrations")? >= 1
+            && VIRTUAL_HASHES
+                .iter()
+                .all(|field| virtual_init[field]
+                    .as_str()
+                    .is_some_and(|hash| hash.len() == 64
+                        && hash
+                            .bytes()
+                            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))))
+            && virtual_init["scope"]
+                .as_str()
+                .is_some_and(|scope| !scope.is_empty() && scope.len() <= 4096),
+        "virtual item/registry/actor/physics owner evidence is contradictory"
+    );
+    Ok(true)
+}
+
 fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Value) -> Result<()> {
     if player.is_null() {
         return Ok(());
@@ -878,7 +990,15 @@ fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Valu
         .chain(PLAYER_FLAGS)
         .chain(PLAYER_HASHES)
         .copied()
-        .chain(["origin", "lifetime", "stage", "pending_dependency", "scope"])
+        .chain([
+            "origin",
+            "lifetime",
+            "stage",
+            "pending_dependency",
+            "scope",
+            "constructor_flag",
+            "virtual_initialization",
+        ])
         .collect();
     closed(player, &fields)?;
     for field in PLAYER_COUNTS {
@@ -890,15 +1010,21 @@ fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Valu
             "player initialization flag absent"
         );
     }
+    let virtual_reached = validate_player_virtual_owners(player)?;
     ensure!(
         player["origin"] == "fresh_constructor_snapshot"
-            && player["lifetime"] == "session_worker"
-            && player["stage"] == "player_reset_complete"
-            && player["pending_dependency"] == "constructor_source_flag"
+            && player["lifetime"] == "controller_arena"
+            && (if virtual_reached {
+                player["stage"] == "player_physics_prefix_pending"
+                    && player["pending_dependency"] == "handler_kind"
+            } else {
+                player["stage"] == "player_reset_complete"
+                    && player["pending_dependency"] == "constructor_source_flag"
+            })
+            && player["physics_bound"] == virtual_reached
             && [
                 "operation_complete",
                 "handler_kind_bound",
-                "physics_bound",
                 "completion_published",
                 "player_created",
                 "camera_ready",
@@ -943,9 +1069,7 @@ fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Valu
             && count(player, "selected_source_ordinal")? < count(world, "original_slots")?
             && player["requested_start_point_before"] == snapshot["start_point_id"]
             && count(player, "requested_start_point_after")? <= u64::from(u32::MAX)
-            && ["world_items", "actor_registrations"]
-                .into_iter()
-                .all(|field| player[field] == 0)
+            && count(player, "actor_registrations")? <= count(player, "world_items")?
             && player["inventory_growth"] == 16
             && player["inventory_records"] == 1
             && player["inventory_capacity"] == 16
@@ -1409,6 +1533,37 @@ fn validate_tutorial_world(probe: &Value) -> Result<()> {
         "Tutorial player prelude was not recorded"
     );
     validate_player_initialization(player, world, &probe["window"]["game_session"]["active"])?;
+    let flag = &player["constructor_flag"];
+    let virtual_init = &player["virtual_initialization"];
+    ensure!(
+        flag.is_object()
+            && virtual_init.is_object()
+            && flag["raw"] == 0
+            && flag["changed"] == false,
+        "Tutorial must capture the matching fresh metadata argument and reach real virtual owners"
+    );
+    let requested = count(&probe["window"]["game_session"], "requested")?;
+    for value in [
+        count(player, "world_items")?,
+        count(player, "actor_registrations")?,
+        count(virtual_init, "item_registry_records")?,
+        count(virtual_init, "item_registry_counter")?,
+    ] {
+        ensure!(
+            (1..=requested).contains(&value),
+            "Tutorial retained item/registry state exceeds actual attempts"
+        );
+    }
+    if requested == 1 {
+        ensure!(
+            player["world_items"] == 1
+                && player["actor_registrations"] == 1
+                && virtual_init["item_registry_records"] == 1
+                && virtual_init["item_registry_counter"] == 1
+                && virtual_init["item_registry_capacity"] == 16,
+            "Tutorial first factory/actor registration differs from fresh constructor state"
+        );
+    }
     for (field, expected) in [
         ("operation_entries", 0),
         ("creation_dispatches", 1),
@@ -3050,17 +3205,17 @@ mod tests {
         let world = &mut probe["window"]["game_session"]["active"]["world_initialization"];
         world["actor_definitions"]["rng_draws"] = json!(2);
         world["player_initialization"] = json!({
-            "origin":"fresh_constructor_snapshot","lifetime":"session_worker","stage":"player_reset_complete",
-            "pending_dependency":"constructor_source_flag","operation_complete":false,"attempt_bound":true,"catalog_bound":true,
+            "origin":"fresh_constructor_snapshot","lifetime":"controller_arena","stage":"player_physics_prefix_pending",
+            "pending_dependency":"handler_kind","operation_complete":false,"attempt_bound":true,"catalog_bound":true,
             "operation_entries":0,"creation_dispatches":1,"catalog_entries":2,"selected_catalog_index":1,"selected_source_ordinal":4,
             "requested_start_point_before":1,"requested_start_point_after":1,"base_constructor_complete":true,
             "handler_rng_reads":1,"base_reset_calls":2,"persistent_base_resets":2,"handler_kind_bound":false,"inventory_records":1,"inventory_capacity":16,
-            "inventory_growth":16,"world_items":0,"world_actor_lists":1,"world_membership_lists":10,"actor_registrations":0,
-            "physics_bound":false,"completion_published":false,"player_created":false,"camera_ready":false,
+            "inventory_growth":16,"world_items":1,"world_actor_lists":1,"world_membership_lists":10,"actor_registrations":1,
+            "physics_bound":true,"completion_published":false,"player_created":false,"camera_ready":false,
             "original_history_verified":false,"native_timing_verified":false,"base_state_sha256":"1".repeat(64),
             "prelude_state_sha256":"2".repeat(64),"world_state_sha256":"3".repeat(64),
             "persistent_state_sha256":"4".repeat(64),"state_sha256":"5".repeat(64),
-            "scope":"Authored completed virtual reset with retained character and inventory; constructor flag and player initialization pending"});
+            "scope":"Authored retained actor and capsule prefix; missing handler kind blocks activation and player completion"});
         let shared = json!({
             "shared_count":1,"shared_live_leases":1,"shared_allocations":3,"shared_native_bytes":63680,"shared_host_capacity_bytes":64000,
             "shared_reset_calls":1,"shared_entry_noops":98,"shared_cache_stores":1,"shared_reset_complete":true,
@@ -3083,6 +3238,23 @@ mod tests {
             .as_object_mut()
             .unwrap()
             .extend(loadout.as_object().unwrap().clone());
+        world["player_initialization"]["constructor_flag"] = json!({"origin":"captured_member_snapshot",
+            "raw":0,"changed":false,"interface_callbacks":0,"original_history_verified":false});
+        let mut virtual_init = json!({"stage":"physics_handler_kind_pending","pending_dependency":"handler_kind",
+            "item_registry_records":1,"item_registry_capacity":16,"item_registry_growth":16,"item_registry_counter":1,
+            "item_registry_native_bytes":128,"item_registry_host_capacity_bytes":512,
+            "origin_zone_queries":1,"origin_zone_nodes":2,"desired_membership":0x2d,"item_membership":0x2d,
+            "item_flags":0x2b,"item_priority":255});
+        let links = json!({"factory_complete":true,"item_registry_bound":true,"actor_registered":true,
+            "handler_bound":true,"origin_zone_queried":true,"physics_constructed":true,"physics_backlink_bound":true,
+            "physics_activated":false,"initializer_complete":false,"item_state_sha256":"a".repeat(64),
+            "physics_state_sha256":"b".repeat(64),"registry_state_sha256":"c".repeat(64),
+            "scope":"Authored real ownership prefix, no activation or completed player"});
+        virtual_init
+            .as_object_mut()
+            .unwrap()
+            .extend(links.as_object().unwrap().clone());
+        world["player_initialization"]["virtual_initialization"] = virtual_init;
         probe
     }
 
@@ -3098,7 +3270,11 @@ mod tests {
         )
         .unwrap();
         let player = &probe["window"]["game_session"]["active"]["world_initialization"]["player_initialization"];
-        assert_eq!(player.as_object().unwrap().len(), 75);
+        assert_eq!(player.as_object().unwrap().len(), 77);
+        assert_eq!(
+            player["virtual_initialization"].as_object().unwrap().len(),
+            27
+        );
         assert_eq!(player["selected_catalog_index"], 1);
         assert_eq!(player["player_created"], false);
         assert_eq!(player["operation_complete"], false);
@@ -3108,7 +3284,7 @@ mod tests {
     fn player_prelude_rejects_private_exports_invalid_counts_and_early_completion() {
         for (field, value) in [
             ("operation_complete", json!(true)),
-            ("physics_bound", json!(true)),
+            ("physics_bound", json!(false)),
             ("completion_published", json!(true)),
             ("player_created", json!(true)),
             ("camera_ready", json!(true)),
@@ -3123,7 +3299,8 @@ mod tests {
             ("requested_start_point_before", json!(2)),
             ("inventory_records", json!(0)),
             ("inventory_capacity", json!(0)),
-            ("world_items", json!(1)),
+            ("world_items", json!(0)),
+            ("actor_registrations", json!(2)),
             ("stage", json!("player_created")),
             ("pending_dependency", json!("none")),
             ("base_state_sha256", json!("X".repeat(64))),
@@ -3163,6 +3340,8 @@ mod tests {
             ("scratch_state_sha256", json!("X".repeat(64))),
             ("loadout_state_sha256", json!("short")),
             ("pose_bits", json!([0, 0, 0, 0])),
+            ("constructor_flag", Value::Null),
+            ("virtual_initialization", Value::Null),
             ("native_bytes", json!([1, 2, 3])),
         ] {
             let mut probe = player_probe_fixture();
@@ -3209,6 +3388,8 @@ mod tests {
             "inventory_selected_record",
             "scratch_state_sha256",
             "loadout_state_sha256",
+            "constructor_flag",
+            "virtual_initialization",
         ] {
             let mut probe = player_probe_fixture();
             probe["window"]["game_session"]["active"]["world_initialization"]["player_initialization"]
@@ -3232,6 +3413,114 @@ mod tests {
         assert_eq!(player["primary_order_keys"], 8);
         assert_eq!(player["inventory_primary_order_index"], 6);
         validate_player_initialization(player, world, snapshot).unwrap();
+    }
+
+    #[test]
+    fn virtual_owners_reject_broken_links_activation_invalid_registry_and_private_payloads() {
+        for (field, value) in [
+            ("factory_complete", json!(false)),
+            ("item_registry_bound", json!(false)),
+            ("actor_registered", json!(false)),
+            ("handler_bound", json!(false)),
+            ("origin_zone_queried", json!(false)),
+            ("physics_constructed", json!(false)),
+            ("physics_backlink_bound", json!(false)),
+            ("physics_activated", json!(true)),
+            ("initializer_complete", json!(true)),
+            ("item_registry_records", json!(0)),
+            ("item_registry_capacity", json!(0)),
+            ("item_registry_growth", json!(0)),
+            ("item_registry_counter", json!(0)),
+            ("item_registry_native_bytes", json!(127)),
+            ("item_registry_counter", json!(u64::from(u32::MAX) + 1)),
+            ("item_registry_host_capacity_bytes", json!(127)),
+            ("origin_zone_queries", json!(0)),
+            ("origin_zone_nodes", json!(0)),
+            ("item_membership", json!(0x3d)),
+            ("desired_membership", json!(0x2f)),
+            ("item_flags", json!(0x0b)),
+            ("item_priority", json!(0)),
+            ("stage", json!("complete")),
+            ("pending_dependency", json!("none")),
+            ("physics_state_sha256", json!("X".repeat(64))),
+            ("registry_state_sha256", json!("short")),
+            ("capsule", json!([1, 2, 3])),
+        ] {
+            let mut probe = player_probe_fixture();
+            let snapshot = &mut probe["window"]["game_session"]["active"];
+            snapshot["world_initialization"]["player_initialization"]["virtual_initialization"]
+                [field] = value;
+            let world = &snapshot["world_initialization"];
+            assert!(
+                validate_player_initialization(&world["player_initialization"], world, snapshot)
+                    .is_err(),
+                "{field}"
+            );
+        }
+        for (field, value) in [
+            ("origin", json!("player_994")),
+            ("raw", json!(256)),
+            ("changed", json!(1)),
+            ("interface_callbacks", json!(1)),
+            ("original_history_verified", json!(true)),
+            ("native_fields", json!([0, 0, 0, 0])),
+        ] {
+            let mut probe = player_probe_fixture();
+            let snapshot = &mut probe["window"]["game_session"]["active"];
+            snapshot["world_initialization"]["player_initialization"]["constructor_flag"][field] =
+                value;
+            let world = &snapshot["world_initialization"];
+            assert!(
+                validate_player_initialization(&world["player_initialization"], world, snapshot)
+                    .is_err(),
+                "{field}"
+            );
+        }
+    }
+
+    #[test]
+    fn unknown_current_flag_keeps_reset_only_state_with_retained_older_actors() {
+        let mut probe = player_probe_fixture();
+        let snapshot = &mut probe["window"]["game_session"]["active"];
+        let player = &mut snapshot["world_initialization"]["player_initialization"];
+        player["constructor_flag"] = Value::Null;
+        player["virtual_initialization"] = Value::Null;
+        player["stage"] = json!("player_reset_complete");
+        player["pending_dependency"] = json!("constructor_source_flag");
+        player["physics_bound"] = json!(false);
+        player["world_items"] = json!(3);
+        player["actor_registrations"] = json!(2);
+        let world = &snapshot["world_initialization"];
+        validate_player_initialization(&world["player_initialization"], world, snapshot).unwrap();
+        assert!(!validate_player_virtual_owners(&world["player_initialization"]).unwrap());
+        snapshot["world_initialization"]["player_initialization"]["physics_bound"] = json!(true);
+        let world = &snapshot["world_initialization"];
+        assert!(
+            validate_player_initialization(&world["player_initialization"], world, snapshot)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn retained_registry_and_actor_totals_can_include_older_complete_or_partial_items() {
+        let mut probe = player_probe_fixture();
+        let snapshot = &mut probe["window"]["game_session"]["active"];
+        let player = &mut snapshot["world_initialization"]["player_initialization"];
+        player["world_items"] = json!(3);
+        player["actor_registrations"] = json!(2);
+        let state = &mut player["virtual_initialization"];
+        state["item_registry_records"] = json!(2);
+        state["item_registry_counter"] = json!(3);
+        state["item_registry_host_capacity_bytes"] = json!(1024);
+        let world = &snapshot["world_initialization"];
+        validate_player_initialization(&world["player_initialization"], world, snapshot).unwrap();
+        snapshot["world_initialization"]["player_initialization"]["virtual_initialization"]["item_registry_records"] =
+            json!(4);
+        let world = &snapshot["world_initialization"];
+        assert!(
+            validate_player_initialization(&world["player_initialization"], world, snapshot)
+                .is_err()
+        );
     }
 
     #[test]

@@ -13,6 +13,10 @@ pub enum Stage {
     RuntimeResetPrefix,
     RuntimeResetTail,
     RuntimeResetComplete,
+    ConstructorFlagPrefix,
+    ConstructorFlagComplete,
+    VirtualItemBound,
+    VirtualMotionComplete,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Failure {
@@ -23,6 +27,7 @@ pub enum Failure {
     RuntimeGlobalFloat,
     RuntimeDescriptor,
     RuntimeGlobalByte,
+    ConstructorFlag,
 }
 
 /// Semantic bindings replace source vtable/string addresses. No source pointer
@@ -37,6 +42,7 @@ pub enum Binding {
     NestedContainer,
     EmptyString,
     SelfPlayer,
+    LinkedItem,
 }
 impl Binding {
     pub(super) fn raw(self) -> u32 {
@@ -49,6 +55,7 @@ impl Binding {
             Self::NestedContainer => 6,
             Self::EmptyString => 7,
             Self::SelfPlayer => 8,
+            Self::LinkedItem => 9,
         }
     }
 }

@@ -47,8 +47,14 @@ The remaining virtual reset now copies defaults through owned providers, clears
 the actual C18 buffer and performs the final sparse writes. The shared quad has
 an explicit pre-main constructor owner; the separate vector is read from local
 supplied DATA rather than embedded in source. A typed, matching-player completion
-proof finishes the shared reset lease. The enclosing player constructor still
-needs its incoming source flag before its next virtual initialization call.
+proof finishes the shared reset lease.
+
+The session now owns the matching per-user metadata flag independently of
+readiness bits and the player's own flag byte. Fresh metadata constructs it as
+zero; supplied unknown fields remain unknown. Request creation captures that
+value once, before construction. After reset, the real compare/store/conditional
+notification operation consumes the captured argument. Equality performs no
+write or interface lookup; an unsupported bound notification remains an error.
 
 Each player identity belongs to its creation generation, independently of the
 reused user slot. Interrupted constructors retain their reached shared count and
@@ -58,12 +64,22 @@ completed native destructor. A 128-lease host budget bounds retained partial
 attempts; closing cleanup is required before repeated creation is fully supported.
 
 The reset's completion does not authorize player publication. World actor
-membership and sparse physics ownership are also implemented as
-focused pure subsystems. Actor registration appends to the actor list while
+membership and sparse physics ownership are now connected to the virtual
+initializer. Actor registration appends to the actor list while
 membership changes insert at each bit-list head. Fresh items own five embedded
 and five extra membership nodes. Physics preserves unwritten fields and performs
 the source capsule calculation; an unavailable handler-kind input stops before
-activation. Neither subsystem substitutes for the preceding constructor work.
+activation. The wrapperless item factory also updates the actual persistent
+numeric-ID registry before it returns. Its counter increments before storage
+growth; a later failure preserves that prefix. The initial zone query uses the
+real constructor-origin item, before any selected StartPoint pose is applied.
+
+The controller arena retains actual player, item and physics objects, their
+registry rows and actor memberships across cancellation. Worker teardown leaves
+no item reference pointing at a dropped player. The global world is constructed
+once with the controller, rather than recreated on each load. Native removal and
+destructor/cache cleanup remain required; retained cancelled objects do not imply
+completed native lifetime behavior or active simulation.
 
 Player completion, TP/FP component initialization, camera/view setup and gameplay
 remain incomplete. The native checkpoint says **Preparing player**. Progress

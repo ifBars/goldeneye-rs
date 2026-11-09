@@ -45,6 +45,7 @@ pub struct PlayerAttempt {
     pub(super) selection: spawn::Selection,
     pub(super) pose: spawn::Pose,
     pub(super) dependency: PlayerDependency,
+    pub(super) source_flag_raw: Option<u8>,
 }
 impl PlayerAttempt {
     pub const fn attempt(self) -> AttemptId {
@@ -77,10 +78,10 @@ impl PlayerAttempt {
     pub const fn dependency(self) -> PlayerDependency {
         self.dependency
     }
-    /// The per-user metadata interface +0x26 producer remains unbound. Known
-    /// earlier EXItem/physics prefixes may execute before this input is read.
+    /// Same-user metadata+26 captured before construction. Its consumer follows
+    /// virtual reset and precedes virtual initialization/EXItem/physics work.
     pub const fn source_flag_raw(self) -> Option<u8> {
-        None
+        self.source_flag_raw
     }
 }
 
@@ -113,7 +114,7 @@ impl PlayerRequest {
         self.0.pose
     }
     pub const fn source_flag_raw(&self) -> Option<u8> {
-        None
+        self.0.source_flag_raw
     }
 }
 

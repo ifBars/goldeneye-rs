@@ -5,7 +5,7 @@ mod evidence;
 mod factory;
 mod navigation;
 pub(crate) mod post_trigger_resources;
-mod zones;
+pub(super) mod zones;
 
 use anyhow::{Context, Result, ensure};
 use ge_assets::{
@@ -33,8 +33,7 @@ pub(super) struct OwnedWorld {
     post_trigger_resources: Option<post_trigger_resources::Owned>,
     _world_hooks: super::world_hooks::Attempt,
     loader: Option<super::world_hooks::loader::Run>,
-    player: Option<super::player::Owned>,
-    player_world: ge_core::mission::player::world::World,
+    player: Option<ge_core::mission::player::identity::PlayerId>,
 }
 
 impl OwnedWorld {
@@ -46,17 +45,6 @@ impl OwnedWorld {
         world_hooks: super::world_hooks::Attempt,
         work: ge_core::mission::loader::work::WorkOwner,
     ) -> Result<Self> {
-        // Retain the actual fresh actor-list owner from world construction,
-        // rather than making a new empty list when a player is requested.
-        let player_world = ge_core::mission::player::world::World::from_constructor(
-            ge_core::mission::player::identity::WorldId::new(work.attempt().get())?,
-            1,
-            10,
-            ge_core::mission::player::world::Budget {
-                items: 65_536,
-                memberships: 32,
-            },
-        )?;
         let mut loader = world_hooks.start_loader(work)?;
         let mut resource_states = super::resource_states::Attempt::new(shared_resource_states);
         let mut definitions = super::actors::Definitions::bind(context)?;
@@ -257,7 +245,6 @@ impl OwnedWorld {
             _world_hooks: world_hooks,
             loader,
             player: None,
-            player_world,
         })
     }
 
@@ -321,32 +308,57 @@ impl OwnedWorld {
                     self.player.is_none(),
                     "player constructor has already been dispatched"
                 );
-                let player = super::player::Owned::build(
-                    request,
-                    operations,
-                    self.registry.catalog().len(),
-                    super::player::Bindings {
-                        session,
-                        mission: context,
-                        assets,
-                    },
-                    &mut self.definitions,
-                    &mut self._resource_states,
-                    &self._world_hooks,
-                )?;
-                self.evidence.player_initialization =
-                    Some(player.evidence(&self.player_world, &self._world_hooks)?);
+                let hook = &self._world_hooks;
+                let (player, evidence, dependency) = hook.with_player_actors(|actors| {
+                    let player = super::player::Owned::build(
+                        request,
+                        operations,
+                        self.registry.catalog().len(),
+                        super::player::Bindings {
+                            session,
+                            mission: context,
+                            assets,
+                        },
+                        &mut self.definitions,
+                        &mut self._resource_states,
+                        hook,
+                    )?;
+                    let id = player.identity();
+                    ensure!(
+                        !actors.players.contains_key(&id),
+                        "player identity is already retained"
+                    );
+                    // Install the real owner before any EXItem can reference it.
+                    // A later failure/cancellation preserves that owner and links.
+                    actors.players.insert(id, player);
+                    let player = actors.players.get_mut(&id).expect("just inserted player");
+                    player.initialize_virtual(
+                        context,
+                        &mut actors.world,
+                        &mut actors.registry,
+                        hook,
+                    )?;
+                    let evidence = player.evidence(&actors.world, &actors.registry, hook)?;
+                    Ok((id, evidence, player.dependency()))
+                })?;
+                self.evidence.player_initialization = Some(evidence);
                 self.player = Some(player);
-                session.record_player_dependency(
-                    binding,
-                    ge_core::mission::session::player_load::PlayerDependency::OwnerInitialization,
-                )?;
+                session.record_player_dependency(binding, dependency)?;
             }
-            ge_core::mission::session::player_load::PlayerAttemptOutcome::InProgress(_) => {
-                ensure!(
-                    self.player.is_some(),
-                    "player attempt lost its retained constructor owner"
-                );
+            ge_core::mission::session::player_load::PlayerAttemptOutcome::InProgress(attempt) => {
+                let id = self
+                    .player
+                    .context("player attempt lost its arena binding")?;
+                self._world_hooks.with_player_actors(|actors| {
+                    ensure!(
+                        actors
+                            .players
+                            .get(&id)
+                            .is_some_and(|player| player.matches_attempt(attempt)),
+                        "player attempt lost its actual matching retained owner"
+                    );
+                    Ok(())
+                })?;
             }
             ge_core::mission::session::player_load::PlayerAttemptOutcome::Gated(_) => {}
         }

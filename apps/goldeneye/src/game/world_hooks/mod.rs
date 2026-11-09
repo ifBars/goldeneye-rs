@@ -28,6 +28,7 @@ struct State {
 
 struct SharedState {
     state: Mutex<State>,
+    actors: Mutex<player::Actors>,
     current: AtomicU64,
 }
 
@@ -43,6 +44,7 @@ impl Shared {
             .expect("owned boot frame-clock constructor is infallible");
         let constructor_clock_reads = reset.total_reads();
         Self(Arc::new(SharedState {
+            actors: Mutex::new(player::Actors::from_constructor()),
             state: Mutex::new(State {
                 clock,
                 reset,

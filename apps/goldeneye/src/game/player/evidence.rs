@@ -1,10 +1,12 @@
 use super::Owned;
+mod owners;
 use crate::game::world_hooks::Attempt;
 use anyhow::{Result, ensure};
 use ge_core::mission::{
     player::{base_handler, world::World},
     spawn::SelectionResult,
 };
+pub use owners::{ConstructorFlag, VirtualInitialization};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
@@ -83,12 +85,22 @@ pub struct Evidence {
     pub reset_state_sha256: String,
     pub scratch_state_sha256: String,
     pub loadout_state_sha256: String,
+    pub constructor_flag: Option<ConstructorFlag>,
+    pub virtual_initialization: Option<VirtualInitialization>,
     pub state_sha256: String,
     pub scope: &'static str,
 }
-pub(super) fn build(owned: &Owned, world: &World, hook: &Attempt) -> Result<Evidence> {
+pub(super) fn build(
+    owned: &Owned,
+    world: &World,
+    registry: &ge_core::mission::player::item_registry::Registry,
+    hook: &Attempt,
+) -> Result<Evidence> {
     ensure!(
-        owned.base.stage() == base_handler::Stage::RuntimeResetComplete,
+        matches!(
+            owned.base.stage(),
+            base_handler::Stage::RuntimeResetComplete | base_handler::Stage::VirtualMotionComplete
+        ),
         "player base constructor has no complete receipt"
     );
     ensure!(
@@ -125,8 +137,7 @@ pub(super) fn build(owned: &Owned, world: &World, hook: &Attempt) -> Result<Evid
     let source = owned.loadout.provenance();
     ensure!(
         owned.reset.stage() == ge_core::mission::player::constructor::DerivedResetStage::Complete
-            && shared.reset_complete
-            && owned.request.source_flag_raw().is_none(),
+            && shared.reset_complete,
         "player reset completion or following constructor boundary differs"
     );
     let character = owned
@@ -139,11 +150,22 @@ pub(super) fn build(owned: &Owned, world: &World, hook: &Attempt) -> Result<Evid
             && selected.metadata_sorted_index == source.metadata_sorted_index,
         "player loadout retained binding differs from actual selection"
     );
+    let constructor_flag = owners::flag(owned)?;
+    let virtual_initialization = owners::virtual_init(owned, world, registry)?;
+    let virtual_reached = virtual_initialization.is_some();
     let mut result = Evidence {
         origin: "fresh_constructor_snapshot",
-        lifetime: "session_worker",
-        stage: "player_reset_complete",
-        pending_dependency: "constructor_source_flag",
+        lifetime: "controller_arena",
+        stage: if virtual_reached {
+            "player_physics_prefix_pending"
+        } else {
+            "player_reset_complete"
+        },
+        pending_dependency: if virtual_reached {
+            "handler_kind"
+        } else {
+            "constructor_source_flag"
+        },
         operation_complete: false,
         attempt_bound: true,
         catalog_bound: true,
@@ -199,7 +221,9 @@ pub(super) fn build(owned: &Owned, world: &World, hook: &Attempt) -> Result<Evid
         world_actor_lists: 1,
         world_membership_lists: world.membership_count(),
         actor_registrations: world.actors()?.len(),
-        physics_bound: false,
+        physics_bound: virtual_initialization
+            .as_ref()
+            .is_some_and(|state| state.physics_backlink_bound),
         completion_published: false,
         player_created: false,
         camera_ready: false,
@@ -213,11 +237,13 @@ pub(super) fn build(owned: &Owned, world: &World, hook: &Attempt) -> Result<Evid
         reset_state_sha256: reset,
         scratch_state_sha256: scratch.state_sha256,
         loadout_state_sha256: source.state_sha256.clone(),
+        constructor_flag,
+        virtual_initialization,
         state_sha256: String::new(),
-        scope: "The actual single-user attempt completes shared storage, the second base reset, persistent scratch preparation, retained character binding, default inventory admission/selection and the remaining derived virtual-reset writes. Supplied default-vector values remain in the local DATA owner; the shared reset quad uses an explicit pre-main constructor snapshot. Unknown early C54 is preserved through convergent weapon-value branches and cleared only by its later source store. The source user flag is still unbound, so constructor flag application, virtual initialization, EXItem/physics, TP/FP setup and completion remain pending. Cancelled constructors retain reached leases/backings until native cache cleanup is bound. No player, selected StartPoint pose or camera is published. Original history, timing and numeric parity remain unverified.",
+        scope: "The same-user metadata flag is captured before construction and consumed after the complete reset. The reached virtual initializer owns a wrapperless EXItem, persistent numeric registry and real actor membership, followed by sparse motion and physics capsule initialization. Actual player/item/physics owners remain in the controller arena across cancellation; no registry entry outlives its owner. The handler-kind input remains unknown, so physics activation and later initializer/TP/FP/completion/camera operations are not published. Constructor-origin and final selected-spawn queries remain separate; no spawn pose is applied early. Fresh ownership does not establish original history, scheduler timing or numeric parity.",
     };
     let mut digest = Sha256::new();
-    digest.update(b"ge_player_attempt_v3\0");
+    digest.update(b"ge_player_attempt_v4\0");
     for id in [
         owned.request.attempt().get(),
         owned.request.session().get(),
@@ -265,6 +291,13 @@ pub(super) fn build(owned: &Owned, world: &World, hook: &Attempt) -> Result<Evid
         &result.loadout_state_sha256,
     ] {
         digest.update(text.as_bytes());
+    }
+    for nested in [
+        serde_json::to_vec(&result.constructor_flag)?,
+        serde_json::to_vec(&result.virtual_initialization)?,
+    ] {
+        digest.update((nested.len() as u64).to_be_bytes());
+        digest.update(nested);
     }
     result.state_sha256 = format!("{:x}", digest.finalize());
     Ok(result)
