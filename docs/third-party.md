@@ -12,6 +12,8 @@ build host into THIRD_PARTY_NOTICES.md. `cargo xtask package` regenerates and
 includes that file with the executable. The generated document stays out of Git
 to avoid duplicating the same license texts throughout source history. Review
 the resolved dependency set again when distributing for another platform.
+Review the target toolchain and system-runtime terms before distributing binaries.
+Public CI publishes source-check reports, not executable packages.
 
 Some published crates omit their workspace-root licenses. The unmodified copies
 under [third-party/](../third-party/README.md) fill those gaps. That directory
