@@ -1,5 +1,6 @@
 //! The actual one-shot player constructor prefix on the retained CPU worker.
 //! The reset precedes still-required constructor flags and virtual initialization.
+pub(super) mod components;
 mod evidence;
 mod loadout;
 mod providers;
@@ -33,6 +34,7 @@ pub(super) struct Owned {
     loadout: loadout::Sources,
     flag: Option<base_handler::ConstructorFlagReceipt>,
     virtual_init: virtual_init::Owned,
+    components: components::Owned,
     operations: usize,
     catalog_entries: usize,
     rng_reads: usize,
@@ -133,6 +135,7 @@ impl Owned {
             loadout,
             flag,
             virtual_init: virtual_init::Owned::new(),
+            components: components::Owned::new(),
             operations,
             catalog_entries,
             rng_reads: provider.rng_reads,
@@ -194,5 +197,13 @@ impl Owned {
     ) -> Result<Evidence> {
         hook.ensure_current()?;
         evidence::build(self, world, registry, hook)
+    }
+    pub fn initialize_components(
+        &mut self,
+        sources: components::Sources<'_>,
+        world: &World,
+        hook: &world_hooks::Attempt,
+    ) -> Result<()> {
+        components::initialize(self, sources, world, hook)
     }
 }

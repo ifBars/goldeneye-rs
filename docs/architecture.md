@@ -39,6 +39,13 @@ errors instead of using stale constructor data. Independent activation and the
 basic session suffix execute in source order. That suffix counts actual retained
 kind2 member records, not the descriptor's local-user count. A typed basic return
 receipt remains separate from PlayerNew completion, TP/FP components and camera.
+The next TP entry repeats the required sparse clear and checks actual fresh
+cleanup gates before updating the same inventory's slot bytes. It constructs an
+owned animator, performs a direct visual lookup without consuming an actor cursor
+or RNG draw, and requests the skin through the existing resource wrapper. Shared
+payload and logical section records outlive cancelled workers when retained by a
+player. The post-trigger report remains scoped to its earlier operation. Texture
+dependencies still block skeleton binding, attachment and the subsequent FP call.
 The controller arena retains the actual player/item/physics owners and registry
 rows across worker cancellation. Its world/arena mutex is separate from manager
 state, so reached reset/configuration writes can use their original owners.

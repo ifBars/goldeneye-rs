@@ -146,6 +146,21 @@ impl Registry {
             .context("actor record ID is outside this registry")
     }
 
+    /// The ordinary unsigned primary-key branch, without consuming a group
+    /// cursor. Default/group/special references need their actual providers.
+    pub fn direct_record(&self, reference: u32, budget: LookupBudget) -> Result<Option<&Record>> {
+        ensure!(
+            reference >> 16 == 0x4d00
+                && reference as u16 >= 0x100
+                && !matches!(reference, 0x4d00_0102 | 0x4d00_01ac),
+            "direct actor lookup requires the ordinary primary-key branch"
+        );
+        Ok(bounded_find(self.records.len(), budget, |index| {
+            self.records[index].key().cmp(&reference)
+        })?
+        .map(|index| &self.records[index]))
+    }
+
     /// Lookup work is logarithmic and capped by host pointer width by default.
     pub fn selection_mut(&mut self, reference: u32) -> Result<Selection> {
         self.selection_with_budget(
@@ -252,3 +267,7 @@ fn bounded_find(
 #[cfg(test)]
 #[path = "tests/registry.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "tests/direct.rs"]
+mod direct_tests;

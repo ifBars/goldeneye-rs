@@ -73,6 +73,22 @@ impl Definitions {
         Ok(self.rng.draw_u32(source_rng::Budget { draws: 1_000_000 })? as u16)
     }
 
+    pub fn visual(
+        &self,
+        character: ge_core::mission::player::constructor::CharacterBinding,
+    ) -> Result<ge_core::mission::player::components::Visual> {
+        let record = self
+            .registry
+            .direct_record(
+                character.key,
+                runtime::LookupBudget {
+                    comparisons: usize::BITS as usize,
+                },
+            )?
+            .context("player visual needs the missing/default/special definition provider")?;
+        ge_core::mission::player::components::Visual::from_record(character, record)
+    }
+
     pub fn level_selector(&mut self, token: u32) -> Result<ProviderOutcome<LevelSelection>> {
         Ok(
             match self.level.select(

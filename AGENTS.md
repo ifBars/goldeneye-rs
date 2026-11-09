@@ -12,8 +12,10 @@ player constructor through shared allocations and its complete virtual reset,
 including scratch, character and default-inventory selection. The captured
 per-user flag now permits EXItem/actor registration, physics activation and the
 basic initializer's session suffix. The handler scalar retains captured unknown
-operands; its getter must fail until those inputs are resolved. TP/FP components,
-later initialization and gameplay remain
+operands; its getter must fail until those inputs are resolved. TP entry now owns
+the fresh cleanup, original inventory slots, animator constructor and actual skin
+request. Geometry/material texture dependencies must finish before skeleton
+binding, TP attachment or FP construction. Later initialization and gameplay remain
 incomplete. docs/player-creation.md describes the reached boundary.
 
 ## Source and asset boundaries

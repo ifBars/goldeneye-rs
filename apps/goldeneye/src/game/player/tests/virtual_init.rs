@@ -55,7 +55,7 @@ impl base_handler::ConstructorFlagProvider for Providers {
         anyhow::bail!("equal flag queried a provider")
     }
 }
-fn base(id: u64) -> base_handler::Owner {
+fn player_state(id: u64) -> (base_handler::Owner, PendingPrelude, PendingReset) {
     let mut p = Providers;
     let mut base = base_handler::Owner::new(PlayerId::new(id).unwrap());
     base.initialize_generic(&mut p).unwrap();
@@ -78,7 +78,7 @@ fn base(id: u64) -> base_handler::Owner {
     reset
         .bind_character(CharacterBinding {
             registry_resource: 0x0109_0013,
-            key: 0x4d00_0007,
+            key: 0x4d00_0307,
             source_index: 0,
         })
         .unwrap();
@@ -126,7 +126,10 @@ fn base(id: u64) -> base_handler::Owner {
     reset.finish_tail(&mut prelude, &mut p).unwrap();
     base.apply_constructor_flag(&reset.completion().unwrap(), 0, 0, &mut p)
         .unwrap();
-    base
+    (base, prelude, reset)
+}
+fn base(id: u64) -> base_handler::Owner {
+    player_state(id).0
 }
 fn world() -> World {
     World::from_constructor(
@@ -304,3 +307,6 @@ fn count_failure_retains_actual_activation_but_does_not_publish_basic_return() {
     );
     assert_eq!(environment.calls, before);
 }
+
+#[path = "component_preparation.rs"]
+mod component_preparation;

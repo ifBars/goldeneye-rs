@@ -91,6 +91,21 @@ that return. Completing this basic initializer does not complete PlayerNew or
 authorize player publication. The next source operation enters TP/FP setup; the
 actual visual skin dependencies and component owners still need to be connected.
 
+TP entry now performs its separate post-basic clear and checks the actual prior
+target and item component list. Fresh empty lists need no fabricated destructor
+calls. It applies the slot transition to the existing inventory, retaining raw
+high-bit slot values, before constructing the TP animator. Four slot headers are
+constructed while the active count remains one. Padding and the allocation bit
+preserved by the base constructor remain unknown.
+
+The visual row comes from direct primary-key lookup in the retained definition
+registry; it does not consume a group cursor or another random draw. Its file and
+skin feed a real target request through the existing resource wrapper. The
+player retains shared payload and logical section owners across cancellation.
+The MAX texture token requires geometry/material dependency enumeration, which
+is still pending. No empty texture list, diagnostic prewarm, TP attachment or FP
+constructor substitutes for that work.
+
 The controller arena retains actual player, item and physics objects, their
 registry rows and actor memberships across cancellation. Worker teardown leaves
 no item reference pointing at a dropped player. The global world is constructed

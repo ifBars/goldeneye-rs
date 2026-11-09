@@ -1,5 +1,6 @@
 //! Actual fresh inventory container/admission and bounded normal slot selection.
 //! Remaining PlayerNew reset operations, components and publication are separate.
+mod components;
 mod pose;
 use anyhow::{Context, Result, ensure};
 pub use pose::PoseInputs;

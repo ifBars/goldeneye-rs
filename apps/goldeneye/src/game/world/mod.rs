@@ -339,6 +339,19 @@ impl OwnedWorld {
                         &mut actors.registry,
                         hook,
                     )?;
+                    player.initialize_components(
+                        super::player::components::Sources {
+                            session,
+                            definitions: &self.definitions,
+                            resources: self
+                                .post_trigger_resources
+                                .as_mut()
+                                .context("player resource owner is absent")?,
+                            assets,
+                        },
+                        &actors.world,
+                        hook,
+                    )?;
                     let evidence = player.evidence(&actors.world, &actors.registry, hook)?;
                     Ok((id, evidence, player.dependency()))
                 })?;

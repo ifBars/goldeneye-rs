@@ -1,5 +1,6 @@
 //! Reached derived reset writes before the shared scratch-capacity operation.
 //! This owns only known bytes; the rest of the player remains uninitialized.
+mod components;
 mod selection;
 mod tail;
 use super::super::{base_handler, identity::PlayerId};

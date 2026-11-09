@@ -1,7 +1,9 @@
 use super::Owned;
+mod components;
 mod owners;
 use crate::game::world_hooks::Attempt;
 use anyhow::{Result, ensure};
+pub use components::ComponentInitialization;
 use ge_core::mission::{
     player::{base_handler, world::World},
     spawn::SelectionResult,
@@ -87,6 +89,7 @@ pub struct Evidence {
     pub loadout_state_sha256: String,
     pub constructor_flag: Option<ConstructorFlag>,
     pub virtual_initialization: Option<VirtualInitialization>,
+    pub component_initialization: Option<ComponentInitialization>,
     pub state_sha256: String,
     pub scope: &'static str,
 }
@@ -152,6 +155,7 @@ pub(super) fn build(
     );
     let constructor_flag = owners::flag(owned)?;
     let virtual_initialization = owners::virtual_init(owned, world, registry)?;
+    let component_initialization = components::build(owned, world)?;
     let virtual_reached = virtual_initialization.is_some();
     let mut result = Evidence {
         origin: "fresh_constructor_snapshot",
@@ -162,7 +166,7 @@ pub(super) fn build(
             "player_reset_complete"
         },
         pending_dependency: if virtual_reached {
-            "tp_fp_components"
+            "skin_texture_dependencies"
         } else {
             "constructor_source_flag"
         },
@@ -239,11 +243,12 @@ pub(super) fn build(
         loadout_state_sha256: source.state_sha256.clone(),
         constructor_flag,
         virtual_initialization,
+        component_initialization,
         state_sha256: String::new(),
-        scope: "The captured same-user flag is consumed after the complete reset. The actual PlayerBasic initializer retains its EXItem, numeric registry, actor/physics owners and activation, then counts registered kind2 session records and returns its typed receipt. Unknown handler input remains an unresolved time-local physics scalar; no value is guessed. The controller arena preserves reached owners across cancellation. PlayerNew, TP/FP components, completion and camera remain pending. Constructor-origin and selected-spawn queries stay separate; no selected pose is applied early. Fresh ownership does not establish original history, timing or numeric parity.",
+        scope: "The actual reset and PlayerBasic return precede TP entry. The same inventory and sparse PlayerNew fields receive cleanup and slot writes; the TP allocation and direct visual plan precede an actual shared-wrapper skin request. Geometry/material texture dependencies still block skeleton binding, TP attachment and the FP call. Unknown physics operands remain captured and unreadable. Retained owners survive cancellation. PlayerNew completion, selected spawn placement and camera remain pending. Fresh ownership does not establish original history, timing or numeric parity.",
     };
     let mut digest = Sha256::new();
-    digest.update(b"ge_player_attempt_v4\0");
+    digest.update(b"ge_player_attempt_v5\0");
     for id in [
         owned.request.attempt().get(),
         owned.request.session().get(),
@@ -295,6 +300,7 @@ pub(super) fn build(
     for nested in [
         serde_json::to_vec(&result.constructor_flag)?,
         serde_json::to_vec(&result.virtual_initialization)?,
+        serde_json::to_vec(&result.component_initialization)?,
     ] {
         digest.update((nested.len() as u64).to_be_bytes());
         digest.update(nested);

@@ -983,6 +983,70 @@ fn validate_player_virtual_owners(player: &Value) -> Result<bool> {
     Ok(true)
 }
 
+fn validate_player_components(component: &Value, reached: bool) -> Result<()> {
+    if !reached {
+        ensure!(
+            component.is_null(),
+            "reset-only attempt cannot own a component receipt"
+        );
+        return Ok(());
+    }
+    closed(
+        component,
+        &[
+            "stage",
+            "pending_dependency",
+            "native_component_bytes",
+            "constructed_slots",
+            "active_slots",
+            "retained_file_bytes",
+            "retained_section_bytes",
+            "third_person_constructed",
+            "third_person_attached",
+            "first_person_constructed",
+            "skin_request_resolved",
+            "texture_dependencies_enumerated",
+            "component_binding_complete",
+            "preparation_state_sha256",
+            "target_state_sha256",
+            "scope",
+        ],
+    )?;
+    ensure!(
+        component["stage"] == "tp_texture_dependencies_pending"
+            && component["pending_dependency"] == "skin_texture_dependencies"
+            && component["native_component_bytes"] == 0x1b8
+            && component["constructed_slots"] == 4
+            && component["active_slots"] == 1
+            && component["third_person_constructed"] == true
+            && component["skin_request_resolved"] == true
+            && [
+                "third_person_attached",
+                "first_person_constructed",
+                "texture_dependencies_enumerated",
+                "component_binding_complete"
+            ]
+            .into_iter()
+            .all(|field| component[field] == false)
+            && (0xc8..=64 * 1024 * 1024).contains(&count(component, "retained_file_bytes")?)
+            && count(component, "retained_section_bytes")?
+                <= count(component, "retained_file_bytes")?
+            && ["preparation_state_sha256", "target_state_sha256"]
+                .into_iter()
+                .all(|field| component[field]
+                    .as_str()
+                    .is_some_and(|hash| hash.len() == 64
+                        && hash
+                            .bytes()
+                            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))))
+            && component["scope"]
+                .as_str()
+                .is_some_and(|scope| !scope.is_empty() && scope.len() <= 4096),
+        "component constructor/residency evidence is contradictory"
+    );
+    Ok(())
+}
+
 fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Value) -> Result<()> {
     if player.is_null() {
         return Ok(());
@@ -1000,6 +1064,7 @@ fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Valu
             "scope",
             "constructor_flag",
             "virtual_initialization",
+            "component_initialization",
         ])
         .collect();
     closed(player, &fields)?;
@@ -1013,12 +1078,13 @@ fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Valu
         );
     }
     let virtual_reached = validate_player_virtual_owners(player)?;
+    validate_player_components(&player["component_initialization"], virtual_reached)?;
     ensure!(
         player["origin"] == "fresh_constructor_snapshot"
             && player["lifetime"] == "controller_arena"
             && (if virtual_reached {
                 player["stage"] == "player_components_pending"
-                    && player["pending_dependency"] == "tp_fp_components"
+                    && player["pending_dependency"] == "skin_texture_dependencies"
             } else {
                 player["stage"] == "player_reset_complete"
                     && player["pending_dependency"] == "constructor_source_flag"
@@ -3208,7 +3274,7 @@ mod tests {
         world["actor_definitions"]["rng_draws"] = json!(2);
         world["player_initialization"] = json!({
             "origin":"fresh_constructor_snapshot","lifetime":"controller_arena","stage":"player_components_pending",
-            "pending_dependency":"tp_fp_components","operation_complete":false,"attempt_bound":true,"catalog_bound":true,
+            "pending_dependency":"skin_texture_dependencies","operation_complete":false,"attempt_bound":true,"catalog_bound":true,
             "operation_entries":0,"creation_dispatches":1,"catalog_entries":2,"selected_catalog_index":1,"selected_source_ordinal":4,
             "requested_start_point_before":1,"requested_start_point_after":1,"base_constructor_complete":true,
             "handler_rng_reads":1,"base_reset_calls":2,"persistent_base_resets":2,"handler_kind_bound":false,"inventory_records":1,"inventory_capacity":16,
@@ -3257,6 +3323,14 @@ mod tests {
             .unwrap()
             .extend(links.as_object().unwrap().clone());
         world["player_initialization"]["virtual_initialization"] = virtual_init;
+        world["player_initialization"]["component_initialization"] = json!({
+            "stage":"tp_texture_dependencies_pending","pending_dependency":"skin_texture_dependencies",
+            "native_component_bytes":0x1b8,"constructed_slots":4,"active_slots":1,
+            "retained_file_bytes":1024,"retained_section_bytes":256,
+            "third_person_constructed":true,"third_person_attached":false,"first_person_constructed":false,
+            "skin_request_resolved":true,"texture_dependencies_enumerated":false,"component_binding_complete":false,
+            "preparation_state_sha256":"d".repeat(64),"target_state_sha256":"e".repeat(64),
+            "scope":"Authored TP allocation and retained skin request; textures and attachment remain pending"});
         probe
     }
 
@@ -3272,7 +3346,7 @@ mod tests {
         )
         .unwrap();
         let player = &probe["window"]["game_session"]["active"]["world_initialization"]["player_initialization"];
-        assert_eq!(player.as_object().unwrap().len(), 77);
+        assert_eq!(player.as_object().unwrap().len(), 78);
         assert_eq!(
             player["virtual_initialization"].as_object().unwrap().len(),
             29
@@ -3483,12 +3557,43 @@ mod tests {
     }
 
     #[test]
+    fn tp_component_evidence_rejects_attachment_texture_and_private_payload_shortcuts() {
+        for (field, value) in [
+            ("third_person_constructed", json!(false)),
+            ("third_person_attached", json!(true)),
+            ("first_person_constructed", json!(true)),
+            ("skin_request_resolved", json!(false)),
+            ("texture_dependencies_enumerated", json!(true)),
+            ("component_binding_complete", json!(true)),
+            ("native_component_bytes", json!(0)),
+            ("constructed_slots", json!(1)),
+            ("active_slots", json!(4)),
+            ("retained_file_bytes", json!(0)),
+            ("retained_section_bytes", json!(2048)),
+            ("target_state_sha256", json!("short")),
+            ("source_rows", json!([1, 2, 3])),
+        ] {
+            let mut probe = player_probe_fixture();
+            let snapshot = &mut probe["window"]["game_session"]["active"];
+            snapshot["world_initialization"]["player_initialization"]["component_initialization"]
+                [field] = value;
+            let world = &snapshot["world_initialization"];
+            assert!(
+                validate_player_initialization(&world["player_initialization"], world, snapshot)
+                    .is_err(),
+                "{field}"
+            );
+        }
+    }
+
+    #[test]
     fn unknown_current_flag_keeps_reset_only_state_with_retained_older_actors() {
         let mut probe = player_probe_fixture();
         let snapshot = &mut probe["window"]["game_session"]["active"];
         let player = &mut snapshot["world_initialization"]["player_initialization"];
         player["constructor_flag"] = Value::Null;
         player["virtual_initialization"] = Value::Null;
+        player["component_initialization"] = Value::Null;
         player["stage"] = json!("player_reset_complete");
         player["pending_dependency"] = json!("constructor_source_flag");
         player["physics_bound"] = json!(false);

@@ -1,9 +1,9 @@
 use super::*;
 use ge_core::mission::{actor_definitions as actors, catalog};
 
-const FILE: u32 = 0x0100_0041;
-const SKIN: u32 = 0x0d00_0101;
-const TEXTURE: u32 = 0x0600_0101;
+pub(super) const FILE: u32 = 0x0100_0041;
+pub(super) const SKIN: u32 = 0x0d00_0101;
+pub(super) const TEXTURE: u32 = 0x0600_0101;
 
 fn word(data: &mut [u8], at: usize, value: u32) {
     data[at..at + 4].copy_from_slice(&value.to_be_bytes());
@@ -17,7 +17,7 @@ fn table(data: &mut [u8], index: usize, count: u16, at: usize) {
     half(data, field + 2, count);
     word(data, field + 4, (at as i32 - (field + 4) as i32) as u32);
 }
-fn bytes() -> Vec<u8> {
+pub(super) fn bytes() -> Vec<u8> {
     let mut data = vec![0; 0x300];
     word(&mut data, 0, 0x4745_4f4d);
     word(&mut data, 4, FILE);
@@ -42,7 +42,7 @@ fn bytes() -> Vec<u8> {
     data[0x220..0x230].copy_from_slice(b"authored payload");
     data
 }
-fn operation(first: u32, second: u32) -> Operation {
+pub(super) fn operation(first: u32, second: u32) -> Operation {
     let mut definition = [0; 17];
     definition[0] = 0x4d00_0101;
     definition[1] = 1;

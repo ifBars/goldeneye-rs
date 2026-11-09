@@ -1,12 +1,15 @@
 //! The next source world hook, backed by actual synchronous supplied-data
 //! residency. This owner does not model the original streaming scheduler.
 mod evidence;
+mod targets;
+pub(crate) use targets::Target;
 
 use anyhow::{Context, Result, ensure};
 use ge_assets::{edb::Edb, resource::GameAssets, target_section};
 use ge_core::mission::post_trigger::{Operation, Request, TailReset};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 pub use evidence::Evidence;
 
@@ -19,8 +22,8 @@ struct Section {
 }
 
 struct File {
-    edb: Edb,
-    sections: Vec<Section>,
+    edb: Arc<Edb>,
+    sections: Vec<Arc<Section>>,
 }
 
 struct Resolution {
@@ -96,7 +99,8 @@ impl Owned {
     }
 
     pub fn evidence(&self) -> &Evidence {
-        debug_assert_eq!(self.files.len(), self.evidence.retained_files);
+        // The evidence is scoped to this finished source hook. Later player
+        // requests reuse these actual wrappers without rewriting that snapshot.
         debug_assert_eq!(self.returned.len(), self.evidence.ordered_requests);
         debug_assert_eq!(self.operation.tail_reset(), Some(self.tail));
         &self.evidence
@@ -119,7 +123,7 @@ fn resolve(
             "post-trigger file owner differs"
         );
         entry.insert(File {
-            edb,
+            edb: Arc::new(edb),
             sections: Vec::new(),
         });
     }
@@ -170,13 +174,13 @@ fn resolve(
                 "post-trigger retained section identity changed"
             );
         } else {
-            file.sections.push(Section {
+            file.sections.push(Arc::new(Section {
                 index: target.section_index(),
                 key: target.key(),
                 start: span.start,
                 end: span.end,
                 sha256: Sha256::digest(payload).into(),
-            });
+            }));
         }
     }
     Ok(resolution)

@@ -1,0 +1,173 @@
+use super::*;
+use ge_core::mission::player::components::{self, Preparation};
+
+#[derive(Default)]
+struct EntryProvider {
+    fail: bool,
+    calls: Vec<&'static str>,
+}
+impl components::Provider for EntryProvider {
+    fn session_manager_present(&mut self) -> Result<bool> {
+        self.calls.push("manager");
+        ensure!(!self.fail, "authored missing provider");
+        Ok(true)
+    }
+    fn mark_interface_dirty(&mut self, _: u32) -> Result<()> {
+        self.calls.push("dirty");
+        anyhow::bail!("constructor NULL must skip notifications")
+    }
+}
+
+#[test]
+fn actual_basic_return_enters_tp_with_same_inventory_and_preserves_deferred_physics() {
+    let (mut base, mut prelude, mut reset) = player_state(44);
+    let mut world = world();
+    let mut registry = Registry::from_constructor();
+    let mut init = Owned::new();
+    init.initialize(
+        &mut base,
+        &mut world,
+        &mut registry,
+        &mut Environment::default(),
+    )
+    .unwrap();
+    let receipt = init.completion().unwrap();
+    let item = world.item(receipt.item()).unwrap();
+    let inventory_before = prelude.inventory().records().to_vec();
+    let selection_before = prelude.inventory().selection();
+    let mut preparation = Preparation::new();
+    let mut provider = EntryProvider::default();
+    preparation
+        .prepare(
+            components::Bindings {
+                base: &base,
+                basic: receipt,
+                reset: &mut reset,
+                prelude: &mut prelude,
+                item,
+            },
+            &mut provider,
+        )
+        .unwrap();
+    assert_eq!(preparation.stage(), components::Stage::AwaitingVisual);
+    assert_eq!(provider.calls, ["manager"]);
+    assert_eq!(prelude.inventory().records(), inventory_before);
+    assert_eq!(prelude.inventory().selection(), selection_before);
+    assert_eq!(prelude.inventory().slots().c55, Some(0xff));
+    assert_eq!(reset.byte(0xc97), prelude.inventory().slots().c96);
+    for at in [0xafc, 0xb00, 0xaf8, 0x70c, 0x710, 0x714, 0x718] {
+        assert_eq!(reset.word(at), Some(0));
+    }
+    assert!((0xfec..0x1150).all(|at| reset.byte(at) == Some(0)));
+    assert_eq!(preparation.animator().unwrap().player(), base.player());
+    assert_eq!(preparation.animator().unwrap().word(0x114), Some(0));
+    assert!(item.components().is_empty()); // allocation has not attached a component
+    assert!(init.physics().unwrap().handler_scalar_bits().is_err());
+    assert!(
+        preparation
+            .prepare(
+                components::Bindings {
+                    base: &base,
+                    basic: receipt,
+                    reset: &mut reset,
+                    prelude: &mut prelude,
+                    item
+                },
+                &mut provider
+            )
+            .is_err()
+    );
+    assert_eq!(provider.calls, ["manager"]);
+    assert!(
+        preparation
+            .skin_requested(0x0100_0001, 0x0d00_0001)
+            .is_err()
+    );
+    let character = reset.character().unwrap();
+    let mut words = [0; 17];
+    words[0] = character.key;
+    words[1] = u32::MAX;
+    words[6] = 0x0100_0029;
+    words[7] = 0x0d00_0051;
+    words[10] = u32::MAX;
+    let definitions = ge_core::mission::actor_definitions::Registry::build(
+        vec![ge_core::mission::actor_definitions::Primary {
+            source_index: 9,
+            words,
+        }],
+        ge_core::mission::actor_definitions::Budget {
+            rows: 1,
+            groups: 0,
+            members: 0,
+        },
+    )
+    .unwrap();
+    let visual = components::Visual::from_record(character, &definitions.records()[0]).unwrap();
+    preparation.bind_visual(visual).unwrap();
+    assert!(
+        preparation
+            .skin_requested(0x0100_0029, 0x0d00_0052)
+            .is_err()
+    );
+    assert_eq!(preparation.stage(), components::Stage::AwaitingResidency);
+    preparation
+        .skin_requested(visual.file(), visual.skin())
+        .unwrap();
+    assert_eq!(preparation.stage(), components::Stage::AwaitingTextures);
+    assert!(item.components().is_empty());
+}
+
+#[test]
+fn cleanup_provider_failure_stops_before_late_fields_and_tp_allocation_without_replay() {
+    let (mut base, mut prelude, mut reset) = player_state(45);
+    let mut world = world();
+    let mut registry = Registry::from_constructor();
+    let mut init = Owned::new();
+    init.initialize(
+        &mut base,
+        &mut world,
+        &mut registry,
+        &mut Environment::default(),
+    )
+    .unwrap();
+    let receipt = init.completion().unwrap();
+    let item = world.item(receipt.item()).unwrap();
+    let mut preparation = Preparation::new();
+    let mut provider = EntryProvider {
+        fail: true,
+        ..EntryProvider::default()
+    };
+    assert!(
+        preparation
+            .prepare(
+                components::Bindings {
+                    base: &base,
+                    basic: receipt,
+                    reset: &mut reset,
+                    prelude: &mut prelude,
+                    item
+                },
+                &mut provider
+            )
+            .is_err()
+    );
+    assert_eq!(preparation.stage(), components::Stage::Failed);
+    assert!(preparation.animator().is_none());
+    assert_eq!(reset.word(0x70c), None);
+    assert_eq!(init.physics().unwrap().byte(0x1ff), Some(1));
+    assert!(
+        preparation
+            .prepare(
+                components::Bindings {
+                    base: &base,
+                    basic: receipt,
+                    reset: &mut reset,
+                    prelude: &mut prelude,
+                    item
+                },
+                &mut provider
+            )
+            .is_err()
+    );
+    assert_eq!(provider.calls, ["manager"]);
+}
