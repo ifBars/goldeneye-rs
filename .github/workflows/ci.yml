@@ -14,6 +14,7 @@ jobs:
         run: python tools/check-source.py
       - uses: dtolnay/rust-toolchain@stable
         with:
+          toolchain: '1.97.1'
           components: rustfmt, clippy, llvm-tools-preview
       - uses: Swatinem/rust-cache@v2
       - name: Format, lint, tests and release build
