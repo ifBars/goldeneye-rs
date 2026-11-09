@@ -1,0 +1,23 @@
+[package]
+name = "goldeneye"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+ge-assets = { path = "../../crates/ge-assets" }
+ge-core = { path = "../../crates/ge-core" }
+serde_json.workspace = true
+sha2.workspace = true
+png.workspace = true
+ge-render={path="../../crates/ge-render"}
+pollster.workspace=true
+wgpu.workspace = true
+winit.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+cpal.workspace = true

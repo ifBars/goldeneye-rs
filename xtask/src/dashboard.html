@@ -1,0 +1,2015 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>GoldenEye · Project status</title>
+    <style>
+      :root {
+        --paper: #f5f4ef;
+        --ink: #22241f;
+        --muted: #66695e;
+        --line: #d9dbd2;
+        --accent: #91651b;
+        --soft: #ebe6d8;
+        --side: #20241f;
+        --white: #fff;
+        --mono: Consolas, "Cascadia Code", monospace;
+        font-family: "Segoe UI", Arial, sans-serif;
+        color: var(--ink);
+        background: var(--paper);
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+        scroll-padding-top: 30px;
+      }
+      body {
+        margin: 0;
+        font-size: 14px;
+        line-height: 1.55;
+      }
+      a {
+        color: inherit;
+      }
+      a:focus-visible,
+      button:focus-visible,
+      select:focus-visible,
+      input:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 4px;
+      }
+      aside {
+        position: fixed;
+        inset: 0 auto 0 0;
+        width: 222px;
+        padding: 38px 25px;
+        background: var(--side);
+        color: #f0f0e9;
+        display: flex;
+        flex-direction: column;
+      }
+      .brand {
+        font-weight: 650;
+        font-size: 25px;
+        letter-spacing: -1px;
+        line-height: 1.1;
+      }
+      .brand span {
+        display: block;
+        color: #b7bbaa;
+        font-size: 11px;
+        letter-spacing: 2.5px;
+        margin-top: 12px;
+        font-weight: 400;
+      }
+      nav {
+        display: grid;
+        gap: 4px;
+        margin-top: 60px;
+      }
+      nav a {
+        text-decoration: none;
+        color: #c2c6ba;
+        padding: 11px 12px;
+        border-left: 2px solid transparent;
+      }
+      nav a:hover {
+        color: white;
+        background: #30352c;
+        border-left-color: #c9ad72;
+      }
+      .aside-foot {
+        margin-top: auto;
+        font-size: 12px;
+        color: #b4b8aa;
+      }
+      .aside-foot code {
+        display: block;
+        margin: 10px 0;
+        color: #e0c891;
+      }
+      main {
+        margin-left: 222px;
+        padding: 32px 48px 70px;
+        max-width: 1700px;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding-bottom: 26px;
+        border-bottom: 1px solid var(--line);
+        gap: 20px;
+      }
+      .eyebrow {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1.7px;
+        color: var(--muted);
+      }
+      h1 {
+        font-size: 29px;
+        font-weight: 600;
+        letter-spacing: -1px;
+        margin: 5px 0;
+      }
+      h2 {
+        font-size: 19px;
+        font-weight: 600;
+        letter-spacing: -0.4px;
+        margin: 0;
+      }
+      h3 {
+        font-size: 14px;
+        font-weight: 600;
+        margin: 0;
+      }
+      .meta {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .meta code {
+        font: 11px var(--mono);
+      }
+      .snapshot {
+        text-align: right;
+      }
+      .status {
+        display: inline-block;
+        font-size: 11px;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+        border: 1px solid var(--line);
+        padding: 3px 7px;
+        white-space: nowrap;
+      }
+      .status.passed {
+        color: #3d5832;
+        border-color: #a1b497;
+      }
+      .status.failed {
+        color: #9e2929;
+        border-color: #d7a8a8;
+      }
+      .status.stale,
+      .status.partial,
+      .status.in_progress {
+        color: var(--accent);
+        border-color: #cdb98d;
+      }
+      .notice {
+        border-left: 3px solid var(--accent);
+        padding: 8px 16px;
+        margin: 27px 0;
+        color: #56574d;
+        background: var(--soft);
+        font-size: 13px;
+      }
+      .metrics {
+        display: grid;
+        grid-template-columns: 1.2fr 1fr 1fr;
+        gap: 34px;
+        padding: 16px 0 32px;
+      }
+      .menu-checkpoint {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 16px 32px;
+        padding: 22px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .menu-checkpoint .sub {
+        max-width: 760px;
+      }
+      .menu-measurement {
+        text-align: right;
+      }
+      .menu-measurement .number {
+        margin-top: 0;
+      }
+      .metric + .metric {
+        border-left: 1px solid var(--line);
+        padding-left: 32px;
+      }
+      .label {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .number {
+        font-size: 58px;
+        line-height: 1.2;
+        letter-spacing: -3px;
+        font-weight: 350;
+        margin: 10px 0 4px;
+      }
+      .number small {
+        font-size: 28px;
+        letter-spacing: -1px;
+      }
+      .sub {
+        color: var(--muted);
+        font-size: 12px;
+        max-width: 320px;
+      }
+      .section {
+        border-top: 1px solid var(--line);
+        padding-top: 25px;
+        margin-top: 16px;
+      }
+      .section-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 20px;
+        margin-bottom: 20px;
+      }
+      .charts {
+        display: grid;
+        grid-template-columns: 1.3fr 1fr;
+        gap: 45px;
+      }
+      .chart-wrap {
+        min-width: 0;
+      }
+      .chart-title {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin: 0 0 15px;
+      }
+      svg {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      .axis {
+        font: 10px var(--mono);
+        fill: var(--muted);
+      }
+      .grid {
+        stroke: var(--line);
+        stroke-width: 1;
+      }
+      .chart-line {
+        stroke: var(--accent);
+        stroke-width: 2;
+        fill: none;
+      }
+      .chart-dot {
+        fill: var(--accent);
+        stroke: var(--paper);
+        stroke-width: 2;
+      }
+      .chart-line.implementation { stroke: #38695d; stroke-dasharray: 6 3; }
+      .chart-dot.implementation { fill: #38695d; }
+      .chart-line.coverage { stroke: #6a5991; stroke-dasharray: 2 3; }
+      .chart-dot.coverage { fill: #6a5991; }
+      .swatch.implementation { background: #38695d; }
+      .swatch.coverage { background: #6a5991; }
+      .bars {
+        display: grid;
+        gap: 10px;
+        margin-top: 20px;
+      }
+      .bar-row {
+        display: grid;
+        grid-template-columns: 95px 1fr 50px;
+        align-items: center;
+        gap: 10px;
+        font-size: 12px;
+      }
+      .bar-track {
+        height: 5px;
+        background: #e0e2d9;
+        display: flex;
+        overflow: hidden;
+      }
+      .bar-done {
+        background: var(--accent);
+      }
+      .bar-working {
+        background: #c9b992;
+      }
+      .bar-count {
+        font: 11px var(--mono);
+        text-align: right;
+        color: var(--muted);
+      }
+      .legend {
+        font-size: 11px;
+        color: var(--muted);
+        display: flex;
+        gap: 18px;
+        margin-top: 17px;
+      }
+      .swatch {
+        width: 8px;
+        height: 8px;
+        display: inline-block;
+        margin-right: 6px;
+        background: var(--accent);
+      }
+      .swatch.working {
+        background: #c9b992;
+      }
+      .toolbar {
+        display: flex;
+        gap: 12px;
+        margin: 18px 0;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      input,
+      select,
+      button {
+        font: inherit;
+        color: var(--ink);
+        background: transparent;
+        border: 1px solid #bbbfb2;
+        border-radius: 0;
+        padding: 8px 10px;
+      }
+      input {
+        width: 290px;
+        max-width: 100%;
+      }
+      select {
+        max-width: 100%;
+      }
+      button {
+        cursor: pointer;
+      }
+      button:hover {
+        background: var(--soft);
+      }
+      .table-wrap {
+        overflow: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+      }
+      th {
+        font-weight: 500;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: var(--muted);
+        padding: 12px 12px 12px 0;
+        border-bottom: 1px solid #aeb3a3;
+      }
+      td {
+        padding: 14px 16px 14px 0;
+        border-bottom: 1px solid var(--line);
+        font-size: 13px;
+        vertical-align: top;
+      }
+      td:first-child {
+        min-width: 100px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      td:nth-child(2) {
+        min-width: 190px;
+      }
+      td:last-child {
+        padding-right: 0;
+      }
+      td .acceptance {
+        color: var(--muted);
+        font-size: 12px;
+        max-width: 580px;
+        margin-top: 3px;
+      }
+      .criterion-id {
+        font: 10px var(--mono);
+        color: var(--muted);
+        margin-top: 3px;
+      }
+      .evidence {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 40px;
+      }
+      .gate {
+        display: flex;
+        justify-content: space-between;
+        gap: 15px;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--line);
+        align-items: center;
+      }
+      .gate .meta {
+        font-size: 11px;
+      }
+      .command {
+        font: 12px var(--mono);
+        padding: 12px 0;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        justify-content: space-between;
+        gap: 15px;
+      }
+      .command span {
+        font:
+          12px "Segoe UI",
+          Arial,
+          sans-serif;
+        color: var(--muted);
+        text-align: right;
+      }
+      .next {
+        font-size: 17px;
+        max-width: 700px;
+        line-height: 1.5;
+        margin: 14px 0 24px;
+      }
+      footer {
+        border-top: 1px solid var(--line);
+        margin-top: 35px;
+        padding-top: 20px;
+        display: flex;
+        justify-content: space-between;
+        color: var(--muted);
+        font-size: 11px;
+        gap: 20px;
+      }
+      footer a {
+        margin-left: 14px;
+      }
+      .empty {
+        padding: 20px 0;
+        color: var(--muted);
+      }
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+      @media (min-width: 1500px) {
+        main {
+          padding-left: 65px;
+          padding-right: 65px;
+        }
+      }
+      @media (max-width: 1100px) {
+        aside {
+          width: 180px;
+          padding: 30px 18px;
+        }
+        main {
+          margin-left: 180px;
+          padding: 25px;
+        }
+        .charts,
+        .evidence {
+          gap: 25px;
+        }
+        .metrics {
+          gap: 20px;
+        }
+        .metric + .metric {
+          padding-left: 20px;
+        }
+        .number {
+          font-size: 48px;
+        }
+      }
+      @media (max-width: 800px) {
+        aside {
+          position: static;
+          width: auto;
+          padding: 20px 24px;
+          display: block;
+        }
+        .brand {
+          font-size: 22px;
+        }
+        .brand span {
+          display: inline;
+          margin-left: 15px;
+        }
+        nav {
+          display: flex;
+          gap: 10px;
+          margin-top: 20px;
+          overflow: auto;
+        }
+        nav a {
+          padding: 5px 0;
+          margin-right: 15px;
+          border: 0;
+          white-space: nowrap;
+        }
+        .aside-foot {
+          display: none;
+        }
+        main {
+          margin: 0;
+          padding: 24px;
+        }
+        .charts,
+        .evidence {
+          grid-template-columns: 1fr;
+        }
+        .metrics {
+          gap: 15px;
+        }
+        .metric + .metric {
+          padding-left: 15px;
+        }
+        .number {
+          font-size: 40px;
+        }
+        .snapshot {
+          max-width: 180px;
+        }
+        .section-head {
+          align-items: flex-start;
+        }
+        .chart-wrap + .chart-wrap {
+          border-top: 1px solid var(--line);
+          padding-top: 24px;
+        }
+      }
+      @media (max-width: 520px) {
+        header {
+          align-items: flex-start;
+        }
+        .snapshot {
+          text-align: right;
+          font-size: 10px;
+        }
+        h1 {
+          font-size: 24px;
+        }
+        .metrics {
+          grid-template-columns: 1fr;
+          gap: 25px;
+        }
+        .menu-checkpoint {
+          grid-template-columns: 1fr;
+        }
+        .menu-measurement {
+          text-align: left;
+        }
+        .metric {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          align-items: start;
+          column-gap: 20px;
+        }
+        .metric + .metric {
+          border-left: 0;
+          padding-left: 0;
+        }
+        .metric .label {
+          grid-column: 1;
+        }
+        .metric .number {
+          grid-column: 2;
+          grid-row: 1/4;
+          margin: 0;
+          text-align: right;
+        }
+        .metric .sub {
+          grid-column: 1;
+        }
+        .number {
+          font-size: 48px;
+        }
+        .section-head {
+          display: block;
+        }
+        .section-head .meta {
+          margin-top: 6px;
+        }
+        footer {
+          flex-direction: column;
+        }
+        footer a {
+          margin: 0 15px 0 0;
+        }
+        .brand span {
+          display: block;
+          margin-left: 0;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <aside>
+      <div class="brand">GoldenEye<span>RUST RECONSTRUCTION</span></div>
+      <nav aria-label="Project sections">
+        <a href="#overview">Overview</a><a href="#scope">Parity scope</a
+        ><a href="#compatibility">Compatibility</a
+        ><a href="#evidence">Evidence</a><a href="#next">Next work</a>
+      </nav>
+      <div class="aside-foot">
+        Local project workspace<code>cargo xtask report</code>Refresh this
+        snapshot after checks.<br />Assets remain on your machine.
+      </div>
+    </aside>
+    <main>
+      <header id="overview">
+        <div>
+          <div class="eyebrow">Wii / Native Windows / Independent Rust</div>
+          <h1>Project status</h1>
+          <div class="meta">
+            Native main-menu checkpoint · Gameplay not implemented
+          </div>
+        </div>
+        <div class="snapshot">
+          <div class="eyebrow">Snapshot generated</div>
+          <time id="generated">—</time>
+          <div class="meta">Source <code id="source">—</code></div>
+        </div>
+      </header>
+      <div class="notice" id="scope-note"></div>
+      <section class="menu-checkpoint" id="menu-checkpoint" aria-labelledby="menu-title">
+        <div>
+          <div class="eyebrow">First visible checkpoint</div>
+          <h2 id="menu-title">Launch into the native main menu</h2>
+          <div id="menu-state"></div>
+          <p class="sub" id="menu-summary"></p>
+          <p class="sub" id="menu-interaction-summary"></p>
+          <p class="sub" id="game-session-summary"></p>
+          <p class="sub">
+            Local font/texture assets, moving THP background and logo/title music PCM;
+            keyboard/mouse adaptation. Original menu script/layout, saves, remaining submenus and
+            gameplay remain incomplete. This is not total-game progress or visual parity.
+          </p>
+          <div class="meta"><code>goldeneye.exe play &lt;disc&gt;</code> · <span id="menu-time"></span></div>
+        </div>
+        <div class="menu-measurement">
+          <div class="number" id="menu-number">—</div>
+          <div class="sub" id="menu-count"></div>
+          <div class="meta">Native launch smoke · denominator: 1 check</div>
+        </div>
+      </section>
+      <section class="section" id="startup-media" aria-labelledby="startup-title">
+        <div class="section-head"><h2 id="startup-title">Startup movies and native audio</h2><div id="startup-state"></div></div>
+        <p class="sub" id="startup-summary"></p>
+        <p class="sub" id="fade-summary"></p>
+        <p class="sub" id="music-summary"></p>
+        <p class="sub" id="intro-cue-summary"></p>
+        <p class="sub" id="action-summary"></p>
+        <div class="meta"><code>cargo xtask startup &lt;disc&gt;</code> · <span id="startup-time"></span></div>
+      </section>
+      <section class="section" id="mission-context" aria-labelledby="mission-title">
+        <div class="section-head"><h2 id="mission-title">Mission catalog and retained resources</h2><div id="mission-state"></div></div>
+        <p class="sub" id="mission-summary"></p>
+        <p class="sub">World registration, player/spawn/camera initialization and live gameplay remain separate work. This check does not measure playable missions or original-runtime parity.</p>
+        <div class="meta"><code>cargo xtask mission &lt;disc&gt;</code></div>
+      </section>
+      <section class="metrics" aria-label="Key measurements">
+        <div class="metric">
+          <div class="label">Verified tracked parity</div>
+          <div class="number">0<small>%</small></div>
+          <div class="sub" id="parity-count"></div>
+          <div class="sub">Full-game completion: not yet measurable.</div>
+        </div>
+        <div class="metric">
+          <div class="label">Production line coverage</div>
+          <div class="number" id="coverage-number">—</div>
+          <div class="sub" id="coverage-count"></div>
+          <div class="sub" id="coverage-state"></div>
+        </div>
+        <div class="metric">
+          <div class="label">Engineering checks</div>
+          <div class="number" id="build-number">—</div>
+          <div class="sub" id="build-summary"></div>
+          <div class="sub" id="build-time"></div>
+        </div>
+      </section>
+      <section class="section charts" aria-label="Progress charts">
+        <div class="chart-wrap">
+          <div class="chart-title">
+            <h2>Observed progress</h2>
+            <span class="meta" id="observations"></span>
+          </div>
+          <svg
+            id="history-chart"
+            viewBox="0 0 600 220"
+            role="img"
+            aria-label="History of verified parity, declared implementation and measured production coverage"
+          ></svg>
+          <div class="legend">
+            <span><i class="swatch"></i>Verified parity</span>
+            <span><i class="swatch implementation"></i>Implemented scope</span>
+            <span><i class="swatch coverage"></i>Test coverage</span>
+          </div>
+          <p class="sub">
+            Actual snapshots only. The tracked scope can grow; no full-game
+            completion estimate. Coverage gaps represent stale or missing evidence.
+            Each line has its own denominator; coverage is not game parity.
+          </p>
+          <p class="sub" id="coverage-method-note">
+            Coverage uses production measurement v2. Earlier snapshots used a
+            different test filter and remain in history without being plotted.
+          </p>
+        </div>
+        <div class="chart-wrap">
+          <h2>Implementation by workstream</h2>
+          <div class="bars" id="workstreams"></div>
+          <div class="legend">
+            <span><i class="swatch"></i>Implemented</span
+            ><span><i class="swatch working"></i>In progress</span
+            ><span>Counts / tracked criteria</span>
+          </div>
+          <p class="sub">
+            Implementation state is declared. Parity still requires a reference
+            comparison.
+          </p>
+        </div>
+      </section>
+      <section class="section" id="scope">
+        <div class="section-head">
+          <h2>Parity acceptance scope</h2>
+          <div class="meta" id="scope-summary"></div>
+        </div>
+        <div class="toolbar">
+          <label class="sr-only" for="search">Search criteria</label
+          ><input
+            type="search"
+            id="search"
+            placeholder="Search criteria or acceptance…"
+          /><label class="sr-only" for="domain">Workstream</label
+          ><select id="domain">
+            <option value="">All workstreams</option></select
+          ><label class="sr-only" for="state">Implementation state</label
+          ><select id="state">
+            <option value="">All states</option>
+            <option value="in_progress">In progress</option>
+            <option value="implemented">Implemented</option>
+            <option value="not_started">Not started</option></select
+          ><span class="meta" id="result-count" role="status"></span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Workstream</th>
+                <th scope="col">Criterion</th>
+                <th scope="col">Acceptance</th>
+                <th scope="col">Implementation</th>
+              </tr>
+            </thead>
+            <tbody id="criteria"></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="section" id="compatibility">
+        <div class="section-head">
+          <h2>Edition compatibility</h2>
+          <span class="meta"
+            >Asset intake and gameplay are separate claims</span
+          >
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Edition</th>
+                <th scope="col">Revision / source</th>
+                <th scope="col">Disc / indexes</th>
+                <th scope="col">EDB / local textures</th>
+                <th scope="col">Map GPU inspection</th>
+                <th scope="col">Native window</th>
+                <th scope="col">Initial menu launch</th>
+                <th scope="col">Startup media / PCM</th>
+                <th scope="col">Gameplay</th>
+              </tr>
+            </thead>
+            <tbody id="compatibility-rows"></tbody>
+          </table>
+        </div>
+        <p class="sub" id="asset-summary"></p>
+        <p class="sub" id="resource-summary"></p>
+        <p class="sub" id="collision-summary"></p>
+        <p class="sub" id="spatial-summary"></p>
+        <p class="sub" id="portal-summary"></p>
+        <p class="sub" id="placement-summary"></p>
+        <p class="sub" id="frame-summary"></p>
+        <p class="sub" id="bounds-summary"></p>
+        <p class="sub" id="hierarchy-summary"></p>
+        <p class="sub" id="collection-summary"></p>
+        <p class="sub" id="mesh-contact-summary"></p>
+        <p class="sub" id="world-request-summary"></p>
+        <p class="sub" id="world-line-summary"></p>
+        <p class="sub" id="map-navigation-summary"></p>
+        <p class="sub" id="render-summary"></p>
+        <p class="sub" id="viewer-summary"></p>
+        <p class="sub" id="navigation-summary"></p>
+        <p class="sub" id="paths-summary"></p>
+        <p class="sub" id="goal-paths-summary"></p>
+        <p class="sub" id="world-goal-summary"></p>
+        <p class="sub" id="waypoints-summary"></p>
+        <p class="sub" id="route-consumers-summary"></p>
+        <p class="sub" id="route-regeneration-summary"></p>
+        <p class="sub" id="boundary-summary"></p>
+        <p class="sub" id="actor-boundary-summary"></p>
+        <p class="sub" id="actor-edges-summary"></p>
+        <p class="sub" id="actor-goals-summary"></p>
+        <p class="sub" id="actor-target-summary"></p>
+        <p class="sub" id="actor-action-summary"></p>
+        <p class="sub" id="actor-dispatch-summary"></p>
+      </section>
+      <section class="section" id="evidence">
+        <div class="section-head">
+          <h2>Evidence & developer commands</h2>
+          <span class="meta"
+            >Receipts are bound to source, compiler, and host</span
+          >
+        </div>
+        <div class="evidence">
+          <div id="gates"></div>
+          <div>
+            <div class="command">
+              <code>cargo xtask check</code
+              ><span>Format, lint, tests, release build</span>
+            </div>
+            <div class="command">
+              <code>cargo xtask coverage</code
+              ><span>LLVM JSON + HTML coverage</span>
+            </div>
+            <div class="command">
+              <code>cargo xtask smoke &lt;disc&gt;</code
+              ><span>Read local disc and archive indexes</span>
+            </div>
+            <div class="command">
+              <code>cargo xtask resources &lt;disc&gt;</code
+              ><span>Audit EDB metadata and local texture mips</span>
+            </div>
+            <div class="command">
+              <code>cargo xtask render &lt;disc&gt;</code
+              ><span>Native GPU fixture + partial Dam inspection</span>
+            </div>
+            <div class="command">
+              <code>cargo xtask navigation &lt;disc&gt;</code
+              ><span
+                >Sampled surface queries; no original-runtime comparison</span
+              >
+            </div>
+            <div class="command">
+              <code>cargo xtask viewer &lt;disc&gt;</code
+              ><span>Hidden native window, resize and shared pixel check</span>
+            </div>
+            <div class="command">
+              <code>cargo xtask menu &lt;disc&gt;</code
+              ><span>Native menu presentation, resize and capture diagnostics</span>
+            </div>
+            <div class="command">
+              <code>cargo xtask startup &lt;disc&gt;</code><span>Complete movie decoding, logo PCM submission and moving-title captures</span>
+            </div>
+            <div class="command">
+              <code>cargo xtask report</code
+              ><span>Refresh this offline dashboard</span>
+            </div>
+            <div class="command">
+              <code>cargo xtask package</code
+              ><span>Stage asset-free native tools build</span>
+            </div>
+            <p class="sub">
+              <a href="../local/coverage/html/index.html"
+                >Open local coverage detail ↗</a
+              >
+              · Available after coverage runs. No assets required for unit
+              tests.
+            </p>
+          </div>
+        </div>
+      </section>
+      <section class="section" id="next">
+        <div class="eyebrow">Next dependency</div>
+        <p class="next" id="next-work"></p>
+        <p class="sub">
+          Reference comparison runner pending. No criterion can be marked
+          verified until its comparator and evidence requirements exist.
+        </p>
+      </section>
+      <footer>
+        <span
+          >Independent reconstruction · No game assets embedded · Offline
+          snapshot</span
+        >
+        <div>
+          <a href="../README.md">README</a
+          ><a href="../docs/progress.md">Measurement rules</a
+          ><a href="latest.json">Machine-readable state</a>
+        </div>
+      </footer>
+      <noscript
+        ><p>
+          JavaScript is required to display this embedded report. The same data
+          is available in <a href="latest.json">latest.json</a>.
+        </p></noscript
+      >
+    </main>
+    <script id="report-data" type="application/json">
+      "__REPORT_JSON__"
+    </script>
+    <script>
+      "use strict";
+      const report = JSON.parse(
+        document.getElementById("report-data").textContent,
+      );
+      const $ = (id) => document.getElementById(id),
+        text = (id, value) => ($(id).textContent = value);
+      const label = (s) =>
+        ({
+          not_run: "Not run",
+          not_started: "Not started",
+          in_progress: "In progress",
+          implemented: "Implemented",
+          not_implemented: "Not implemented",
+          passed: "Passed",
+          failed: "Failed",
+          stale: "Stale",
+          partial: "Partial",
+        })[s] || s;
+      const date = (s) => (s ? new Date(s * 1000).toLocaleString() : "Not run");
+      const el = (tag, value, cls) => {
+        const e = document.createElement(tag);
+        if (value !== undefined) e.textContent = value;
+        if (cls) e.className = cls;
+        return e;
+      };
+      const badge = (s) => el("span", label(s), "status " + s);
+      text("generated", date(report.generated_unix));
+      $("generated").dateTime = new Date(
+        report.generated_unix * 1000,
+      ).toISOString();
+      text("source", report.source_hash.slice(0, 12));
+      text("scope-note", report.scope_note);
+      const menu = report.menu || { state: "not_run" },
+        menuWindow = menu.details?.window,
+        menuPassed = menu.state === "passed";
+      $("menu-state").append(badge(menu.state));
+      text("menu-number", menuPassed ? "100%" : menu.state === "failed" ? "0%" : "—");
+      text("menu-count", `${menuPassed ? 1 : 0} of 1 current launch checks passed`);
+      text("menu-time", `${label(menu.state)} · ${date(menu.time_unix)}`);
+      text("menu-summary", menuWindow
+        ? `${label(menu.state)} presentation/capture diagnostics · ${menuWindow.frames_presented} hidden native frames, ${menuWindow.resize_count} resize, ${menuWindow.scene_uploads} scene upload and ${menuWindow.textures} textures on ${menuWindow.adapter} (${menuWindow.backend}).${menu.state === "stale" ? " Previous evidence is stale; rerun for this source and host." : ""} Visible controls and original-runtime comparison are unverified.`
+        : menu.state === "failed"
+          ? "Native menu launch smoke failed. Inspect local terminal output and rerun cargo xtask menu <disc>; no passing launch is recorded."
+          : menu.state === "stale"
+            ? "Previous native menu evidence is stale; rerun cargo xtask menu <disc> for this source and host."
+            : "No native menu launch evidence for this source. Run cargo xtask menu <disc> on a native graphics host.");
+      const startup = report.startup || {state:"not_run"},
+        startupMedia = startup.details?.media,
+        startupClips = startupMedia?.clips || [],
+        startupAudio = (startup.details?.presentations || []).map(p=>p.window?.playback?.audio).filter(Boolean);
+      $("startup-state").append(badge(startup.state));
+      text("startup-time",`${label(startup.state)} · ${date(startup.time_unix)}`);
+      const movieNames={activision:"Activision",eurocom:"Eurocom",mgm:"MGM",frontend:"Frontend"};
+      text("startup-summary",startupMedia
+        ? `${label(startup.state)} startup diagnostics · ${startupClips.map(c=>movieNames[c.movie]||c.movie).join(", ")} · ${startupMedia.video_frames_decoded.toLocaleString()} video frames decoded and ${startupMedia.interleaved_audio_samples_decoded.toLocaleString()} interleaved PCM samples. ${startupAudio.length ? `${startupAudio.length} native audio probes consumed ${startupAudio.reduce((n,a)=>n+a.source_frames_consumed,0).toLocaleString()} source frames and submitted ${startupAudio.reduce((n,a)=>n+a.output_frames_submitted,0).toLocaleString()} output frames; ${startupAudio.reduce((n,a)=>n+a.device_errors,0)} reported device errors.` : "Native PCM submission has not been sampled."} ${startup.details?.title_motion?.captures_differ ? "First/last title captures differ." : "Title capture motion has not been checked."}${startup.state==="stale" ? " Previous startup evidence is stale; rerun for this source and host." : ""}${startup.state==="failed" ? " A failed gate is not a passing startup result." : ""} PCM submission does not measure speaker output or original synchronization.`
+        : startup.state==="failed" ? "Startup media smoke failed; no passing startup result is recorded. Inspect local terminal output and rerun cargo xtask startup <disc>."
+        : startup.state==="stale" ? "Previous startup evidence is stale; rerun cargo xtask startup <disc> for this source and host."
+        : "No startup media evidence for this source. Run cargo xtask startup <disc>; decoding, native presentation and audio submission are separate checks.");
+      const fadePresentations=Array.isArray(startup.details?.fade_presentations)
+        ? startup.details.fade_presentations : [],
+        fadePhases=new Map();
+      for(const sample of fadePresentations) {
+        const phase=sample.phase || "unspecified";
+        fadePhases.set(phase,(fadePhases.get(phase)||0)+1);
+      }
+      text("fade-summary",fadePresentations.length
+        ? `${label(startup.state)} fade diagnostics · ${fadePresentations.length} hidden native captures (${[...fadePhases].map(([phase,count])=>`${phase}: ${count}`).join(", ")}).${startup.state==="stale" ? " Previous fade evidence is stale; rerun for this source and host." : ""}${startup.state==="failed" ? " No passing fade result is recorded." : ""} Original frame timing and visual parity remain unverified.`
+        : `${label(startup.state)} startup gate · Startup fades have not been checked; no native fade captures were recorded.`);
+      const startupMusic=startupMedia?.title_music,
+        titlePlayback=startup.details?.presentations?.find(p=>p.stage==="title")?.window?.playback;
+      text("music-summary",startupMusic
+        ? `${label(startup.state)} title music diagnostics · sound 0x${startupMusic.sound_hash.toString(16)} → wave 0x${startupMusic.wave_hash.toString(16)} in bank 0x${startupMusic.resource_hash.toString(16)} · ${startupMusic.channels} channels at ${startupMusic.sample_rate.toLocaleString()} Hz · ${startupMusic.decoded_sample_frames.toLocaleString()} sample frames decoded with ${startupMusic.nonzero_samples.toLocaleString()} nonzero samples. ${titlePlayback?.audio ? `Native title PCM consumed ${titlePlayback.audio.source_frames_consumed.toLocaleString()} source frames; ${titlePlayback.audio.device_errors} reported device errors.` : "Native title PCM submission has not been sampled."}${startup.state==="stale" ? " Previous music evidence is stale." : ""}${startup.state==="failed" ? " No passing music result is recorded." : ""} Original loop history, mixing and cue synchronization remain unverified.`
+        : startup.state==="failed" ? "Title music has no passing binding/decode evidence because the startup gate failed."
+        : "Title music binding/decode evidence has not been recorded for this source.");
+      const cue=startupMedia?.intro_cue,
+        cueInfo=cue?.info,
+        diagnosticNumber=value=>Number.isFinite(value) ? value.toLocaleString() : "unrecorded",
+        diagnosticHash=value=>Number.isInteger(value) ? `0x${value.toString(16)}` : "unrecorded",
+        cueAudio=titlePlayback?.audio;
+      const menuInteractionSummary = () => {
+        if (!menuPassed) {
+          if (menu.state === "stale") return "Previous menu interaction evidence is stale; rerun cargo xtask menu <disc>. No current submenu, preferences, menu audio or credits result is recorded.";
+          if (menu.state === "failed") return "Menu interaction gate failed; no current submenu, preferences, menu audio or credits result is recorded.";
+          return "Menu interaction evidence has not been recorded. The initial launch check does not establish functional submenus.";
+        }
+        const interaction=menu.details?.interaction?.window,
+          reopened=menu.details?.persisted_reopen?.window,
+          credits=menu.details?.credits?.window,
+          creditsReturn=menu.details?.credits_return?.window,
+          session=interaction?.menu_session,
+          reopenedSession=reopened?.menu_session,
+          settings=interaction?.menu?.settings,
+          reopenedSettings=reopened?.menu?.settings,
+          settingsKeys=["music_volume","sound_volume","dialog_volume","brightness"],
+          count=value=>Number.isSafeInteger(value) && value>=0,
+          boundedSettings=value=>value && settingsKeys.every(key=>Number.isInteger(value[key]) && value[key]>=(key==="brightness"?25:0) && value[key]<=(key==="brightness"?125:100)),
+          parts=[];
+        if (boundedSettings(settings) && boundedSettings(reopenedSettings)
+          && settingsKeys.every(key=>settings[key]===reopenedSettings[key])
+          && interaction.menu.screen==="options" && reopened.menu.screen==="sound_settings"
+          && Array.isArray(session?.probe) && session.probe.length>0
+          && Array.isArray(reopenedSession?.probe) && reopenedSession.probe.length>0
+          && count(session.writes) && session.writes>0 && session.dirty===false
+          && reopenedSession.writes===0 && reopenedSession.dirty===false) {
+          parts.push(`Options / Sound Settings: ${diagnosticNumber(session.probe.length)} applied inputs; music ${settings.music_volume}, sound ${settings.sound_volume}, dialog ${settings.dialog_volume}, brightness ${settings.brightness}. Windows preferences reopened with matching values (${diagnosticNumber(session.writes)} writes; no writes on reopen).`);
+        } else {
+          parts.push("Settings navigation/persistence evidence has not been recorded completely; initial launch alone does not establish working settings.");
+        }
+        const playback=interaction?.playback, menuAudio=playback?.menu_audio,
+          audio=playback?.audio,
+          audioCounts=["oneshot_started","oneshot_completed","oneshot_active","oneshot_output_frames","source_frames_consumed"];
+        if (Array.isArray(menuAudio?.cues) && menuAudio.cues.length>0
+          && count(menuAudio.voices_started) && menuAudio.voices_started>0
+          && count(menuAudio.capacity_dropped)
+          && audio && audioCounts.every(key=>count(audio[key]))
+          && audio.oneshot_started>0 && audio.source_frames_consumed>0
+          && audio.oneshot_completed<=audio.oneshot_started
+          && audio.oneshot_active<=audio.oneshot_started) {
+          parts.push(`${diagnosticNumber(menuAudio.cues.length)} source cue bindings; ${diagnosticNumber(audio.oneshot_started)} independent voices started, ${diagnosticNumber(audio.oneshot_completed)} completed, ${diagnosticNumber(audio.oneshot_active)} active, ${diagnosticNumber(menuAudio.capacity_dropped)} dropped; ${diagnosticNumber(audio.oneshot_output_frames)} voice output frames while music consumed ${diagnosticNumber(audio.source_frames_consumed)} source frames.`);
+        } else {
+          parts.push("Native menu sound submission has not been recorded completely; no voice counts are inferred.");
+        }
+        if (count(credits?.credits_lines) && credits.credits_lines>0
+          && credits.menu?.screen==="credits" && creditsReturn?.menu?.screen==="extras"
+          && Number.isFinite(credits.menu_elapsed_seconds) && credits.menu_elapsed_seconds>0) {
+          parts.push(`Credits opened ${diagnosticNumber(credits.credits_lines)} loaded source lines and returned to Extras.`);
+        } else {
+          parts.push("Credits opening/return evidence has not been recorded completely; source content alone does not prove the screen flow.");
+        }
+        return `Passed menu gate · ${parts.join(" ")} Shared-handler/capture diagnostics and dashboard DOM checks do not establish human controls, speaker output or original visual/audio parity.`;
+      };
+      text("menu-interaction-summary",menuInteractionSummary());
+      function gameSessionSummary() {
+        const missing="Native New Game session evidence has not been recorded completely; the initial menu launch does not establish session admission or a loaded mission.";
+        if (!menuPassed) {
+          if (menu.state==="stale") return "Previous New Game session evidence is stale; no current admission or retained-mission result is recorded.";
+          if (menu.state==="failed") return "The menu gate failed; no current New Game admission or retained-mission result is recorded.";
+          return missing;
+        }
+        const data=menu.details?.game_session,
+          closed=(value,keys)=>value && typeof value==="object" && !Array.isArray(value)
+            && Object.keys(value).length===keys.length && keys.every(key=>Object.hasOwn(value,key)),
+          count=value=>Number.isSafeInteger(value) && value>=0,
+          positive=value=>count(value) && value>0,
+          hash=value=>typeof value==="string" && /^[0-9a-f]{64}$/.test(value),
+          controllerKeys=["requested","loaded","cancelled","failed","retired_workers","retired_worker_failures","active","provider","native_provider_timing_verified","scope"],
+          snapshotKeys=["stage","difficulty","level_hash","start_point_id","session_active","local_users","resources_retained","map_instances","source_start_points","world_registered","player_created","camera_ready","mode","backend","manager_ready_flags_raw","user_ready_flags_raw","source_create_counter","created_session_selected","failure","world_initialization"],
+          worldCounts=["maps_activated","original_slots","disabled_slots","filtered_slots","unclassified_slots","unsupported_factory_slots","unsupported_shape_slots","owned_triggers","common_scratch","membership_entries","active_triggers","start_points","generic_triggers","common_be_triggers","resource08_triggers","active91_triggers","range0c_triggers","radius06_triggers","staged_triggers","stopped_animators","resolved_references","blocked_references","animators_initialized","animators_failed","shared_variables","unwritten_scratch_words","state_flags","execution_slots","active_executions","create_events_denied","registration_events_unmapped","zone_queries","catalog_entries"],
+          actorCounts=["resource_hash","spreadsheet_hash","payload_bytes","primary_rows","secondary_rows","registered_primary","duplicate_primary","runtime_groups","grouped_members","group8_members","selection_calls","rng_draws"],
+          actorValid=actor=>actor===null || (closed(actor,[...actorCounts,"resource_shared","primary_present","secondary_present","fresh_cursors_zero","default_record_bound","special_records_bound","original_cursor_history_verified","rng_bound","native9_constructor_ready","rng_algorithm","rng_origin","rng_state_sha256","original_rng_history_verified","state_sha256","scope"])
+            && actorCounts.every(key=>count(actor[key])) && actor.resource_hash===0x01090013 && actor.spreadsheet_hash===0x14000021
+            && actor.resource_shared===true && ["default_record_bound","special_records_bound","original_cursor_history_verified","original_rng_history_verified"].every(key=>actor[key]===false)
+            && actor.rng_algorithm==="source_two_step_lcg32" && actor.rng_origin==="fresh_constructor_snapshot"
+            && ["fresh_cursors_zero","rng_bound","native9_constructor_ready"].every(key=>typeof actor[key]==="boolean")
+            && actor.rng_draws<=actor.selection_calls && (actor.rng_bound || actor.rng_draws===0)
+            && (!actor.fresh_cursors_zero || actor.selection_calls===0)
+            && (!actor.native9_constructor_ready || (actor.rng_bound && actor.selection_calls>0 && !actor.fresh_cursors_zero))
+            && actor.primary_rows===actor.registered_primary+actor.duplicate_primary
+            && actor.runtime_groups<=actor.grouped_members && actor.grouped_members<=actor.registered_primary && actor.group8_members<=actor.grouped_members
+            && typeof actor.primary_present==="boolean" && (actor.primary_present || actor.primary_rows===0)
+            && typeof actor.secondary_present==="boolean" && (actor.secondary_present || actor.secondary_rows===0)
+            && hash(actor.state_sha256) && hash(actor.rng_state_sha256) && typeof actor.scope==="string" && actor.scope.length>0 && actor.scope.length<=4096),
+          resourceValid=(states,radius03)=>states===null || (closed(states,["origin","lifetime","shared_owner","records","capacity","nonzero_values","reset_limit","lookups","hits","misses","snapshot_bound","original_history_verified","state_sha256","scope"])
+            && ["records","capacity","nonzero_values","reset_limit","lookups","hits","misses"].every(key=>count(states[key]))
+            && ["fresh_constructor_snapshot","supplied_snapshot"].includes(states.origin)
+            && states.lifetime==="native_window_controller" && states.shared_owner===true
+            && typeof states.snapshot_bound==="boolean" && states.original_history_verified===false
+            && states.reset_limit<=0xffffffff && states.records<=states.capacity && states.nonzero_values<=states.records
+            && states.hits+states.misses===states.lookups && states.lookups<=radius03 && (states.records!==0 || states.hits===0)
+            && hash(states.state_sha256) && typeof states.scope==="string" && states.scope.length>0 && states.scope.length<=4096),
+          navigationCounts=["source_placements","eligible_placements","owned_wrappers","bound_wrappers","initialized_caches","vertices","faces","category_slots","nonempty_categories","category_members","boundary_pairs"],
+          navigationValid=nav=>nav===null || (closed(nav,[...navigationCounts,"origin","initialized","bindings_sha256","categories_sha256","cache_sha256","state_sha256","original_history_verified","native_precision_verified","queries_executed","scope"])
+            && navigationCounts.every(key=>count(nav[key])) && nav.origin==="fresh_owner_snapshot"
+            && typeof nav.initialized==="boolean" && nav.original_history_verified===false
+            && nav.native_precision_verified===false && nav.queries_executed===false
+            && nav.eligible_placements<=nav.source_placements && nav.owned_wrappers<=nav.eligible_placements
+            && nav.bound_wrappers<=nav.owned_wrappers && nav.initialized_caches<=nav.bound_wrappers
+            && count(nav.owned_wrappers*15) && nav.category_slots===nav.owned_wrappers*15
+            && nav.nonempty_categories<=nav.category_slots && nav.nonempty_categories<=nav.category_members
+            && (nav.nonempty_categories===0)===(nav.category_members===0) && nav.category_members<=nav.faces
+            && count(nav.faces*3) && nav.boundary_pairs<=nav.faces*3
+            && (nav.owned_wrappers!==0 || (nav.vertices===0 && nav.faces===0))
+            && (!nav.initialized || (nav.eligible_placements===nav.owned_wrappers
+              && nav.owned_wrappers===nav.bound_wrappers && nav.bound_wrappers===nav.initialized_caches))
+            && ["bindings_sha256","categories_sha256","cache_sha256","state_sha256"].every(key=>hash(nav[key]))
+            && typeof nav.scope==="string" && nav.scope.length>0 && nav.scope.length<=4096),
+          postTriggerCounts=["ordered_requests","resolved_requests","retained_files","retained_sections","retained_file_bytes","retained_section_bytes"],
+          postTriggerValid=receipt=>receipt===null || (closed(receipt,[...postTriggerCounts,"origin","provider","operation_complete","selection_performed","selected_definition_bound","tail_reset_applied","requests_sha256","residency_sha256","state_sha256","original_cursor_history_verified","original_rng_history_verified","original_stream_history_verified","native_stream_timing_verified","native_stream_readiness_verified","scope"])
+            && postTriggerCounts.every(key=>count(receipt[key])) && receipt.origin==="source_hook_snapshot"
+            && receipt.provider==="synchronous_supplied_data_residency"
+            && ["operation_complete","selection_performed","selected_definition_bound","tail_reset_applied"].every(key=>typeof receipt[key]==="boolean")
+            && ["original_cursor_history_verified","original_rng_history_verified","original_stream_history_verified","native_stream_timing_verified","native_stream_readiness_verified"].every(key=>receipt[key]===false)
+            && (!receipt.selected_definition_bound || receipt.selection_performed)
+            && (receipt.selected_definition_bound || receipt.ordered_requests===0)
+            && receipt.resolved_requests<=receipt.ordered_requests && receipt.ordered_requests<=2
+            && receipt.retained_files<=receipt.ordered_requests && receipt.retained_sections<=receipt.resolved_requests
+            && (receipt.retained_files===0)===(receipt.retained_file_bytes===0)
+            && (receipt.retained_sections!==0 || receipt.retained_section_bytes===0)
+            && (receipt.retained_files!==0 || receipt.retained_sections===0)
+            && receipt.retained_section_bytes<=receipt.retained_file_bytes
+            && (!receipt.operation_complete || (receipt.tail_reset_applied && (receipt.selected_definition_bound
+              ? receipt.selection_performed && receipt.ordered_requests===2 && receipt.resolved_requests===2 && receipt.retained_files>0
+              : !receipt.selection_performed && receipt.ordered_requests===0)))
+            && ["requests_sha256","residency_sha256","state_sha256"].every(key=>hash(receipt[key]))
+            && typeof receipt.scope==="string" && receipt.scope.length>0 && receipt.scope.length<=4096),
+          worldHookCounts=["clock_reads","constructor_clock_reads","completed_clock_resets","clock_frame_updates","clock_seconds_bits","clock_timescale_bits","scoped_buffers","buffers_cleared","buffers_preserved","backings_released","bytes_released","retained_backing_bytes","literal_noops_reached","callback_invocations"],
+          worldHooksValid=hooks=>hooks===null || (closed(hooks,[...worldHookCounts,"origin","lifetime","clock_provider","operation_complete","clock_reset_complete","clock_snapshot_bound","leaf_reset_complete","binding_released","callback_installed","clock_state_sha256","final_state_sha256","state_sha256","original_history_verified","native_clock_precision_verified","native_timing_verified","world_ready_emitted","scope"])
+            && worldHookCounts.every(key=>count(hooks[key]))
+            && ["operation_complete","clock_reset_complete","clock_snapshot_bound","leaf_reset_complete","binding_released","callback_installed"].every(key=>typeof hooks[key]==="boolean")
+            && hooks.origin==="fresh_constructor_snapshot" && hooks.lifetime==="native_window_controller"
+            && hooks.clock_provider==="host_frame_elapsed_f32"
+            && hooks.clock_seconds_bits<=0xffffffff && (hooks.clock_seconds_bits<=0x7f7fffff || hooks.clock_seconds_bits===0x80000000)
+            && hooks.clock_timescale_bits===0x3f800000
+            && ["original_history_verified","native_clock_precision_verified","native_timing_verified","world_ready_emitted"].every(key=>hooks[key]===false)
+            && count(hooks.buffers_cleared+hooks.buffers_preserved) && hooks.buffers_cleared+hooks.buffers_preserved<=hooks.scoped_buffers
+            && hooks.backings_released<=hooks.buffers_cleared && (hooks.backings_released!==0 || hooks.bytes_released===0)
+            && (!hooks.clock_reset_complete || (hooks.clock_snapshot_bound && hooks.clock_reads===16
+              && hooks.constructor_clock_reads===16 && hooks.completed_clock_resets>=2))
+            && (!hooks.operation_complete || (hooks.clock_reset_complete && hooks.scoped_buffers===24
+              && hooks.buffers_cleared===22 && hooks.buffers_preserved===2 && hooks.backings_released<=22
+              && hooks.leaf_reset_complete && hooks.literal_noops_reached===2 && hooks.callback_installed && hooks.callback_invocations===0))
+            && ["clock_state_sha256","final_state_sha256","state_sha256"].every(key=>hash(hooks[key]))
+            && typeof hooks.scope==="string" && hooks.scope.length>0 && hooks.scope.length<=4096),
+          loaderCounts=["entry_phase","current_phase","maps_constructed","map_zones","map_component_slots","map_context_bindings","map_sections","map_sections_published","map_zones_published","map_bindings","checkpoint_payload_bytes","checkpoint_skips","source_bank_calls","metadata_jobs_submitted","backend_commands","backend_sequence","retained_banks","retained_bank_bytes","sound_entries","wave_entries","sound_info_rows","sound_info_bytes","work_completed","work_pending","work_failed","barrier_promotions","resource_polls","work_busy_polls","phase8_byte","phase8_resets","loader_c4_bits","loader_c0_bits","catalog_phase18_entries","readiness_events","readiness_local_stores","readiness_owner_flags","readiness_peer_flags","readiness_user_flags","readiness_local_flags"],
+          loaderFlags=["operation_complete","pre_hooks_complete","checkpoint_bound","checkpoint_restore_active","checkpoint_payload_initialized","sound_info_bound","world_ready_emitted","player_created","original_history_verified","native_sdk_dispatch_verified","native_work_timing_verified","banks_playback_verified"],
+          loaderValid=(loader,world)=>loader===null || (closed(loader,[...loaderCounts,...loaderFlags,"origin","lifetime","provider","pending_phase","pre_state_sha256","maps_state_sha256","banks_state_sha256","phase_state_sha256","state_sha256","scope"])
+            && loaderCounts.every(key=>count(loader[key])) && loaderFlags.every(key=>typeof loader[key]==="boolean")
+            && loader.origin==="fresh_constructor_snapshot" && loader.lifetime==="native_window_controller"
+            && loader.provider==="scoped_supplied_audio_and_base_map" && loader.entry_phase===7
+            && (loader.current_phase===28 ? [8,10,11,12,13,14,15,16,17,18,19,21].includes(loader.pending_phase)
+              : loader.pending_phase===null && ([7,8,10,11,12,13,14,15,16,17,18,19].includes(loader.current_phase) || (loader.operation_complete && loader.current_phase===21)))
+            && ["backend_sequence","loader_c4_bits","loader_c0_bits","readiness_owner_flags","readiness_peer_flags","readiness_user_flags","readiness_local_flags"].every(key=>loader[key]<=0xffffffff)
+            && loader.phase8_byte<=255
+            && ["player_created","original_history_verified","native_sdk_dispatch_verified","native_work_timing_verified","banks_playback_verified"].every(key=>loader[key]===false)
+            && loader.world_ready_emitted===loader.operation_complete
+            && loader.maps_constructed<=world.maps_activated && loader.map_sections_published<=loader.map_sections
+            && loader.map_zones_published<=loader.map_zones && loader.map_context_bindings<=loader.maps_constructed
+            && (loader.checkpoint_bound || (loader.checkpoint_payload_bytes===0 && loader.checkpoint_skips===0 && !loader.checkpoint_payload_initialized))
+            && (!loader.checkpoint_bound || loader.checkpoint_payload_bytes===0x37f8)
+            && loader.source_bank_calls<=3 && loader.metadata_jobs_submitted<=1
+            && (loader.retained_banks!==0 || ["retained_bank_bytes","sound_entries","wave_entries"].every(key=>loader[key]===0))
+            && (loader.retained_banks===0 || loader.retained_bank_bytes>0)
+            && loader.sound_entries<=loader.retained_bank_bytes && loader.wave_entries<=loader.retained_bank_bytes
+            && (loader.sound_info_bound ? loader.sound_info_bytes>0 && loader.sound_info_rows<=loader.sound_info_bytes
+              : loader.sound_info_rows===0 && loader.sound_info_bytes===0)
+            && loader.barrier_promotions<=12 && loader.resource_polls>=loader.barrier_promotions
+            && (loader.operation_complete ? loader.current_phase===21 && loader.pending_phase===null && loader.pre_hooks_complete
+              && loader.maps_constructed===world.maps_activated && loader.checkpoint_bound && !loader.checkpoint_restore_active
+              && loader.checkpoint_skips===2 && loader.sound_info_bound && loader.backend_commands>=loader.source_bank_calls
+              && loader.work_completed>loader.backend_commands && loader.work_pending===0 && loader.work_failed===0
+              && loader.barrier_promotions===12 && loader.resource_polls===12 && loader.work_busy_polls>=loader.backend_commands
+              && loader.phase8_byte===10 && loader.phase8_resets>=2 && loader.loader_c4_bits===0x44bb8000 && loader.loader_c0_bits===0x3a83126f
+              && world.catalog_complete===true && loader.catalog_phase18_entries===world.start_points
+              && world.navigation?.initialized===true && world.post_trigger_resources?.operation_complete===true
+              && world.world_hooks?.operation_complete===true
+              && loader.readiness_events===2 && loader.readiness_local_stores===4
+              && ["readiness_owner_flags","readiness_peer_flags","readiness_user_flags"].every(key=>loader[key]===0x108) && loader.readiness_local_flags===0x109
+              : ["readiness_events","readiness_local_stores","readiness_owner_flags","readiness_peer_flags","readiness_user_flags"].every(key=>loader[key]===0)
+                && [0,1].includes(loader.readiness_local_flags))
+            && ["pre_state_sha256","maps_state_sha256","banks_state_sha256","phase_state_sha256","state_sha256"].every(key=>hash(loader[key]))
+            && typeof loader.scope==="string" && loader.scope.length>0 && loader.scope.length<=4096),
+          playerCounts=["operation_entries","creation_dispatches","catalog_entries","selected_catalog_index","selected_source_ordinal","requested_start_point_before","requested_start_point_after","handler_rng_reads","base_reset_calls","persistent_base_resets","inventory_records","inventory_capacity","inventory_growth","world_items","world_actor_lists","world_membership_lists","actor_registrations"],
+          playerFlags=["operation_complete","attempt_bound","catalog_bound","base_constructor_complete","handler_kind_bound","physics_bound","completion_published","player_created","camera_ready","original_history_verified","native_timing_verified"],
+          playerHashes=["base_state_sha256","prelude_state_sha256","world_state_sha256","persistent_state_sha256","state_sha256"],
+          playerValid=(player,world,snapshot)=>player===null || (closed(player,[...playerCounts,...playerFlags,...playerHashes,"origin","lifetime","stage","pending_dependency","scope"])
+            && playerCounts.every(key=>count(player[key])) && playerFlags.every(key=>typeof player[key]==="boolean")
+            && player.origin==="fresh_constructor_snapshot" && player.lifetime==="session_worker"
+            && player.stage==="player_prelude_prepared" && player.pending_dependency==="shared_constructor_reset"
+            && ["operation_complete","handler_kind_bound","physics_bound","completion_published","player_created","camera_ready","original_history_verified","native_timing_verified"].every(key=>player[key]===false)
+            && ["attempt_bound","catalog_bound","base_constructor_complete"].every(key=>player[key]===true)
+            && world.loader?.operation_complete===true && world.catalog_complete===true
+            && snapshot.world_registered===true && snapshot.player_created===false && snapshot.camera_ready===false
+            && player.creation_dispatches===snapshot.local_users
+            && player.base_reset_calls===player.creation_dispatches && player.handler_rng_reads===player.creation_dispatches
+            && player.persistent_base_resets>=player.base_reset_calls
+            && player.catalog_entries===world.catalog_entries && player.selected_catalog_index<player.catalog_entries
+            && player.selected_source_ordinal<world.original_slots && player.requested_start_point_before===snapshot.start_point_id
+            && player.requested_start_point_after<=0xffffffff
+            && ["inventory_records","inventory_capacity","world_items","actor_registrations"].every(key=>player[key]===0)
+            && player.inventory_growth===16 && player.world_actor_lists>0 && player.world_membership_lists>=5
+            && world.actor_definitions?.rng_draws>=player.handler_rng_reads && world.resource_states?.records>0
+            && playerHashes.every(key=>hash(player[key])) && typeof player.scope==="string" && player.scope.length>0 && player.scope.length<=4096),
+          catalogValid=world=>typeof world.catalog_complete==="boolean" && world.catalog_entries<=world.start_points
+            && (world.catalog_complete ? world.catalog_entries===world.start_points && world.maps_activated>0
+              && world.materialized_shapes===world.shape71_triggers
+              && ["unclassified_slots","unsupported_factory_slots","unsupported_shape_slots","staged_triggers","blocked_references","map_initialization_blocked","animators_failed"].every(key=>world[key]===0)
+              : world.catalog_entries===0),
+          worldValid=(world,snapshot)=>world===null || (closed(world,[...worldCounts,"actor12_triggers","range82_triggers","a3_triggers","range27_triggers","common09_triggers","ad_triggers","radius03_triggers","common8a_triggers","radius1b_triggers","radius74_triggers","shape71_triggers","materialized_shapes","radius88_triggers","auxac_triggers","source_null_slots","map_initialization_blocked","shape_selectors_initialized","actor_definitions","resource_states","navigation","post_trigger_resources","world_hooks","loader","player_initialization","catalog_complete","native_zone_precision_verified","state_sha256","scope"])
+            && worldCounts.every(key=>count(world[key])) && hash(world.state_sha256)
+            && ["actor12_triggers","range82_triggers","a3_triggers","range27_triggers","common09_triggers","ad_triggers","radius03_triggers","common8a_triggers","radius1b_triggers","radius74_triggers","shape71_triggers","materialized_shapes","radius88_triggers","auxac_triggers","source_null_slots","map_initialization_blocked"].every(key=>count(world[key]))
+            && count(world.shape_selectors_initialized) && world.shape_selectors_initialized<=world.owned_triggers && actorValid(world.actor_definitions)
+            && world.materialized_shapes<=world.shape71_triggers
+            && resourceValid(world.resource_states,world.radius03_triggers)
+            && navigationValid(world.navigation)
+            && postTriggerValid(world.post_trigger_resources)
+            && worldHooksValid(world.world_hooks)
+            && loaderValid(world.loader,world)
+            && playerValid(world.player_initialization,world,snapshot)
+            && typeof world.scope==="string" && world.scope.length>0 && world.scope.length<=4096
+            && world.maps_activated===snapshot.map_instances
+            && world.owned_triggers===world.start_points+world.generic_triggers+world.common_be_triggers+world.resource08_triggers+world.active91_triggers+world.range0c_triggers+world.radius06_triggers+world.actor12_triggers+world.range82_triggers+world.a3_triggers+world.range27_triggers+world.common09_triggers+world.ad_triggers+world.radius03_triggers+world.common8a_triggers+world.radius1b_triggers+world.radius74_triggers+world.shape71_triggers+world.radius88_triggers+world.auxac_triggers
+            && world.staged_triggers<=world.generic_triggers+world.resource08_triggers+world.range0c_triggers+world.radius06_triggers+world.actor12_triggers+world.range82_triggers+world.range27_triggers+world.radius03_triggers+world.common8a_triggers+world.shape71_triggers && world.staged_triggers<=world.unsupported_factory_slots
+            && world.map_initialization_blocked<=world.actor12_triggers
+            && (!world.actor_definitions?.native9_constructor_ready || (world.actor12_triggers>0 && world.map_initialization_blocked===0))
+            && world.original_slots===["disabled_slots","filtered_slots","unclassified_slots","source_null_slots","unsupported_factory_slots","unsupported_shape_slots","owned_triggers"].reduce((sum,key)=>sum+world[key],0)-world.staged_triggers
+            && world.zone_queries===world.original_slots && world.start_points===snapshot.source_start_points
+            && world.common_scratch===world.owned_triggers && world.membership_entries===world.owned_triggers-world.staged_triggers
+            && world.active_triggers<=world.membership_entries
+            && world.stopped_animators===world.membership_entries-world.active_triggers
+            && world.animators_initialized+world.animators_failed<=world.active_triggers
+            && count(world.owned_triggers*8) && world.blocked_references+world.resolved_references<=world.owned_triggers*8
+            && world.create_events_denied===world.animators_initialized
+            && world.registration_events_unmapped===world.animators_initialized
+            && world.execution_slots===world.animators_initialized*16
+            && world.unwritten_scratch_words===world.animators_initialized*2
+            && world.active_executions===0 && catalogValid(world)
+            && world.native_zone_precision_verified===false),
+          probeWindow=probe=>closed(probe,["window","capture_png_sha256","capture_png_bytes","reference_compared"])
+            && probe.reference_compared===false && hash(probe.capture_png_sha256) && positive(probe.capture_png_bytes)
+            && positive(probe.window?.frames_presented) && probe.window.game_session_shutdown_complete===true
+            && probe.window.playback?.stage==="main_menu" ? probe.window : null,
+          controllerValid=value=>closed(value,controllerKeys)
+            && ["requested","loaded","cancelled","failed","retired_workers","retired_worker_failures"].every(key=>count(value[key]))
+            && value.failed===0 && value.retired_worker_failures===0 && value.retired_workers<=2
+            && value.loaded<=value.requested && value.cancelled<=value.requested
+            && value.provider==="host_local_semantic" && value.native_provider_timing_verified===false
+            && typeof value.scope==="string" && value.scope.length>0,
+          activeValid=(value,difficulty)=>closed(value,snapshotKeys)
+            && value.difficulty===difficulty
+            && value.level_hash===0x0181016b && value.start_point_id===1
+            && value.session_active===true && value.local_users===1 && value.mode===3 && value.backend===2
+            && value.source_create_counter===7 && value.created_session_selected===true
+            && value.failure===null && ["player_created","camera_ready"].every(key=>value[key]===false)
+            && (value.world_initialization?.loader?.operation_complete===true
+              ? value.stage==="awaiting_player" && value.world_registered===true && value.manager_ready_flags_raw===0x108 && value.user_ready_flags_raw===0x108
+              : value.stage==="awaiting_world" && value.world_registered===false && value.manager_ready_flags_raw===0 && value.user_ready_flags_raw===0)
+            && positive(value.resources_retained) && value.resources_retained<=32
+            && positive(value.map_instances) && value.map_instances<=value.resources_retained
+            && positive(value.source_start_points) && value.source_start_points<=4096
+            && worldValid(value.world_initialization,value),
+          traceValid=(window,steps)=>Array.isArray(window?.menu_session?.probe)
+            && window.menu_session.probe.length===steps.length
+            && steps.every(([input,effect,selected,screen="new_game_difficulty"],index)=>{
+              const step=window.menu_session.probe[index];
+              return step?.input===input && step.effect===effect && step.selected===selected && step.screen===screen
+                && positive(step.frame) && (index===0 || step.frame>window.menu_session.probe[index-1].frame);
+            });
+        if (!closed(data,["difficulty_page","difficulty_probes","cancel_reentry","returned_menu","reference_compared","scope"])
+          || data.reference_compared!==false || typeof data.scope!=="string" || !data.scope.length
+          || !Array.isArray(data.difficulty_probes) || data.difficulty_probes.length!==4) return missing;
+        const page=probeWindow(data.difficulty_page);
+        if (!page || !controllerValid(page.game_session)
+          || ["requested","loaded","cancelled","retired_workers"].some(key=>page.game_session[key]!==0)
+          || page.game_session.active!==null || page.playback?.session_suspended!==false
+          || page.menu?.screen!=="new_game_difficulty" || page.menu.selected!==0
+          || !traceValid(page,[["confirm","accept",0]])) return missing;
+        const windows=data.difficulty_probes.map(probeWindow);
+        if (!windows.every((window,index)=>window && controllerValid(window.game_session)
+          && window.game_session.requested===1 && window.game_session.loaded===1
+          && window.game_session.cancelled===0 && window.game_session.retired_workers===0
+          && activeValid(window.game_session.active,index) && window.playback?.session_suspended===true
+          && window.playback.muted===(index!==0)
+          && (index===0 || (window.playback.audio===null && window.playback.menu_audio===null))
+          && traceValid(window,[["confirm","accept",0],...Array.from({length:index},(_,i)=>["down","navigate",i+1]),["confirm","accept",index],["confirm","none",index]]))) return missing;
+        const primary=windows[0].playback;
+        if (primary.muted!==false || primary.audio?.primary_gain!==0 || primary.audio.device_errors!==0) return missing;
+        const reentry=probeWindow(data.cancel_reentry), returned=probeWindow(data.returned_menu);
+        if (!reentry || !controllerValid(reentry.game_session)
+          || reentry.game_session.requested!==2 || reentry.game_session.cancelled!==1
+          || ![1,2].includes(reentry.game_session.loaded) || reentry.game_session.retired_workers>1
+          || !activeValid(reentry.game_session.active,1) || reentry.playback?.session_suspended!==true
+          || !traceValid(reentry,[["confirm","accept",0],["confirm","accept",0],["back","back",0,"main_menu"],["confirm","accept",0],["down","navigate",1],["confirm","accept",1]])
+          || !returned || !controllerValid(returned.game_session)
+          || returned.game_session.requested!==1 || returned.game_session.cancelled!==1
+          || ![0,1].includes(returned.game_session.loaded) || returned.game_session.retired_workers>1
+          || returned.game_session.active!==null || returned.menu?.screen!=="main_menu" || returned.menu.selected!==0
+          || returned.playback?.session_suspended!==false
+          || !traceValid(returned,[["confirm","accept",0],["confirm","accept",0],["back","back",0,"main_menu"]])) return missing;
+        const first=windows[0].game_session.active;
+        const worldSamples=[...windows,reentry].map(window=>window.game_session.active.world_initialization),
+          world=first.world_initialization;
+        if (worldSamples.some(sample=>(sample===null)!==(world===null))) return missing;
+        if (world!==null && worldSamples.some(sample=>(sample.actor_definitions===null)!==(world.actor_definitions===null))) return missing;
+        if (world!==null && worldSamples.some(sample=>(sample.resource_states===null)!==(world.resource_states===null))) return missing;
+        if (world!==null && worldSamples.some(sample=>(sample.navigation===null)!==(world.navigation===null)
+          || (sample.navigation!==null && sample.navigation.initialized!==world.navigation?.initialized))) return missing;
+        if (world!==null && worldSamples.some(sample=>(sample.post_trigger_resources===null)!==(world.post_trigger_resources===null)
+          || (sample.post_trigger_resources!==null && ["operation_complete","selection_performed","selected_definition_bound"].some(key=>sample.post_trigger_resources[key]!==world.post_trigger_resources?.[key])))) return missing;
+        // Each live clock and digest was validated above. Attempts share a
+        // controller lifetime, so elapsed snapshots/reset totals need not match.
+        if (world!==null && worldSamples.some(sample=>(sample.world_hooks===null)!==(world.world_hooks===null)
+          || (sample.world_hooks!==null && ["operation_complete","clock_reset_complete"].some(key=>sample.world_hooks[key]!==world.world_hooks?.[key])))) return missing;
+        if (world!==null && worldSamples.some(sample=>(sample.loader===null)!==(world.loader===null)
+          || (sample.loader!==null && sample.loader.operation_complete!==world.loader?.operation_complete))) return missing;
+        if (world!==null && worldSamples.some(sample=>(sample.player_initialization===null)!==(world.player_initialization===null))) return missing;
+        const actor=world?.actor_definitions,
+          actorSummary=actor ? ` Actor definitions reuse the retained character resource: ${actor.primary_rows.toLocaleString()} primary rows retain ${actor.registered_primary.toLocaleString()} registered definitions and ${actor.duplicate_primary.toLocaleString()} duplicate inputs; ${actor.secondary_rows.toLocaleString()} secondary rows remain owned. ${actor.runtime_groups.toLocaleString()} runtime groups contain ${actor.grouped_members.toLocaleString()} members, including ${actor.group8_members.toLocaleString()} in group 8. ${actor.selection_calls.toLocaleString()} source selections and ${actor.rng_draws.toLocaleString()} two-step LCG draws use a fresh constructor snapshot; original cursor and RNG histories remain unverified. Default/special records remain unavailable. ${actor.native9_constructor_ready ? "Supported actor constructor and map-reference scans completed." : "Actor construction or map-reference initialization remains incomplete."}` : "";
+        const states=world?.resource_states,
+          resourceSummary=states ? ` Shared native-window resource state owns ${states.records.toLocaleString()} records (${states.nonzero_values.toLocaleString()} nonzero values) and completed ${states.lookups.toLocaleString()} lookups: ${states.hits.toLocaleString()} hits and ${states.misses.toLocaleString()} source misses. The ${states.origin==="supplied_snapshot" ? "supplied snapshot" : "fresh constructor snapshot"} has ${states.snapshot_bound ? "a retained capture buffer" : "no retained capture buffer"}; original resource-state history remains unverified.` : " Resource-state lookup evidence is absent; no empty-dictionary result is inferred.";
+        const navigation=world?.navigation,
+          navigationSummary=navigation ? ` Navigation ${navigation.initialized ? "initialized" : "initialization remains incomplete with"} ${navigation.owned_wrappers.toLocaleString()} owned wrappers and ${navigation.initialized_caches.toLocaleString()} bound caches from ${navigation.eligible_placements.toLocaleString()} eligible placements. Retained navigation data contains ${navigation.vertices.toLocaleString()} local vertices, ${navigation.faces.toLocaleString()} faces and ${navigation.boundary_pairs.toLocaleString()} ordered boundary pairs. ${navigation.category_members.toLocaleString()} face memberships occupy ${navigation.nonempty_categories.toLocaleString()} of ${navigation.category_slots.toLocaleString()} category vectors. No navigation queries ran; original owner history and native precision remain unverified.` : " Navigation owner/cache initialization evidence is absent.";
+        const postTrigger=world?.post_trigger_resources,
+          postTriggerSummary=postTrigger ? ` Post-trigger supplied-data residency ${postTrigger.operation_complete ? "completed" : "remains incomplete"}: ${postTrigger.ordered_requests.toLocaleString()} ordered requests, ${postTrigger.resolved_requests.toLocaleString()} resolved; ${postTrigger.retained_files.toLocaleString()} retained files (${postTrigger.retained_file_bytes.toLocaleString()} payload bytes) and ${postTrigger.retained_sections.toLocaleString()} streamed sections (${postTrigger.retained_section_bytes.toLocaleString()} covered section bytes). ${postTrigger.operation_complete && !postTrigger.selection_performed ? "Source gates skipped selection and resource requests." : postTrigger.selected_definition_bound ? "The selected definition remains owned." : "Definition selection or binding remains incomplete."} The source tail reset ${postTrigger.tail_reset_applied ? "was applied" : "remains pending"}. Original cursor, RNG and stream histories, native stream timing and native stream readiness remain unverified.` : " Post-trigger resource residency evidence is absent.";
+        const hooks=world?.world_hooks,
+          clockSeconds=hooks ? (()=>{const view=new DataView(new ArrayBuffer(4));view.setUint32(0,hooks.clock_seconds_bits);return view.getFloat32(0);})() : 0,
+          hooksSummary=hooks ? ` World hooks ${hooks.operation_complete ? "completed their scoped reset work" : "remain incomplete"}: ${hooks.scoped_buffers.toLocaleString()} buffers, ${hooks.buffers_cleared.toLocaleString()} cleared and ${hooks.buffers_preserved.toLocaleString()} preserved; ${hooks.backings_released.toLocaleString()} backings released (${hooks.bytes_released.toLocaleString()} bytes), ${hooks.retained_backing_bytes.toLocaleString()} backing bytes retained. The first probe's live host frame clock recorded ${clockSeconds.toLocaleString(undefined,{maximumFractionDigits:3})} seconds over ${hooks.clock_frame_updates.toLocaleString()} updates; ${hooks.constructor_clock_reads.toLocaleString()} constructor reads and ${hooks.clock_reads.toLocaleString()} reset reads belong to ${hooks.completed_clock_resets.toLocaleString()} completed resets in the native-window controller lifetime. Callback ${hooks.callback_installed ? "installed" : "not installed"}; ${hooks.callback_invocations.toLocaleString()} invocations. This reset segment emitted no world-ready event; original history, native clock precision and native timing remain unverified.` : " World-hook lifecycle evidence is absent.";
+        const loader=world?.loader,
+          loaderSummary=loader ? ` Loader ${loader.operation_complete ? "completed the world-initialization checkpoint" : "remains incomplete"}: ${loader.barrier_promotions.toLocaleString()} provider barriers promoted, ${loader.work_completed.toLocaleString()} work callbacks completed, ${loader.work_pending.toLocaleString()} pending and ${loader.work_failed.toLocaleString()} failed. Fresh base publication exposes ${loader.map_sections_published.toLocaleString()} of ${loader.map_sections.toLocaleString()} logical sections and ${loader.map_zones_published.toLocaleString()} of ${loader.map_zones.toLocaleString()} zones, with ${loader.map_bindings.toLocaleString()} map bindings. Publication follows logical section state independently of full-file caching. ${loader.source_bank_calls.toLocaleString()} source bank calls and ${loader.backend_commands.toLocaleString()} backend commands retain ${loader.retained_banks.toLocaleString()} banks (${loader.retained_bank_bytes.toLocaleString()} bytes), ${loader.sound_entries.toLocaleString()} sound entries and ${loader.wave_entries.toLocaleString()} waves; SoundInfo owns ${loader.sound_info_rows.toLocaleString()} rows (${loader.sound_info_bytes.toLocaleString()} bytes). ${loader.checkpoint_payload_bytes.toLocaleString()} checkpoint bytes remain ${loader.checkpoint_payload_initialized ? "initialized" : "allocated and unwritten"}; ${loader.checkpoint_skips.toLocaleString()} restore gates skipped. ${loader.readiness_events.toLocaleString()} identity-bound readiness events and ${loader.readiness_local_stores.toLocaleString()} local mirror stores ${loader.world_ready_emitted ? "reached the admitted session" : "have not completed"}. Original history, native SDK dispatch, native work timing and bank playback remain unverified.` : " Loader-phase completion evidence is absent.";
+        const player=world?.player_initialization,
+          playerSummary=player ? ` Player constructor prelude prepared: ${player.creation_dispatches.toLocaleString()} creation dispatches selected catalog index ${player.selected_catalog_index.toLocaleString()} of ${player.catalog_entries.toLocaleString()} entries (source ordinal ${player.selected_source_ordinal.toLocaleString()}). The base handler completed ${player.base_reset_calls.toLocaleString()} reset calls and ${player.handler_rng_reads.toLocaleString()} shared RNG reads (${player.persistent_base_resets.toLocaleString()} retained global base resets); the inventory owns ${player.inventory_records.toLocaleString()} records with capacity ${player.inventory_capacity.toLocaleString()} and growth ${player.inventory_growth.toLocaleString()}. ${player.world_actor_lists.toLocaleString()} actor lists and ${player.world_membership_lists.toLocaleString()} membership lists retain ${player.world_items.toLocaleString()} world items and ${player.actor_registrations.toLocaleString()} actor registrations. Shared constructor allocation/reset remains pending; physics, player completion and camera output remain incomplete. Original history and native timing remain unverified.` : " Player constructor prelude evidence is absent.";
+        const worldSummary=world===null ? "" : ` ${loader?.operation_complete ? "World initialization checkpoint" : "Partial world initialization"} preserved ${world.original_slots.toLocaleString()} original ordinal slots and owns ${world.owned_triggers.toLocaleString()} triggers: ${world.start_points.toLocaleString()} StartPoints, ${world.generic_triggers.toLocaleString()} generic triggers, ${world.common_be_triggers.toLocaleString()} other common triggers, ${world.resource08_triggers.toLocaleString()} resource triggers, ${world.active91_triggers.toLocaleString()} relay triggers, ${world.range0c_triggers.toLocaleString()} range triggers, ${world.radius06_triggers.toLocaleString()} radius triggers, ${world.actor12_triggers.toLocaleString()} actor triggers, ${world.range82_triggers.toLocaleString()} extended range triggers, ${world.a3_triggers.toLocaleString()} subtype A3 triggers, ${world.range27_triggers.toLocaleString()} subtype 27 range triggers, ${world.common09_triggers.toLocaleString()} subtype 09 common triggers, ${world.ad_triggers.toLocaleString()} subtype AD triggers, ${world.radius03_triggers.toLocaleString()} subtype 03 radius triggers, ${world.common8a_triggers.toLocaleString()} subtype 8A common triggers, ${world.radius1b_triggers.toLocaleString()} subtype 1B radius triggers, ${world.radius74_triggers.toLocaleString()} subtype 74 radius triggers, ${world.shape71_triggers.toLocaleString()} subtype 71 shape triggers, ${world.radius88_triggers.toLocaleString()} subtype 88 radius triggers and ${world.auxac_triggers.toLocaleString()} subtype AC auxiliary triggers. Source returned no object for ${world.source_null_slots.toLocaleString()} original slots. ${world.membership_entries.toLocaleString()} membership entries contain ${world.active_triggers.toLocaleString()} active triggers; ${world.staged_triggers.toLocaleString()} staged objects remain outside membership. ${world.animators_initialized.toLocaleString()} base animators initialized; ${world.stopped_animators.toLocaleString()} shutdown paths found no animator. ${world.resolved_references.toLocaleString()} references resolved; ${world.unclassified_slots.toLocaleString()} unclassified slots, ${world.unsupported_factory_slots.toLocaleString()} unsupported factory slots, ${world.unsupported_shape_slots.toLocaleString()} unsupported shape slots and ${world.blocked_references.toLocaleString()} blocked references remain. ${world.map_initialization_blocked.toLocaleString()} actor map-reference initializations remain blocked. ${world.shape_selectors_initialized.toLocaleString()} source shape selectors retained; ${world.materialized_shapes.toLocaleString()} shapes materialized as owned data. Materialization does not establish collision queries or world readiness.${actorSummary}${resourceSummary}${navigationSummary}${postTriggerSummary}${hooksSummary}${loaderSummary}${playerSummary} ${world.catalog_complete ? `Trigger constructor, reference and map initialization passes completed; the trigger catalog owns ${world.catalog_entries.toLocaleString()} StartPoint entries. Later animation execution and gameplay remain incomplete.` : "No animation execution or completed live spawn catalog is claimed."}`;
+        return `Native New Game: all 4 difficulties admitted one local user to Tutorial 0x0181016b, StartPoint 1, with one request per probe despite repeated confirmation. First probe retained ${first.resources_retained.toLocaleString()} resources, ${first.map_instances.toLocaleString()} bound map instances and ${first.source_start_points.toLocaleString()} prepared source StartPoints. Difficulty navigation, cancellation/re-entry and return to the main menu were checked; primary menu music was suspended.${worldSummary} ${loader?.operation_complete ? "World registration and matching-user readiness completed the loader checkpoint. Sessions await player creation; player creation and camera output remain incomplete." : `Sessions await ${world?.catalog_complete ? "remaining world initialization" : "live world/catalog initialization"}: manager and user readiness flags remain 0; world registration, player creation and camera output remain incomplete.`} The local semantic provider does not establish native provider timing or original gameplay parity.`;
+      }
+      text("game-session-summary",gameSessionSummary());
+      const mission = report.mission || {state:"not_run"};
+      $("mission-state").append(badge(mission.state));
+      function prewarmValid(context, validCount) {
+        const player=context.player_components, layers=player?.initial_layers, warm=layers?.prewarm_pose,
+          uint=value=>validCount(value) && value<=0xffffffff,
+          hash=value=>typeof value==="string" && /^[0-9a-f]{64}$/.test(value);
+        return warm && !Array.isArray(warm) && warm.state==="source_reset_prewarm_locals_committed"
+          && warm.seconds_bits===0x3e4ccccd && warm.baseline===60 && warm.scaled_step_bits===0x41400000
+          && warm.locals_encoding==="source_context_locals_be_v1"
+          && layers.raw_frame===null && layers.animation_ticked===true && layers.pose_sampled===true
+          && player.animation_sampled===true
+          && ["updated_controls","sampled_controls","sampled_scripts","skipped_layers","selected_clip","frame","animation_translations","skin_translations","committed_bones","unverified_sqrt_rotations"].every(key=>validCount(warm[key]))
+          && warm.updated_controls===layers.controls && warm.sampled_controls>0 && warm.sampled_controls<=layers.controls
+          && warm.sampled_scripts>0 && warm.sampled_scripts<=layers.script_children
+          && warm.sampled_controls+warm.sampled_scripts<=layers.live_nodes
+          && warm.skipped_layers<layers.active_layers && warm.selected_clip<layers.bound_clips
+          && warm.frame===0 && warm.fade_bits===0x3f800000 && warm.scratch_flags_raw===0x4000
+          && warm.committed_bones>0 && warm.committed_bones===player.bone_count
+          && validCount(warm.animation_translations+warm.skin_translations)
+          && warm.animation_translations+warm.skin_translations===warm.committed_bones
+          && warm.unverified_sqrt_rotations>0 && warm.unverified_sqrt_rotations<=warm.committed_bones
+          && hash(warm.locals_sha256) && hash(warm.post_update_bindings_sha256)
+          && ["root_bias_applied","skin_mapping_applied","skeleton_committed"].every(key=>warm[key]===true)
+          && ["matrices_refreshed","native_numeric_parity_verified","external_step_executed","first_displayed_pose_verified","camera_frame_ready"].every(key=>warm[key]===false)
+          && Array.isArray(warm.children) && warm.children.length===layers.script_children
+          && new Set(warm.children.map(child=>child?.node)).size===warm.children.length
+          && warm.children.every(child=>child && !Array.isArray(child) && validCount(child.node) && child.node>0
+            && uint(child.reference) && ((child.reference>>>24)&0x7f)===4
+            && child.normalized_position_bits===0 && child.previous_phase_bits===0
+            && uint(child.advanced_phase_bits) && child.advanced_phase_bits>0 && child.advanced_phase_bits<0x3f800000
+            && child.transition_bits===0x3f800000 && child.reciprocal_bits===0);
+      }
+      function prewarmSummary(contexts, validCount) {
+        const samples=contexts.filter(context=>context.player_components?.initial_layers?.prewarm_pose!=null);
+        if (samples.length===0) return " No source reset prewarm has been recorded.";
+        if (!samples.every(context=>prewarmValid(context,validCount))) return " Prewarm evidence has not been recorded completely; no updated pose or camera readiness is inferred.";
+        const warm=samples[0].player_components.initial_layers.prewarm_pose;
+        return ` ${samples.length.toLocaleString()} local source reset prewarm${samples.length===1 ? "" : "s"}. First prewarmed context: 0.2 seconds at baseline ${warm.baseline.toLocaleString()}; ${warm.children.length.toLocaleString()} script children and ${warm.updated_controls.toLocaleString()} controls updated. ${warm.committed_bones.toLocaleString()} local bones committed from ${warm.animation_translations.toLocaleString()} animation translations and ${warm.skin_translations.toLocaleString()} source skin translations; ${warm.skipped_layers.toLocaleString()} zero-weight layers skipped. Rotation precision retains ${warm.unverified_sqrt_rotations.toLocaleString()} unverified host-sqrt results. Native numeric parity and the first displayed pose remain unverified; matrix refresh and camera output remain incomplete. This fixed prewarm does not execute the external scheduler.`;
+      }
+      function rawFrameSummary(contexts, validCount) {
+        const samples=contexts.filter(context=>context.player_components?.initial_layers?.raw_frame!=null),
+          uint=value=>validCount(value) && value<=0xffffffff,
+          hash=value=>typeof value==="string" && /^[0-9a-f]{64}$/.test(value),
+          complete=samples.every(context=>{
+            const layers=context.player_components.initial_layers, raw=layers.raw_frame;
+            return raw && !Array.isArray(raw) && raw.state==="raw_frame_decoded"
+              && raw.raw_encoding==="raw_polynomial_frame_be_v1"
+              && ["source_child","blend_fraction_bits","requested_format_flags_raw","animation_reference","frame"].every(key=>uint(raw[key]))
+              && ((raw.source_child>>>24)&0x7f)===4 && ((raw.animation_reference>>>24)&0x7f)===3
+              && raw.blend_fraction_bits<=0x3f800000
+              && ["selected_clip","animation_directory_index","rotations","translations","exact_branch_rotations","unverified_sqrt_rotations","cached_frames","decode_calls","cache_hits"].every(key=>validCount(raw[key]))
+              && raw.selected_clip<layers.bound_clips && raw.rotations>0
+              && raw.rotations<=context.player_components.bone_count && raw.translations<=raw.rotations
+              && raw.exact_branch_rotations+raw.unverified_sqrt_rotations===raw.rotations
+              && raw.cached_frames>0 && raw.cached_frames<=64 && raw.decode_calls>=raw.cached_frames
+              && hash(raw.raw_frame_sha256)
+              && (raw.camera_raw_sha256===null || hash(raw.camera_raw_sha256))
+              && typeof raw.camera_raw_exact_branch==="boolean"
+              && (!raw.camera_raw_exact_branch || (raw.camera_raw_sha256!==null && raw.exact_branch_rotations>0))
+              && (raw.camera_raw_sha256===null || raw.translations>0)
+              && ["root_bias_applied","skin_mapping_applied","layer_blending_applied","skeleton_committed","native_numeric_parity_verified","first_displayed_pose_verified","camera_frame_ready"].every(key=>raw[key]===false);
+          });
+        if (samples.length===0) return " No raw animation frame decode has been recorded.";
+        if (!complete) return " Raw-frame evidence has not been recorded completely; no decoded frame or numeric parity is inferred.";
+        const raw=samples[0].player_components.initial_layers.raw_frame;
+        return ` ${samples.length.toLocaleString()} local raw-frame decode${samples.length===1 ? "" : "s"}. First decoded context: clip ${raw.selected_clip.toLocaleString()}, frame ${raw.frame.toLocaleString()}; ${raw.rotations.toLocaleString()} rotations and ${raw.translations.toLocaleString()} sparse translations. Rotation precision: ${raw.exact_branch_rotations.toLocaleString()} exact-branch results, ${raw.unverified_sqrt_rotations.toLocaleString()} unverified host-sqrt results. Exact-branch labels describe evaluated XYZ, not native numeric parity. Owned cache: ${raw.cached_frames.toLocaleString()} frames, ${raw.decode_calls.toLocaleString()} decode calls, ${raw.cache_hits.toLocaleString()} hits. Root adjustment, skin mapping, layer blending and skeleton commit remain incomplete; this is not the first game pose or a camera frame.`;
+      }
+      function initialLayersSummary(contexts, playerComplete, validCount, resourcesComplete) {
+        const samples=contexts.filter(context=>context.player_components?.initial_layers!=null),
+          uint=value=>validCount(value) && value<=0xffffffff,
+          hash=value=>typeof value==="string" && /^[0-9a-f]{64}$/.test(value),
+          complete=resourcesComplete && samples.every(context=>{
+            const layers=context.player_components.initial_layers, inventory=layers?.inventory,
+              profile=inventory?.static_data;
+            if (!playerComplete(context) || !layers || Array.isArray(layers)
+              || context.player_components.mode_plan!=null
+              || layers.state!=="fresh_fp_layers_initialized"
+              || layers.boundary!=="fresh_fp_constructor_callback_snapshot"
+              || layers.post_selector_scalars_applied!==true || layers.post_selector_head_writes!==2
+              || !Object.hasOwn(layers,"raw_frame") || layers.raw_frame===undefined
+              || !Object.hasOwn(layers,"prewarm_pose") || layers.prewarm_pose===undefined
+              || (layers.prewarm_pose!==null && !prewarmValid(context,validCount))
+              || layers.animation_ticked!==(layers.prewarm_pose!==null) || layers.pose_sampled!==(layers.prewarm_pose!==null)
+              || !["player_initialized","camera_frame_ready"].every(key=>layers[key]===false)
+              || !["mode_requests","active_layers","live_nodes","controls","script_children","bound_clips","unique_animations","captured_bones","slot_zero_nodes","slot_one_nodes"].every(key=>validCount(layers[key]))
+              || layers.mode_requests<1 || layers.active_layers<1 || layers.active_layers>4
+              || layers.controls<1 || layers.script_children<1
+              || layers.live_nodes!==layers.controls+layers.script_children
+              || layers.bound_clips<layers.script_children || layers.unique_animations<1
+              || layers.unique_animations>layers.bound_clips
+              || layers.captured_bones!==context.player_components.bone_count
+              || layers.slot_zero_nodes+layers.slot_one_nodes>layers.live_nodes
+              || (layers.active_layers<=2 && layers.slot_zero_nodes+layers.slot_one_nodes!==layers.live_nodes)
+              || (layers.active_layers===1 && layers.slot_one_nodes!==0)
+              || !uint(layers.selection_mask) || layers.selection_mask>255
+              || !uint(layers.clear_mask) || layers.clear_mask>255
+              || !hash(layers.membership_sha256) || !hash(layers.bindings_sha256)) return false;
+            if (!inventory || Array.isArray(inventory)
+              || !["inventory_key","count","limit","flags","ordinal_raw","guns_resource","guns_payload_bytes","metadata_primary_key","primary_request","secondary_request"].every(key=>uint(inventory[key]))
+              || !["records","selected_record","metadata_source_index","weapon_registry_keys","weapon_order_keys","selected_order_index"].every(key=>validCount(inventory[key]))
+              || inventory.records<1 || inventory.selected_record>=inventory.records
+              || inventory.count<1 || inventory.count>inventory.limit || inventory.ordinal_raw>255
+              || inventory.inventory_key===0 || inventory.guns_resource===0 || inventory.guns_payload_bytes===0
+              || inventory.metadata_primary_key===0 || inventory.primary_request===0 || inventory.secondary_request===0
+              || inventory.weapon_registry_keys<1 || inventory.weapon_order_keys<1
+              || inventory.selected_order_index>=inventory.weapon_order_keys) return false;
+            // These constants identify the supported source profile, not game-progress totals.
+            return profile && !Array.isArray(profile) && profile.game_id==="SJBE52" && profile.revision===0
+              && profile.dol_bytes===6087648 && profile.data_section_index===5
+              && profile.data_virtual_address===0x8056bba0 && profile.data_bytes===383136
+              && profile.dol_sha256==="0d101e5eba1aca38847c03d7a353f5156f3ec2d9025d6c6773d105561532208b"
+              && profile.data_sha256==="76d3456f33f013817ea80ddec93635c466d25bba233929800399b4d3e703836d"
+              && validCount(profile.main_dol_partition_offset) && profile.main_dol_partition_offset>=0x440
+              && validCount(profile.main_dol_partition_offset+profile.dol_bytes);
+          });
+        if (samples.length===0) return {complete,text:" No owned animation-layer snapshot has been recorded."};
+        if (!complete) return {complete,text:` Owned animation-layer evidence has not been recorded completely; runtime readiness is not inferred.${samples.some(context=>context.player_components.initial_layers.prewarm_pose!=null) ? " Prewarm evidence has not been recorded completely; no updated pose or camera readiness is inferred." : ""}`};
+        const layers=samples[0].player_components.initial_layers,
+          quantity=(value,one,many=`${one}s`)=>`${value.toLocaleString()} ${value===1 ? one : many}`;
+        const timing=samples.some(context=>context.player_components.initial_layers.prewarm_pose!==null)
+          ? "constructor snapshots and fixed prewarm are reported separately; camera output remains incomplete"
+          : "animation tick, pose sampling and camera output remain incomplete";
+        return {complete,text:` ${quantity(samples.length,"local owned-layer snapshot")}. First initialized context: ${quantity(layers.mode_requests,"source mode request")}, ${quantity(layers.active_layers,"layer")} and ${quantity(layers.live_nodes,"owned node")} (${quantity(layers.controls,"control")}, ${quantity(layers.script_children,"class04 child","class04 children")}); ${quantity(layers.bound_clips,"bound clip")} and ${quantity(layers.unique_animations,"unique skeletal animation")}; ${quantity(layers.captured_bones,"captured bone")}. Default inventory ${diagnosticHash(layers.inventory.inventory_key)} selected record ${layers.inventory.selected_record.toLocaleString()}; supplied SJBE52 revision 0 DATA5 profile verified. Both post-selector head writes applied (${layers.post_selector_head_writes.toLocaleString()}); ${timing}.${rawFrameSummary(samples,validCount)}${prewarmSummary(samples,validCount)}`};
+      }
+      function cameraBoneSummary(contexts, prerequisitesComplete, validCount) {
+        const samples=contexts.filter(context=>context.player_components?.camera_bone_transform!=null);
+        if (samples.length===0) return " No local camera-bone FK has been recorded.";
+        const fields=new Set(["state","boundary","cache_selection","tag","bone","chain_length","local_transforms","matrix_products","cache_slots","cache_hits","cache_misses","valid_cached_bones","unverified_input_rotations","host_matrix_arithmetic_unverified","encoding","transform_sha256","committed_locals_sha256","tag_bound","committed_pose_used","owner_world_applied","matrices_refreshed","native_numeric_parity_verified","first_displayed_pose_verified","camera_frame_ready","scope"]),
+          hash=value=>typeof value==="string" && /^[0-9a-f]{64}$/.test(value),
+          complete=prerequisitesComplete && samples.every(context=>{
+            const player=context.player_components, bone=player.camera_bone_transform,
+              warm=player.initial_layers?.prewarm_pose;
+            if (!bone || typeof bone!=="object" || Array.isArray(bone)
+              || Object.keys(bone).length!==fields.size || Object.keys(bone).some(key=>!fields.has(key))
+              || typeof bone.scope!=="string"
+              || !prewarmValid(context,validCount)
+              || bone.state!=="local_camera_bone_fk_prepared"
+              || bone.boundary!=="source_reset_prewarm_committed_locals"
+              || player.camera_tag_found!==true || bone.tag!==player.camera_tag || bone.bone!==player.camera_bone
+              || !["bone","chain_length","local_transforms","matrix_products","cache_slots","cache_hits","cache_misses","valid_cached_bones","unverified_input_rotations"].every(key=>validCount(bone[key]))
+              || bone.bone>0xffff || bone.chain_length<1 || bone.chain_length!==player.camera_parent_chain_length
+              || bone.chain_length>player.bone_count || bone.local_transforms!==bone.chain_length
+              || bone.unverified_input_rotations>bone.chain_length
+              || bone.unverified_input_rotations>warm.unverified_sqrt_rotations
+              || bone.host_matrix_arithmetic_unverified!==true
+              || !hash(bone.transform_sha256) || !hash(bone.committed_locals_sha256)
+              || bone.committed_locals_sha256!==warm.locals_sha256
+              || bone.tag_bound!==true || bone.committed_pose_used!==true
+              || !["owner_world_applied","matrices_refreshed","native_numeric_parity_verified","first_displayed_pose_verified","camera_frame_ready"].every(key=>bone[key]===false)) return false;
+            if (bone.cache_selection==="explicit_disabled_inspection") {
+              return bone.encoding==="source_camera_bone_fk_be_v1"
+                && bone.matrix_products===bone.chain_length
+                && bone.cache_slots===0 && bone.cache_hits===0 && bone.cache_misses===0 && bone.valid_cached_bones===0;
+            }
+            return bone.cache_selection==="fresh_fp_actor_cache"
+              && bone.encoding==="source_cached_camera_bone_fk_be_v1"
+              && bone.cache_slots===player.bone_count && bone.cache_misses===bone.chain_length
+              && bone.valid_cached_bones===bone.chain_length
+              && bone.cache_hits===(bone.chain_length>1 ? 1 : 0)
+              && bone.matrix_products===bone.chain_length-1;
+          });
+        if (!complete) return " Camera-bone transform evidence has not been recorded completely; no local FK or camera readiness is inferred.";
+        const first=samples[0].player_components.camera_bone_transform,
+          cached=samples.filter(context=>context.player_components.camera_bone_transform.cache_selection==="fresh_fp_actor_cache"),
+          cache=cached[0]?.player_components.camera_bone_transform,
+          quantity=(value,noun,many=`${noun}s`)=>`${value.toLocaleString()} ${value===1 ? noun : many}`,
+          cacheText=cache
+            ? ` ${quantity(cached.length,"fresh FP cache probe")}; first cache: ${quantity(cache.cache_slots,"slot")}, ${quantity(cache.cache_hits,"hit")}, ${quantity(cache.cache_misses,"miss","misses")}, ${quantity(cache.valid_cached_bones,"valid bone")} and ${quantity(cache.matrix_products,"matrix product")}.`
+            : " No fresh FP cache probe has been recorded.";
+        return ` ${quantity(samples.length,"local camera-bone FK probe")} from committed prewarm poses. First transform: ${quantity(first.chain_length,"bone")} in its chain, ${quantity(first.local_transforms,"local transform")} and ${quantity(first.matrix_products,"matrix product")}; ${quantity(first.unverified_input_rotations,"provisional input rotation")}.${cacheText} Host matrix arithmetic remains unverified. Owner/world transforms, cached skeleton matrix refresh, full native FP/TP cache setup and camera output remain incomplete.`;
+      }
+      function missionSummary() {
+        if (mission.state !== "passed") return `${label(mission.state)} mission context check. No current retained-resource evidence is established.`;
+        const contexts=mission.details?.contexts, probes=mission.details?.probe_count,
+          first=contexts?.[0], catalog=first?.catalog,
+          validCount=value=>Number.isSafeInteger(value) && value>=0,
+          fields=["primary_rows_read","secondary_rows_read","primary_rows_registered","secondary_rows_registered","duplicate_rows"];
+        if (!Array.isArray(contexts) || !Number.isSafeInteger(probes) || probes<1 || contexts.length!==probes
+          || !catalog || !fields.every(key=>validCount(catalog[key]))
+          || !contexts.every(context=>context?.resources_retained===true && context.world_registered===false && context.player_initialized===false && context.reference_compared===false)) {
+          return "Passing receipt has incomplete mission-context diagnostics; resource retention and live mission readiness are not inferred.";
+        }
+        const base=`${probes.toLocaleString()} local context probes retained selected mission resources. Catalog: ${catalog.primary_rows_registered.toLocaleString()} level rows and ${catalog.secondary_rows_registered.toLocaleString()} tuning rows registered from ${catalog.primary_rows_read.toLocaleString()} / ${catalog.secondary_rows_read.toLocaleString()} input rows; ${catalog.duplicate_rows.toLocaleString()} duplicate arrivals rejected.`,
+          chainsComplete=contexts.every(context=>{
+            const resident=context.residency, plan=context.registration;
+            return resident?.complete===true && validCount(resident.retained_files) && resident.retained_files>0
+              && Array.isArray(resident.resources) && resident.resources.length===resident.retained_files
+              && validCount(resident.total_payload_bytes) && resident.total_payload_bytes>0
+              && plan?.prepared===true && plan.native_init_timing_verified===false
+              && Array.isArray(plan.rows) && plan.rows.length===resident.retained_files;
+          }),
+          mapFieldsPresent=contexts.some(context=>context.map_instances!==undefined),
+          mapsComplete=chainsComplete && contexts.every(context=>{
+            const maps=context.map_instances;
+            return maps?.bound===true && maps.base_animators_initialized===false
+              && maps.trigger_factories_run===false && maps.navigation_initialized===false
+              && validCount(maps.loaded_instances) && maps.loaded_instances>0
+              && maps.loaded_instances===context.registration.rows.length
+              && maps.preregistration_slots===maps.loaded_instances+1
+              && Array.isArray(maps.instances) && maps.instances.length===maps.loaded_instances
+              && maps.instances.every((row,index)=>row && row.loaded_ordinal===index
+                && row.preregistration_index===index+1
+                && ["zones","bsp_nodes","placements_bound","navigation_placements"].every(key=>validCount(row[key]))
+                && row.navigation_placements<=row.placements_bound)
+              && ["zones","placements_bound","navigation_placements"].every(key=>validCount(maps.instances.reduce((sum,row)=>sum+row[key],0)));
+          }),
+          mapsText=!mapFieldsPresent ? "" : mapsComplete
+            ? (()=>{
+                const maps=first.map_instances, total=key=>maps.instances.reduce((sum,row)=>sum+row[key],0).toLocaleString();
+                return ` First sampled context: ${maps.loaded_instances.toLocaleString()} map data instances bound, ${maps.preregistration_slots.toLocaleString()} preregistration slots including null slot zero, ${total("zones")} zones and ${total("placements_bound")} placements (${total("navigation_placements")} navigation placements). Base animators, trigger factories and navigation initialization remain incomplete.`;
+              })()
+            : " Map data bindings have not been recorded completely.",
+          spawnFieldsPresent=contexts.some(context=>context.spawn!==undefined),
+          spawnsComplete=chainsComplete && contexts.every(context=>{
+            const spawn=context.spawn, uint=value=>validCount(value) && value<=0xffffffff;
+            if (!spawn || spawn.catalog_membership_verified!==false || spawn.catalog_created!==false
+              || spawn.creation_inputs_verified!==false || spawn.camera_frame_ready!==false
+              || !uint(spawn.requested_id_before) || !uint(spawn.requested_id_after)
+              || spawn.registration_rows!==context.registration.rows.length
+              || !["eligible_files","filtered_files","prepared_entries","visits"].every(key=>validCount(spawn[key]))
+              || spawn.eligible_files+spawn.filtered_files!==spawn.registration_rows
+              || spawn.visits>spawn.prepared_entries*2) return false;
+            if (spawn.selection_found===true) {
+              return spawn.state==="prepared_startpoint" && typeof spawn.used_fallback==="boolean"
+                && validCount(spawn.selected_catalog_index) && spawn.selected_catalog_index<spawn.prepared_entries
+                && spawn.visits>0 && spawn.rotation_mode===3
+                && typeof spawn.pose_sha256==="string" && /^[0-9a-f]{64}$/.test(spawn.pose_sha256)
+                && spawn.pose_sha256_encoding==="position_u32be[4] || rotation_u32be[4] || rotation_mode_u8"
+                && spawn.selected && !Array.isArray(spawn.selected)
+                && uint(spawn.selected.file_hash)
+                && validCount(spawn.selected.source_ordinal) && spawn.selected.source_ordinal<context.residency.retained_files
+                && validCount(spawn.selected.prepared_row_index) && spawn.selected.prepared_row_index<spawn.registration_rows
+                && (spawn.used_fallback
+                  ? spawn.requested_id_before!==0 && spawn.requested_id_after===0
+                  : spawn.requested_id_after===spawn.requested_id_before);
+            }
+            return spawn.state==="missing_startpoint" && spawn.selection_found===false && spawn.used_fallback===false
+              && spawn.requested_id_after===spawn.requested_id_before && spawn.selected_catalog_index===null
+              && spawn.selected===null && spawn.pose_sha256===null && spawn.rotation_mode===null;
+          }),
+          spawnText=!spawnFieldsPresent ? "" : spawnsComplete
+            ? (()=>{
+                const spawn=first.spawn, requested=spawn.requested_id_before.toLocaleString(), entries=spawn.prepared_entries.toLocaleString(),
+                  selection=spawn.selection_found
+                    ? `${spawn.used_fallback ? `requested ID ${requested} fell back to ID 0` : `requested ID ${requested} selected`}, catalog entry ${spawn.selected_catalog_index.toLocaleString()} of ${entries} prepared entries; source pose prepared`
+                    : `no eligible selection for requested ID ${requested} or fallback ID 0 among ${entries} prepared entries`;
+                return ` First sampled context's prepared source StartPoint: ${selection}. Live catalog membership, player creation inputs and camera frame remain unverified.`;
+              })()
+            : " Prepared source spawn selection has not been recorded completely.",
+          playerFieldsPresent=contexts.some(context=>context.player_components!==undefined),
+          playerComplete=context=>{
+            const player=context.player_components, uint=value=>validCount(value) && value<=0xffffffff,
+              hash=value=>typeof value==="string" && /^[0-9a-f]{64}$/.test(value);
+            if (!player || player.state!=="fp_skeleton_constructor_initialized"
+              || player.skeleton_constructor_initialized!==true || player.animation_sampled!==Boolean(prewarmValid(context,validCount))
+              || player.player_physics_initialized!==false || player.camera_frame_ready!==false
+              || player.native_default_fallback_used!==false
+              || !["requested_character","selected_character","catalog_resource","component_resource","skin_resource","camera_tag"].every(key=>uint(player[key]) && player[key]>0)
+              || player.requested_character!==player.selected_character
+              || !["character_rows","duplicate_character_rows","selected_source_index","retained_resources","retained_payload_bytes","bone_count","root_count","camera_parent_chain_length"].every(key=>validCount(player[key]))
+              || player.character_rows<1 || player.selected_source_index>=player.character_rows+player.duplicate_character_rows
+              || player.bone_count<1 || player.root_count<1 || player.root_count>player.bone_count
+              || !hash(player.topology_sha256) || !hash(player.constructor_state_sha256)) return false;
+            const dependencies=[player.catalog_resource,player.component_resource,player.skin_resource],
+              payloads=[player.catalog_payload_bytes,player.component_payload_bytes,player.skin_payload_bytes];
+            if (new Set(dependencies).size!==dependencies.length || player.retained_resources!==dependencies.length
+              || !payloads.every(value=>uint(value) && value>0)
+              || player.retained_payload_bytes!==payloads.reduce((sum,value)=>sum+value,0)) return false;
+            return player.camera_tag_found===true
+              ? uint(player.camera_bone) && player.camera_bone<player.bone_count
+                && player.camera_parent_chain_length>0 && player.camera_parent_chain_length<=player.bone_count
+                && hash(player.camera_parent_chain_sha256)
+              : player.camera_tag_found===false && player.camera_bone===null
+                && player.camera_parent_chain_length===0 && player.camera_parent_chain_sha256===null;
+          },
+          playersComplete=chainsComplete && contexts.every(playerComplete),
+          playersText=!playerFieldsPresent ? "" : playersComplete
+            ? (()=>{
+                const player=first.player_components,
+                  tag=player.camera_tag_found
+                    ? `camera tag ${diagnosticHash(player.camera_tag)} resolved to bone ${player.camera_bone.toLocaleString()}, ${player.camera_parent_chain_length.toLocaleString()} ${player.camera_parent_chain_length===1 ? "bone" : "bones"} in its parent chain`
+                    : `camera tag ${diagnosticHash(player.camera_tag)} unresolved; no parent chain`;
+                return ` First sampled context's first-person skeleton constructor: ${player.retained_resources.toLocaleString()} retained dependencies (character catalog, animation component and skin; ${player.retained_payload_bytes.toLocaleString()} payload bytes), ${player.bone_count.toLocaleString()} ${player.bone_count===1 ? "bone" : "bones"} and ${player.root_count.toLocaleString()} ${player.root_count===1 ? "root" : "roots"}; ${tag}. Constructor identity is not a sampled animation pose; player physics and camera frames remain incomplete.`;
+              })()
+            : " First-person skeleton constructor evidence has not been recorded completely.",
+          modeContexts=contexts.filter(context=>context.player_components?.mode_plan!=null),
+          modesComplete=modeContexts.every(context=>{
+            const mode=context.player_components.mode_plan, uint=value=>validCount(value) && value<=0xffffffff;
+            if (!playerComplete(context) || !mode || typeof mode!=="object" || Array.isArray(mode)
+              || mode.input_source!=="explicit_host_state" || mode.initial_request_verified!==false
+              || mode.runtime_children_created!==false || mode.animation_sampled!==false || mode.camera_frame_ready!==false
+              || !["requested_mode","previous_mode","fallback_mode","return_word"].every(key=>uint(mode[key]))
+              || !["attempts","matched_transitions","planned_commands","mask_operations","start_sets","layer_groups","child_requests","previous_matches","fallback_matches"].every(key=>validCount(mode[key]))
+              || mode.attempts>2 || mode.previous_matches>1 || mode.fallback_matches>1
+              || mode.matched_transitions!==mode.previous_matches+mode.fallback_matches
+              || mode.matched_transitions>mode.attempts
+              || mode.planned_commands!==mode.mask_operations+mode.start_sets
+              || (mode.matched_transitions===0 && mode.planned_commands!==0)
+              || (mode.start_sets===0 && mode.layer_groups!==0) || (mode.layer_groups===0 && mode.child_requests!==0)
+              || mode.plan_encoding!=="mode_plan_be_v1" || typeof mode.plan_sha256!=="string"
+              || !/^[0-9a-f]{64}$/.test(mode.plan_sha256)) return false;
+            if (mode.state==="target_missing") {
+              return mode.target_index===null && mode.return_word===0 && mode.attempts===0;
+            }
+            if (!validCount(mode.target_index)) return false;
+            if (mode.state==="no_nonzero_return") return mode.return_word===0 && mode.attempts===2;
+            return mode.state==="planned" && mode.return_word!==0 && mode.attempts>=1 && mode.matched_transitions>=1
+              && (mode.attempts===1 ? mode.previous_matches===1 && mode.fallback_matches===0 : mode.fallback_matches===1);
+          }),
+          modesText=modeContexts.length===0
+            ? " No explicit mode plan has been recorded."
+            : modesComplete
+              ? (()=>{
+                  const mode=modeContexts[0].player_components.mode_plan,
+                    quantity=(value,noun)=>`${value.toLocaleString()} ${noun}${value===1 ? "" : "s"}`;
+                  return ` ${quantity(modeContexts.length,"explicit mode-plan probe")}. First explicit probe: requested ${diagnosticHash(mode.requested_mode)}, previous ${diagnosticHash(mode.previous_mode)}, fallback ${diagnosticHash(mode.fallback_mode)}; state ${mode.state.replaceAll("_"," ")}, return ${diagnosticHash(mode.return_word)}; ${quantity(mode.attempts,"attempt")}, ${quantity(mode.planned_commands,"command plan")}, ${quantity(mode.layer_groups,"layer group")} and ${quantity(mode.child_requests,"child request")}. Initial request history remains unverified; runtime child creation, animation sampling and camera output remain incomplete.`;
+                })()
+              : " Explicit mode-plan evidence has not been recorded completely; animation readiness is not inferred.";
+        const layerSummary=initialLayersSummary(contexts,playerComplete,validCount,chainsComplete),
+          boneSummary=cameraBoneSummary(contexts,playersComplete && layerSummary.complete,validCount);
+        return `${base} ${chainsComplete
+          ? `First sampled context: ${first.residency.retained_files.toLocaleString()} resident files, ${first.residency.total_payload_bytes.toLocaleString()} retained payload bytes and ${first.registration.rows.length.toLocaleString()} prepared registration rows. Preference initialization is an explicit snapshot; original init timing is unverified.`
+          : "Resource-chain residency and registration preparation have not been recorded completely."}${mapsText}${spawnText}${playersText}${modesText}${layerSummary.text}${boneSummary} World and player initialization remain incomplete.`;
+      }
+      text("mission-summary",missionSummary());
+      text("intro-cue-summary",cueInfo
+        ? `${label(startup.state)} title intro cue diagnostics · sound ${diagnosticHash(cueInfo.sound_hash)} → wave ${diagnosticHash(cueInfo.wave_hash)} in bank ${diagnosticHash(cueInfo.resource_hash)} · ${diagnosticNumber(cueInfo.channels)} channels at ${diagnosticNumber(cueInfo.sample_rate)} Hz · ${diagnosticNumber(cue.decoded_frames)} sample frames decoded (${diagnosticNumber(cueInfo.sample_frames)} source frames). ${titlePlayback ? `Native title: ${diagnosticNumber(titlePlayback.intro_cue_requests)} cue requests, ${diagnosticNumber(titlePlayback.intro_cue_voices)} voices, gain ${diagnosticNumber(titlePlayback.intro_cue_gain)}. ${cueAudio ? `Independent one-shot voices: ${diagnosticNumber(cueAudio.oneshot_started)} started, ${diagnosticNumber(cueAudio.oneshot_completed)} completed, ${diagnosticNumber(cueAudio.oneshot_active)} active; ${diagnosticNumber(cueAudio.oneshot_output_frames)} voice output frames. Primary music consumed ${diagnosticNumber(cueAudio.source_frames_consumed)} source frames at ${diagnosticNumber(cueAudio.source_rate)} Hz; device output ${diagnosticNumber(cueAudio.output_rate)} Hz.` : "Native one-shot submission has not been sampled."}` : "Native title cue submission has not been sampled."}${startup.state==="stale" ? " Previous cue evidence is stale; rerun for this source and host." : ""}${startup.state==="failed" ? " No passing cue result is recorded." : ""} Original mixing and cue synchronization remain unverified.`
+        : `${label(startup.state)} startup gate · Title intro cue binding/decode has not been recorded; native cue submission remains unverified.`);
+      const actionResources=startup.details?.action_initialization?.window?.playback?.startup_resources;
+      text("action-summary",actionResources
+        ? `${label(startup.state)} Action initializer diagnostics · state ${actionResources.state || "unrecorded"}; actions_ready ${typeof actionResources.actions_ready==="boolean" ? actionResources.actions_ready : "unrecorded"} · resource ${diagnosticHash(actionResources.resource_hash)} · ${diagnosticNumber(actionResources.actions)} action rows, ${diagnosticNumber(actionResources.composites)} composite rows; ${diagnosticNumber(actionResources.resolved_slots)} resolved slots and ${diagnosticNumber(actionResources.unresolved_slots)} unresolved (native NULL) slots.${actionResources.error ? ` Error: ${actionResources.error}.` : ""} Scope: ${actionResources.scope || "scope not recorded"}.${startup.state==="stale" ? " Previous Action evidence is stale; rerun for this source and host." : ""}${startup.state==="failed" || actionResources.state==="failed" || actionResources.error ? " No passing Action result is recorded." : ""} This covers only the supported Action initializer; complete native startup readiness remains unverified.`
+        : `${label(startup.state)} startup gate · Action initializer evidence has not been recorded; complete native startup readiness remains unverified.`);
+      text(
+        "parity-count",
+        `${report.parity.verified} of ${report.parity.total} tracked criteria verified`,
+      );
+      const cov = report.coverage,
+        lines = cov.details?.totals?.lines;
+      if (lines) {
+        text("coverage-number", `${lines.percent.toFixed(1)}%`);
+        text(
+          "coverage-count",
+          `${lines.covered} / ${lines.count} production lines · xtask excluded`,
+        );
+      } else {
+        text("coverage-count", "No measured coverage yet");
+      }
+      text("coverage-state", `${label(cov.state)} · ${date(cov.time_unix)}`);
+      const steps = report.checks.details?.steps || [],
+        passed = steps.filter((s) => s.passed).length;
+      text("build-number", steps.length ? `${passed}/4` : "—");
+      text(
+        "build-summary",
+        `${label(report.checks.state)} · Format / Clippy / tests / release`,
+      );
+      text("build-time", date(report.checks.time_unix));
+      text("next-work", report.next);
+      for (const [name, g] of Object.entries(report.groups)) {
+        const row = el("div", undefined, "bar-row"),
+          track = el("div", undefined, "bar-track"),
+          done = el("div", undefined, "bar-done"),
+          working = el("div", undefined, "bar-working");
+        done.style.width = `${(g.implemented / g.total) * 100}%`;
+        working.style.width = `${(g.in_progress / g.total) * 100}%`;
+        track.append(done, working);
+        row.append(
+          el("span", name),
+          track,
+          el(
+            "span",
+            `${g.implemented + g.in_progress}/${g.total}`,
+            "bar-count",
+          ),
+        );
+        row.title = `${name}: ${g.implemented} implemented, ${g.in_progress} in progress, ${g.total} tracked`;
+        $("workstreams").append(row);
+        const o = el("option", name);
+        o.value = name;
+        $("domain").append(o);
+      }
+      text(
+        "scope-summary",
+        `${report.parity.implemented} implemented · ${report.parity.in_progress} in progress · ${report.parity.total} tracked`,
+      );
+      function criteria() {
+        const search = $("search").value.toLowerCase(),
+          domain = $("domain").value,
+          state = $("state").value;
+        const rows = report.criteria.filter(
+          (c) =>
+            (!domain || c.domain === domain) &&
+            (!state || c.state === state) &&
+            `${c.id} ${c.title} ${c.acceptance}`.toLowerCase().includes(search),
+        );
+        $("criteria").replaceChildren();
+        for (const c of rows) {
+          const tr = el("tr"),
+            title = el("td", c.title),
+            accept = el("td");
+          title.append(el("div", c.id, "criterion-id"));
+          accept.append(el("div", c.acceptance, "acceptance"));
+          const s = el("td");
+          s.append(badge(c.state));
+          tr.append(el("td", c.domain), title, accept, s);
+          $("criteria").append(tr);
+        }
+        text("result-count", `${rows.length} criteria`);
+        if (!rows.length) {
+          const row = el("tr"),
+            cell = el("td", "No matching criteria.", "empty");
+          cell.colSpan = 4;
+          row.append(cell);
+          $("criteria").append(row);
+        }
+      }
+      for (const id of ["search", "domain", "state"])
+        $(id).addEventListener(id === "search" ? "input" : "change", criteria);
+      criteria();
+      for (const c of report.compatibility) {
+        const tr = el("tr"),
+          a = el("td"),
+          r = el("td"),
+          resources = el("td"),
+          render = el("td"),
+          windowCell = el("td"),
+          menuCell = el("td"),
+          startupCell = el("td");
+        a.append(badge(c.assets));
+        resources.append(badge(c.resources));
+        render.append(badge(c.render));
+        windowCell.append(badge(c.viewer || "not_run"));
+        menuCell.append(badge(c.menu || "not_run"));
+        startupCell.append(badge(c.startup || "not_run"));
+        r.append(badge(c.runtime));
+        tr.append(
+          el("td", c.edition),
+          el("td", `${c.revision} / ${c.container}`),
+          a,
+          resources,
+          render,
+          windowCell,
+          menuCell,
+          startupCell,
+          r,
+        );
+        $("compatibility-rows").append(tr);
+      }
+      const a = report.assets;
+      const ad = a.details;
+      text(
+        "asset-summary",
+        ad?.entries
+          ? `${label(a.state)} · Last observed ${ad.file_count} files and ${ad.entries.toLocaleString()} entries across ${ad.indexes.length} archive indexes. This check covers indexed base ranges.`
+          : `${label(a.state)} · Local image checks have no results for this source.`,
+      );
+      const resources = report.resources;
+      const rd = resources.details;
+      text(
+        "resource-summary",
+        rd?.resources
+          ? `${label(resources.state)} · ${rd.parsed}/${rd.resources} EDB metadata parsed; ${rd.local_images.toLocaleString()} local images; ${rd.decoded_mips.toLocaleString()} mips decoded; ${rd.error_count} errors. ${rd.graphs ? `${rd.graphs.decoded}/${rd.graphs.found} root 0x607 graphs decoded (${rd.graphs.triangles.toLocaleString()} triangles, ${rd.graphs.directed_links.toLocaleString()} links; ${rd.graphs.non_reciprocal_links} nonreciprocal, ${rd.graphs.links_without_shared_edge} without shared edges). Original navigation behavior remains unverified.` : "Triangle graph audit not recorded."} ${rd.external_references} external references counted separately. Other unknown bodies and original-reference comparisons remain unverified.`
+          : `${label(resources.state)} · Run cargo xtask resources <disc> for the EDB and texture audit.`,
+      );
+      if (rd?.grenade_prototype) $("resource-summary").append(
+        document.createTextNode(` Grenade prototype 0x${rd.grenade_prototype.hash.toString(16)} resolved in script directory entry ${rd.grenade_prototype.directory_index}; its body and live activation remain unverified.`),
+      );
+      const collision = rd?.collision;
+      const contactProbe = collision?.box_triangle;
+      text("collision-summary", collision
+        ? `${label(resources.state)} collision inputs · ${collision.decoded.toLocaleString()}/${collision.found.toLocaleString()} root 0x601 mesh entries decoded; ${collision.enabled_triangles.toLocaleString()} enabled and ${collision.disabled_triangles.toLocaleString()} disabled triangles in included batches. ${collision.excluded_batches.toLocaleString()} batches (${collision.excluded_declared_triangles.toLocaleString()} declared triangles) excluded separately. ${collision.degenerate_enabled_triangles.toLocaleString()} enabled triangles have exactly zero area in f64 checks. Raw strip order and flags are retained. ${contactProbe ? `Authored mesh-local box probes: ${contactProbe.queries.toLocaleString()} queries over ${contactProbe.sampled_triangles.toLocaleString()} triangles (${contactProbe.samples_per_mesh_limit} samples per mesh maximum); ${Object.values(contactProbe.contact_axes).reduce((a,b)=>a+b,0).toLocaleString()} contacts, ${contactProbe.candidates_without_contact.toLocaleString()} candidates without contact. ${contactProbe.far_separated.toLocaleString()}/${contactProbe.far_queries.toLocaleString()} distant boxes separated. Independent plane checks: ${contactProbe.plane_validated.toLocaleString()} within 0.00001 units, ${contactProbe.plane_ambiguous.toLocaleString()} within a coordinate-scaled rounding bound and ${contactProbe.plane_degenerate.toLocaleString()} without a nonzero f64 edge normal. These are sampled diagnostics, not live world results.` : "Mesh-local contact probes have not been recorded."} Live world membership, skinning and original-runtime collision remain unverified.`
+        : "Run cargo xtask resources <disc> to audit root mesh collision inputs; decoding is separate from live collision results.");
+      const spatial = rd?.map_spatial;
+      text("spatial-summary", spatial
+        ? `${label(resources.state)} BSP zone binding · ${spatial.decoded.toLocaleString()}/${spatial.maps.toLocaleString()} map directories decoded; ${spatial.bsp_maps.toLocaleString()} with a BSP and ${spatial.absent_bsp_maps.toLocaleString()} without one. ${spatial.reachable_nodes.toLocaleString()} reachable nodes and ${spatial.zones.toLocaleString()} stored zones. ${spatial.queries.toLocaleString()} authored point queries: ${spatial.validated_queries.toLocaleString()} agree with independent f64 traversal, ${spatial.ambiguous_queries.toLocaleString()} are near a plane and remain numerically ambiguous; maximum ${spatial.maximum_nodes_tested} nodes tested. At most eight zones per map supply center/min/max sample positions; these positions need not bind back to their source zone. This does not collect geometry or validate live world membership, instance transforms or original-runtime parity.`
+        : "Map BSP binding has not been checked for this source. Zone selection is separate from loaded-world collision.");
+      const portals = spatial?.portals;
+      text("portal-summary", portals
+        ? `${label(resources.state)} portal expansion · ${portals.maps.toLocaleString()} maps; ${portals.groups.toLocaleString()} groups / ${portals.rows.toLocaleString()} rows; ${portals.inline_shapes.toLocaleString()} inline quads and ${portals.linked_shapes.toLocaleString()} linked polygons decoded. ${portals.expanded_queries.toLocaleString()} authored radius queries: ${portals.stable_expansions.toLocaleString()} stable zone-list agreements and ${portals.ambiguous_expansions.toLocaleString()} near-plane/radius or degenerate cases remain ambiguous. ${portals.distance_calls.toLocaleString()} portal distance calls (${portals.triangles_tested.toLocaleString()} fan triangles): ${portals.strict_distance_checks.toLocaleString()} within 0.0001 of independent f64 geometry, ${portals.rounding_ambiguous_distances.toLocaleString()} require a rounding bound, ${portals.degenerate_distance_calls.toLocaleString()} contain determinant-rejected triangles and ${(portals.unstable_distance_calls ?? 0).toLocaleString()} are near-degenerate and unvalidated. F32 cancellation is preserved. Only initial-zone groups expand; duplicate zones and strict radius ties retain native ordering. At most ${portals.maximum_zones_returned} zones returned. No live geometry collection, instance transforms or original-runtime comparison.`
+        : "Portal expansion has not been checked for this source; it is separate from BSP point binding.");
+      const initial = rd?.initial_placements;
+      text("placement-summary", initial
+        ? `${label(resources.state)} initial placement matrices · ${initial.placements.toLocaleString()} records across ${initial.maps.toLocaleString()} maps use the statically reconstructed T*S*Rz*Rx*Ry order and Euler polynomial. ${initial.scale_order_changes.toLocaleString()} matrices differ from scaling columns; ${initial.nonuniform_scale.toLocaleString()} unequal-axis scales, ${initial.negative_scale.toLocaleString()} negative scales and ${initial.zero_scale.toLocaleString()} zero scales retained. ${initial.engine_flag_4_placements.toLocaleString()} records carry engine flag 0x4. ${initial.probed_points.toLocaleString()} authored point comparisons: ${initial.strict_points.toLocaleString()} within 0.00001 of independent f64 axis operations, ${initial.rounding_points.toLocaleString()} require a coordinate/angle-scaled rounding bound. Initial transforms only; live mutation, collision record population/bounds, visibility and original-runtime parity remain unverified.`
+        : "Initial native placement matrices have not been checked for this source; render inspection and live collision remain distinct.");
+      const frames = rd?.collision_frames;
+      text("frame-summary", frames
+        ? `${label(resources.state)} collision frame probes · ${frames.placements.toLocaleString()} initial placements across ${frames.maps.toLocaleString()} maps tested with both authored flag modes: ${frames.rigid_frames.toLocaleString()} rigid preparations and ${frames.general_frames.toLocaleString()} general preparations. ${frames.validated_general_frames.toLocaleString()} general inverses validated by independent f64 elimination; ${frames.singular_general_frames.toLocaleString()} exact-zero and ${frames.ill_conditioned_general_frames.toLocaleString()} ill-conditioned general frames counted separately. Across validated inverse modes, ${frames.strict_inverse_frames.toLocaleString()} meet absolute tolerance 0.00001 and ${frames.rounding_inverse_frames.toLocaleString()} require a scaled bound. ${frames.query_probes.toLocaleString()} current-translation/W=0 query probes: ${frames.strict_queries.toLocaleString()} strict agreements, ${frames.rounding_queries.toLocaleString()} rounding-bounded and ${frames.unvalidated_queries.toLocaleString()} unvalidated. General inversion uses a provisional host reciprocal seed; Wii estimate precision remains open. Live collected flags are not inferred. No live record population, bounds, clearance or original-runtime comparison.`
+        : "Collision frame preparation has not been checked for this source; live record population and clearance remain pending.");
+      const bounds = rd?.initial_bounds;
+      text("bounds-summary", bounds
+        ? `${label(resources.state)} initial stored bounds · ${bounds.base_bounds_probed.toLocaleString()} base headers probed across ${bounds.maps.toLocaleString()} maps; ${bounds.component_headers.toLocaleString()} require expansion and ${bounds.ordinary_components_decoded.toLocaleString()} ordinary component instances decoded. ${bounds.shape_components_decoded.toLocaleString()} slot-six aggregates decoded with ${bounds.shape_point_updates.toLocaleString()} addressed point updates; ${bounds.empty_shape_aggregates.toLocaleString()} empty aggregates retain the native sentinel. ${bounds.assembled_bounds_probed.toLocaleString()} initial assemblies compared with independent f64 corner geometry: ${bounds.strict_assembled_bounds.toLocaleString()} within 0.00001 and ${bounds.rounding_assembled_bounds.toLocaleString()} need a coordinate-scaled rounding bound. ${bounds.assembled_bounds_pending.toLocaleString()} assemblies remain pending; ${bounds.unsupported_components.toLocaleString()} ordinary component types are unsupported. Base-only comparisons: ${bounds.strict_bounds.toLocaleString()} strict and ${bounds.rounding_bounds.toLocaleString()} rounding-bounded. ${bounds.unresolved_entity_references.toLocaleString()} unresolved placement references; ${bounds.unsupported_entity_types.toLocaleString()} unsupported base types. Initial matrices and static component binding only; live candidate membership, mutable records, clearance and original-runtime parity remain unverified.`
+        : "Initial stored bounds have not been checked for this source; base, component and live-world evidence remain distinct.");
+      const hierarchy = rd?.candidate_hierarchies;
+      text("hierarchy-summary", hierarchy
+        ? `${label(resources.state)} initialized candidate hierarchies · ${hierarchy.refreshed_hierarchies.toLocaleString()}/${hierarchy.zones.toLocaleString()} zone trees refreshed across ${hierarchy.maps.toLocaleString()} maps; ${hierarchy.nodes.toLocaleString()} reachable nodes, ${hierarchy.branch_bounds_written.toLocaleString()} seeded branch-bound writes and ${hierarchy.leaf_entries_refreshed.toLocaleString()} leaf entries processed. ${hierarchy.queries.toLocaleString()} authored queries: ${hierarchy.stable_queries.toLocaleString()} stable candidate-list agreements with independent f64 traversal and ${hierarchy.ambiguous_queries.toLocaleString()} near-boundary cases. ${hierarchy.candidate_indices.toLocaleString()} indices returned, preserving duplicates. Source membership flags stay unchanged; live membership and original-runtime parity remain unverified.`
+        : "Initialized candidate hierarchy refresh/query has not been checked for this source.");
+      const collected = rd?.static_geometry;
+      text("collection-summary", collected
+        ? `${label(resources.state)} initialized static geometry collection · ${collected.queries.toLocaleString()} authored zone-center queries across ${collected.maps.toLocaleString()} maps, radius 8, filter slot/flags 0 and capacity 4,096. ${collected.records_collected.toLocaleString()} geometry records collected; at most ${collected.maximum_records.toLocaleString()} per query. ${collected.sphere_rejections.toLocaleString()} sphere rejections, ${collected.bounds_rejections.toLocaleString()} geometry-bounds rejections and ${collected.full_rejections.toLocaleString()} full-buffer rejections. ${collected.frame_origins_prepared.toLocaleString()} record query origins prepared with ${collected.inverse_preparations.toLocaleString()} consecutive-key inverse preparations. Records are not contacts; separate contact probes follow. Live clearance and original-runtime comparison remain pending.`
+        : "Initialized static geometry collection has not been checked for this source; records and contacts remain distinct.");
+      const meshContacts = rd?.static_mesh_contacts;
+      text("mesh-contact-summary", meshContacts
+        ? `${label(resources.state)} initialized static mesh contacts · ${meshContacts.queries.toLocaleString()} authored zone-center box queries across ${meshContacts.maps.toLocaleString()} maps; radius 8, unit half-extents, identity query frame, filter slot/flags 0, record/contact capacities 4,096. ${meshContacts.records_collected.toLocaleString()} collected records and ${meshContacts.resident_mesh_loads.toLocaleString()} resident mesh loads within queries. ${meshContacts.cache_generated.toLocaleString()} batch caches generated and ${meshContacts.cache_reused.toLocaleString()} reused. ${meshContacts.coarse_queries.toLocaleString()} coarse-tree queries (${meshContacts.coarse_rejections.toLocaleString()} rejections); maximum observed fanout ${meshContacts.coarse_maximum_fanout ?? "not sampled"}. ${meshContacts.batch_rejections.toLocaleString()} batch and ${meshContacts.triangle_rejections.toLocaleString()} triangle rejections; ${meshContacts.primitive_queries.toLocaleString()} primitive queries produced ${meshContacts.contacts_appended.toLocaleString()} appended contacts across ${meshContacts.queries_with_contacts.toLocaleString()} requests. ${meshContacts.contacts_validated.toLocaleString()} contacts passed finite-value and provenance checks. Capacity events: ${meshContacts.record_capacity_rejections.toLocaleString()} record rejections, ${meshContacts.contact_capacity_mesh_skips.toLocaleString()} mesh skips and ${meshContacts.contact_capacity_after_hit_full.toLocaleString()} post-hit full events. These are authored static snapshots; live mutation, dynamic positions, actor/world-manager integration and original-runtime/FP parity remain unverified.`
+        : "Initialized static mesh contacts have not been checked for this source; collection records alone do not establish contact behavior.");
+      const worldRequests = rd?.world_box_requests;
+      text("world-request-summary", worldRequests
+        ? `${label(resources.state)} initialized world box requests · ${worldRequests.single_queries.toLocaleString()} single-zone and ${worldRequests.expanded_queries.toLocaleString()} portal-expanded queries over ${worldRequests.sample_origins.toLocaleString()} authored zone-center positions across ${worldRequests.maps.toLocaleString()} maps. Radius 8, unit box half-extents, identity query frame, filter slot/flags 0 and capacities 4,096. ${worldRequests.zones_selected.toLocaleString()} zone passes retain ${worldRequests.duplicate_zones.toLocaleString()} duplicate occurrences; ${worldRequests.records_collected.toLocaleString()} records share request buffers and consecutive frame caches. ${worldRequests.direct_single_contact_checks.toLocaleString()} direct single-zone contact comparisons and ${worldRequests.expanded_record_sequence_checks.toLocaleString()} expanded record-order checks passed. ${worldRequests.contacts_validated.toLocaleString()}/${worldRequests.contacts.toLocaleString()} contacts passed finite-value and source-provenance checks. Capacity events: ${worldRequests.record_capacity_rejections.toLocaleString()} record rejections, ${worldRequests.contact_capacity_mesh_skips.toLocaleString()} mesh skips and ${worldRequests.contact_capacity_after_hit_full.toLocaleString()} post-hit full events. These map probes use authored membership; they do not verify live manager state, grenade line clearance or original-runtime parity. The separate grenade ascent command uses source capacities 64/512 and filter slot 1/flags 3.`
+        : "Initialized world request binding has not been checked for this source; single-zone contacts do not prove BSP/portal composition or live manager state.");
+      const worldLines = rd?.world_line_requests;
+      text("world-line-summary", worldLines
+        ? `${label(resources.state)} initialized world line requests · ${worldLines.queries.toLocaleString()} authored segments across ${worldLines.maps.toLocaleString()} maps: ${worldLines.nearest_queries.toLocaleString()} nearest and ${worldLines.any_hit_queries.toLocaleString()} any-hit queries; ${worldLines.hits.toLocaleString()} hits and ${worldLines.misses.toLocaleString()} misses. ${worldLines.mode_comparisons.toLocaleString()} paired vertical queries agree on hit existence and nearest ordering. ${worldLines.zones_selected.toLocaleString()} unique ordered zone occurrences across queries; ${worldLines.zone_capacity_reached.toLocaleString()} reached the native sixteen-zone stop. ${worldLines.planes_prepared.toLocaleString()} resident planes prepared across queries, with ${worldLines.planes_reused.toLocaleString()} mesh plane-cache reuses. ${worldLines.triangles_tested.toLocaleString()} triangle tests; ${worldLines.final_hits_validated.toLocaleString()} final hits passed finite-value and source-provenance checks. Independent raw-triangle f64 plane distances: ${worldLines.f64_plane_checks.toLocaleString()} diagnostics, ${worldLines.f64_degenerate_triangles.toLocaleString()} degenerate and ${worldLines.f64_short_normal_triangles.toLocaleString()} short-normal cases separated; maximum distance ${worldLines.maximum_f64_plane_distance == null ? "not recorded" : worldLines.maximum_f64_plane_distance.toPrecision(4)}. Distance is diagnostic, not a reference tolerance. Any-hit results intentionally omit the world normal. These static snapshots do not verify actor-line clearance, live state or original-runtime/FP parity.`
+        : "Initialized world line requests have not been checked for this source; box contacts and navigation rays do not establish this segment path.");
+      text("map-navigation-summary", rd?.map_navigation?.maps
+        ? `Static map bindings: ${rd.map_navigation.decoded}/${rd.map_navigation.maps} map directories checked; ${rd.map_navigation.placements.toLocaleString()} placement records; ${rd.map_navigation.ready}/${rd.map_navigation.registrations} navigation registrations bound, ${rd.map_navigation.unavailable} unavailable; ${rd.map_navigation.unresolved_entity_references} unresolved source entity references. ${rd.map_navigation.nonzero_translations} nonzero translations; ${rd.map_navigation.shared_meshes} per-map shared mesh slots. Loaded-map precedence, dynamic updates, actor scheduling and original-runtime parity remain unverified.`
+        : "Static map navigation bindings have not been checked for this source.");
+      const render = report.render,
+        rendered = render.details;
+      text(
+        "render-summary",
+        rendered?.render
+          ? `${label(render.state)} inspection check · Dam: ${rendered.render.triangles.toLocaleString()} submitted triangles / ${rendered.render.unique_triangles?.toLocaleString() ?? "not recorded"} unique triangles / ${rendered.render.draws} draws on ${rendered.render.adapter} (${rendered.render.backend}). ${rendered.placements_requested ? `${rendered.placements_loaded} placements decoded (${rendered.render_placements ?? "not recorded"} render, ${rendered.navigation_placements ?? "not recorded"} navigation); ${rendered.placements_not_loaded} unsupported. Strict placement decode: ${rendered.strict_placement_decode_passed ? "passed" : "failed"}.` : `Placements not requested; ${rendered.placements_not_loaded} not loaded.`} Rotation/visibility parity, lighting/TEV and gameplay remain unverified.`
+          : `${label(render.state)} · Run cargo xtask render <disc> on a native graphics host. GPU tests are separate from asset-free CI.`,
+      );
+      const viewer = report.viewer || { state: "not_run" },
+        viewed = viewer.details;
+      text(
+        "viewer-summary",
+        viewed?.window
+          ? `${label(viewer.state)} window check · ${viewed.window.frames_presented} hidden native frames; ${viewed.window.scene_uploads} scene upload; ${viewed.window.resize_count} resize; final ${viewed.window.final_size.join("×")} on ${viewed.window.adapter} (${viewed.window.backend}, ${viewed.window.surface_format}). Surface pixels ${viewed.surface_capture_matches_offscreen ? "match" : "do not match"} the shared offscreen path. ${viewed.placements_loaded} placements decoded (${viewed.render_placements ?? "not recorded"} render, ${viewed.navigation_placements ?? "not recorded"} navigation). Visible-window controls and gameplay parity have not been validated.`
+          : `${label(viewer.state)} · Run cargo xtask viewer <disc> for the explicit native window/resize/capture check. This is separate from gameplay and human input testing.`,
+      );
+      const navigation = report.navigation || { state: "not_run" },
+        nd = navigation.details;
+      text(
+        "navigation-summary",
+        nd?.stats
+          ? `${label(navigation.state)} surface query smoke · ${nd.probed}/${nd.graphs} navmeshes; ${nd.stats.queries.toLocaleString()} sampled queries; ${nd.stats.hits.toLocaleString()} hits; ${nd.error_count} errors. ${nd.stats.first_queries?.toLocaleString() ?? "Not recorded"} storage-first, ${nd.stats.nearest_queries?.toLocaleString() ?? "not recorded"} nearest, ${nd.stats.segment_queries?.toLocaleString() ?? "not recorded"} selected-triangle segments and ${nd.stats.connected_queries?.toLocaleString() ?? "not recorded"} connected-face lookups. Connected checks: ${nd.stats.connected_neighbor_hits?.toLocaleString() ?? "not recorded"} neighbor hits, ${nd.stats.connected_face_tests?.toLocaleString() ?? "not recorded"} face tests, depth one with the default immediate-backtracking filter; ${nd.stats.skipped_connected_samples?.toLocaleString() ?? "not recorded"} samples without a reciprocal neighbor. At most ${nd.samples_per_graph_limit} sample positions per graph, with three group selections for each ray method. No original-runtime comparison; Wii estimate precision, custom actor policies, world transforms and gameplay remain unverified.`
+          : `${label(navigation.state)} · Run cargo xtask navigation <disc> for the sampled surface-query check. This does not verify pathfinding or original-runtime parity.`,
+      );
+      const paths = report.paths || { state: "not_run" }, pd = paths.details;
+      text("paths-summary", pd?.stats
+        ? `${label(paths.state)} triangle-path smoke · ${pd.probed}/${pd.graphs} navmeshes; ${pd.stats.queries.toLocaleString()} sampled routes; ${pd.stats.found.toLocaleString()} found; ${pd.stats.expanded.toLocaleString()} expansions; longest chain ${pd.stats.longest_chain} faces; ${pd.error_count} errors. ${pd.stats.replacements.toLocaleString()} record replacements and ${pd.stats.reopened.toLocaleString()} closed-record reopenings. World binding: ${pd.stats.world_validated?.toLocaleString() ?? "not recorded"}/${pd.stats.world_queries?.toLocaleString() ?? "not recorded"} checked requests, ${pd.stats.world_paths_found?.toLocaleString() ?? "not recorded"} paths, ${pd.stats.world_endpoint_misses ?? "not recorded"} endpoint misses, ${pd.stats.world_search_misses ?? "not recorded"} completed search misses. World samples use an authored translation, not original actor/placement requests. At most ${pd.samples_per_graph_limit} farthest-reachable goals per graph. Topology, endpoint geometry/reachability and cost-sum checks only; no original-runtime comparison or shortest-path guarantee. Wii arithmetic, whole-block heap reuse, self-edge expansion, actor overrides and movement waypoints remain unverified.`
+        : `${label(paths.state)} · Run cargo xtask paths <disc> for sampled triangle-chain checks, separate from surface queries and gameplay parity.`);
+      text("actor-dispatch-summary", pd?.stats?.actor_dispatch_calls
+        ? `Actor request phase: ${pd.stats.actor_dispatch_calls.toLocaleString()} dispatch calls; ${pd.stats.actor_acquisition_calls.toLocaleString()} acquisitions (${pd.stats.actor_acquisition_misses.toLocaleString()} misses, ${pd.stats.actor_bounds_rejections.toLocaleString()} stored-AABB rejections); ${pd.stats.actor_query_calls.toLocaleString()} deferred queries, ${pd.stats.actor_query_successes.toLocaleString()} routes found. ${pd.stats.actor_near_surface_excluded.toLocaleString()} acquisition calls rejected a nearby direct-query surface through stored bounds. Sample candidate contexts are authored; original manager instances, scheduling, policies and actor movement remain unverified.`
+        : "Actor request dispatch evidence has not been recorded for this source.");
+      const goals = pd?.stats?.goals;
+      text("goal-paths-summary", goals?.queries
+        ? `Predicate paths: ${goals.queries.toLocaleString()} authored queries; ${goals.found.toLocaleString()} found; ${goals.multiple_goal_queries.toLocaleString()} with multiple acceptable faces. ${goals.goal_tests.toLocaleString()} goal tests on queue removal; ${goals.replacements.toLocaleString()} replacements and ${goals.reopened.toLocaleString()} reopenings. ${goals.heuristic_centers.toLocaleString()} squared point heuristics independently checked. Topology and f64 cost checks passed; accepted faces and heuristic points are authored. This is not original actor policy, a shortest-path guarantee, movement or original-runtime parity.`
+        : "Alternate predicate-search evidence has not been recorded for this source.");
+      const worldGoals = pd?.stats?.world_goals;
+      const actorEdges = pd?.stats?.actor_edges;
+      const actorGoals = pd?.stats?.actor_goals;
+      const actorTargets = pd?.stats?.actor_targets;
+      const actorActions = actorTargets?.actions;
+      text("actor-action-summary", actorActions?.calls
+        ? `Target action: ${actorActions.calls} authored calls (${actorActions.aligned_calls} aligned, ${actorActions.gated_calls} opposed); ${actorActions.updates} selected-record updates, ${actorActions.noops} state-preserving no-ops and ${actorActions.errors} explicit host errors. ${actorActions.motion_validated} motion vectors agree with an independent f64 displacement approximation; ${actorActions.angle_validated.toLocaleString()} of ${actorActions.angle_probes.toLocaleString()} angular probes agree with f64 bearing/modulo checks, ${actorActions.angle_ambiguous.toLocaleString()} near-limit probes remain ambiguous. Return 1 preserves prior state; return 2 sets raw state 2 and replaces only the active motion. Snapshots are authored. Host estimates/libm, live record population, scheduling, integration/collision and original-runtime parity remain unverified.`
+        : "Target-action update evidence has not been recorded for this source.");
+      text("actor-target-summary", actorTargets?.samples
+        ? `Actor caller binding: ${actorTargets.samples} authored snapshots; ${actorTargets.validated_initial} initial first-hit selections and ${actorTargets.validated_connected} connected results agree with independent f64 geometry (${actorTargets.ambiguous_initial} initial and ${actorTargets.ambiguous_connected} connected ambiguous). ${actorTargets.initial_misses} initial misses, ${actorTargets.height_rejections} original-target height rejections, ${actorTargets.connected_misses} connected misses and ${actorTargets.prepared} prepared policy inputs. Subsequent searches: ${actorTargets.paths} paths (${actorTargets.validated_paths} independently checked, ${actorTargets.ambiguous_paths} ambiguous), ${actorTargets.misses} completed misses, ${actorTargets.unsupported_searches} unsupported goal walks and ${actorTargets.budget_searches} expansion-budget errors. ${actorTargets.manager_edges.toLocaleString()} manager flag transitions checked, ${actorTargets.manager_allowed.toLocaleString()} allowed. Distinct owner/instance frames and lazy binding reload are preserved. External action gate, live records, later mutation, movement and original-runtime parity remain unverified.`
+        : "Actor caller-binding evidence has not been recorded for this source.");
+      text("actor-goals-summary", actorGoals?.pairs
+        ? `Actor geometric goals: ${actorGoals.validated_pairs.toLocaleString()} of ${actorGoals.pairs.toLocaleString()} adjacent-face samples agree with independent f64 XZ geometry; ${actorGoals.ambiguous_pairs.toLocaleString()} numerically ambiguous and ${actorGoals.unsupported_pairs.toLocaleString()} unsupported walks. ${actorGoals.queries} bounded searches: ${actorGoals.paths} paths, ${actorGoals.misses} completed misses, ${actorGoals.budget_queries} expansion-budget exhaustions, ${actorGoals.unsupported_queries} unsupported errors. ${actorGoals.validated_queries} search outcomes independently confirmed and ${actorGoals.ambiguous_queries} ambiguous. Unsupported/budget cases are not misses or comparator passes. Origin/target/start-face inputs are authored; live actor storage, caller coordinates, movement and original-runtime parity remain unverified.`
+        : "Actor geometric-goal evidence has not been recorded for this source.");
+      text("actor-edges-summary", actorEdges?.edges
+        ? `Actor target edges: ${actorEdges.validated_edges.toLocaleString()} of ${actorEdges.edges.toLocaleString()} directed edges agree with independent f64 checks; ${actorEdges.ambiguous_edges.toLocaleString()} remain numerically ambiguous. ${actorEdges.allowed.toLocaleString()} allowed toward an authored zero point; ${actorEdges.flag_rejections.toLocaleString()} flag, ${actorEdges.normal_rejections.toLocaleString()} stored-normal and ${actorEdges.direction_rejections.toLocaleString()} direction rejections. ${actorEdges.normal_samples.toLocaleString()} stored normals (${actorEdges.low_normal_faces.toLocaleString()} below Y 0.9). ${actorEdges.queries} authored constrained queries: ${actorEdges.found} paths, ${actorEdges.misses} completed misses; ${actorEdges.validated_queries} independently confirmed and ${actorEdges.ambiguous_queries} ambiguous. Target points/goals are authored; normal absence is preserved. Wii normalization/FP state and full actor goals remain unverified.`
+        : "Actor target-directed edge evidence has not been recorded for this source.");
+      text("world-goal-summary", worldGoals?.requests
+        ? `World predicate routes: ${worldGoals.requests.toLocaleString()} initial authored-frame requests; ${worldGoals.wrapper_calls.toLocaleString()} total wrapper calls; ${worldGoals.found.toLocaleString()} waypoint routes, ${worldGoals.start_misses.toLocaleString()} start misses, ${worldGoals.search_misses.toLocaleString()} completed predicate misses. ${worldGoals.portals_checked.toLocaleString()} independent portal checks; ${worldGoals.retained_start_misses.toLocaleString()} later misses retained previous lists and ${worldGoals.recovery_replacements.toLocaleString()} recoveries replaced them. Start-only lookup; raw selected center is frame-subtracted then added back, with ${worldGoals.round_trip_changes.toLocaleString()} observed round-trip changes. Full actor policies, movement and original-runtime parity remain unverified.`
+        : "Alternate world-binding evidence has not been recorded for this source.");
+      text("route-consumers-summary", pd?.stats?.route_consumer_paths
+        ? `Route consumers: ${pd.stats.route_consumer_paths.toLocaleString()} sampled waypoint paths; ${pd.stats.route_arrival_validated.toLocaleString()} arrival checks; ${pd.stats.route_corridor_validated.toLocaleString()} of ${pd.stats.route_corridor_queries.toLocaleString()} corridor probes agree with an independent f64 check; ${pd.stats.route_corridor_ambiguous.toLocaleString()} near-boundary probes remain numerically ambiguous. Next-target and ordered 3D length checks passed. These read-only consumers do not advance points or move actors; original-runtime comparison remains pending.`
+        : "Waypoint route consumer evidence has not been recorded for this source.");
+      const regeneration = pd?.stats?.regeneration;
+      text("route-regeneration-summary", regeneration?.samples
+        ? `Persistent routes: ${regeneration.samples.toLocaleString()} authored sequences; ${regeneration.calls.toLocaleString()} wrapper calls; ${regeneration.successes.toLocaleString()} successful replacements; ${regeneration.retained_misses.toLocaleString()} endpoint misses retained both previous lists. ${regeneration.miss_positions_checked.toLocaleString()} miss positions independently checked; ${regeneration.final_pair_replacements.toLocaleString()} same-endpoint requests rebuilt duplicate final pairs. Request status is separate from retained geometry and actor success flags. This reconstructs ordinary regeneration, not point popping, steering, movement or original-runtime parity.`
+        : "Persistent route regeneration evidence has not been recorded for this source.");
+      const boundary = pd?.stats?.boundary;
+      text("boundary-summary", boundary?.caches
+        ? `Boundary diagnostics: ${boundary.caches.toLocaleString()} initial caches; ${boundary.edges.toLocaleString()} ordered pairs; ${boundary.topology_faces.toLocaleString()} face-incidence checks. ${boundary.validated.toLocaleString()} of ${boundary.queries.toLocaleString()} sampled first-hit queries agree with an independent f64 check; ${boundary.ambiguous.toLocaleString()} near-parallel or endpoint probes remain numerically ambiguous. Raw input XZ is compared against local vertices with no frame conversion. The source predicate accepts disjoint collinear segments. This is not physical clearance, actor movement or original-runtime parity.`
+        : "Initial boundary cache evidence has not been recorded for this source.");
+      text("actor-boundary-summary", boundary?.actor_samples
+        ? `Actor range bands: ${boundary.actor_samples.toLocaleString()} authored eligible samples across four observed bands; ${boundary.actor_validated.toLocaleString()} agree with independent f64 first-hit diagnostics, ${boundary.actor_ambiguous.toLocaleString()} remain numerically ambiguous. ${boundary.actor_accepted.toLocaleString()} accepted by the reconstructed predicate. Strict horizontal bands, height below one, mode gating and a second position resolution are implemented. Action selection, live actor state, scheduling and original-runtime parity remain unverified.`
+        : "Actor range-band diagnostic evidence has not been recorded for this source.");
+      text("waypoints-summary", pd?.stats?.waypoint_queries
+        ? `Greedy waypoints: ${pd.stats.waypoint_queries.toLocaleString()} sampled paths; ${pd.stats.waypoint_seed_points.toLocaleString()} seed points; ${pd.stats.waypoint_retained_points.toLocaleString()} retained points; ${pd.stats.waypoint_shortcut_tests.toLocaleString()} shortcut tests; ${pd.stats.waypoint_fan_steps.toLocaleString()} vertex-fan steps; ${pd.stats.waypoint_flag_rejections.toLocaleString()} flag rejections. ${pd.stats.waypoint_portals_checked.toLocaleString()} independent f64 XZ portal checks plus seed/frame invariants. Point reduction is an algorithm outcome, not a parity or progress score. Actor movement and original-runtime clearance remain unverified.`
+        : "Run cargo xtask paths <disc> to include centroid-seeded greedy waypoint checks; this does not validate actor movement.");
+      for (const [name, r] of [
+        ["Workspace checks", report.checks],
+        ["Production coverage", cov],
+        ["Local asset intake", a],
+        ["EDB / textures / geometry", resources],
+        ["Map GPU inspection", render],
+        ["Native window / resize", viewer],
+        ["Native menu launch / capture", menu],
+        ["Startup movies / native PCM", startup],
+        ["Mission catalog / retained resources", mission],
+        ["Navigation surface queries", navigation],
+        ["Triangle-path selection", paths],
+      ]) {
+        const row = el("div", undefined, "gate"),
+          left = el("div", name);
+        left.append(
+          el(
+            "div",
+            `${date(r.time_unix)}${r.os ? ` · ${r.os} / ${r.arch}` : ""}`,
+            "meta",
+          ),
+        );
+        row.append(left, badge(r.state));
+        $("gates").append(row);
+      }
+      const chart = $("history-chart"),
+        ns = "http://www.w3.org/2000/svg";
+      function svg(tag, attrs, content) {
+        const e = document.createElementNS(ns, tag);
+        for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
+        if (content !== undefined) e.textContent = content;
+        chart.append(e);
+        return e;
+      }
+      for (const v of [0, 50, 100]) {
+        const y = 180 - v * 1.45;
+        svg("line", { x1: 40, y1: y, x2: 580, y2: y, class: "grid" });
+        svg("text", { x: 0, y: y + 4, class: "axis" }, `${v}%`);
+      }
+      const history = report.history;
+      const point = (value, i) => [
+        history.length === 1 ? 310 : 40 + (i / (history.length - 1)) * 540,
+        180 - value * 1.45,
+      ];
+      for (const [series, field, title] of [
+        ["coverage", "coverage_percent", "Production line coverage"],
+        ["implementation", "implemented_percent", "Declared implemented scope"],
+        ["parity", "parity_percent", "Verified tracked parity"],
+      ]) {
+        let segment = [];
+        const flush = () => {
+          if (segment.length > 1) svg("polyline", { points: segment.join(" "), class: `chart-line ${series}` });
+          segment = [];
+        };
+        history.forEach((h, i) => {
+          const value = h[field];
+          if (!Number.isFinite(value) || (series === "coverage" && (h.coverage_state !== "passed" || h.coverage_measurement_version !== 2))) {
+            flush();
+            return;
+          }
+          const [x, y] = point(value, i);
+          segment.push(`${x},${y}`);
+          const dot = svg("circle", { cx: x, cy: y, r: 4, class: `chart-dot ${series}` });
+          const t = document.createElementNS(ns, "title");
+          t.textContent = `${date(h.observed_unix)} · ${title}: ${value.toFixed(1)}%${series === "coverage" ? "" : ` · ${h.total} tracked criteria`}`;
+          dot.append(t);
+        });
+        flush();
+      }
+      if (history.length) {
+        svg(
+          "text",
+          { x: 40, y: 210, class: "axis" },
+          new Date(history[0].observed_unix * 1000).toLocaleDateString(),
+        );
+        svg(
+          "text",
+          { x: 580, y: 210, class: "axis", "text-anchor": "end" },
+          new Date(history.at(-1).observed_unix * 1000).toLocaleDateString(),
+        );
+      }
+      text(
+        "observations",
+        `${history.length} measured snapshot${history.length === 1 ? "" : "s"}`,
+      );
+    </script>
+  </body>
+</html>

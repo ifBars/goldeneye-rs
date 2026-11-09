@@ -1,0 +1,16 @@
+[package]
+name="ge-render"
+version.workspace=true
+edition.workspace=true
+license.workspace=true
+publish.workspace=true
+
+[dependencies]
+anyhow.workspace=true
+serde.workspace=true
+wgpu.workspace=true
+ge-assets={path="../ge-assets"}
+
+[dev-dependencies]
+pollster.workspace=true
+naga={version="=30.0.1",features=["wgsl-in"]}

@@ -1,0 +1,52 @@
+name: Rust workspace
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  verify:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check public source boundaries
+        run: python tools/check-source.py
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy, llvm-tools-preview
+      - uses: Swatinem/rust-cache@v2
+      - name: Format, lint, tests and release build
+        run: cargo xtask check
+      - uses: taiki-e/install-action@cargo-llvm-cov
+      - name: Production coverage and dashboard
+        run: cargo xtask coverage
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Offline dashboard behavior
+        working-directory: tools/dashboard
+        run: |
+          bun install --frozen-lockfile
+          bun run test
+      - name: Stage asset-free native tools
+        if: runner.os == 'Windows'
+        run: cargo xtask package
+      - name: Upload progress and coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: progress-${{ matrix.os }}
+          path: |
+            progress/index.html
+            progress/latest.json
+            progress/history.json
+            local/coverage/html/
+            local/coverage/summary.json
+      - name: Upload Windows tools build
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: goldeneye-windows-tools
+          path: dist/goldeneye-*/

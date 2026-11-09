@@ -1,0 +1,7 @@
+{
+  "name": "goldeneye-dashboard-checks",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --disallow-code-generation-from-strings --frozen-intrinsics --test dashboard.test.mjs" },
+  "devDependencies": { "happy-dom": "21.0.3" }
+}

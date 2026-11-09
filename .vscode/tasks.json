@@ -1,0 +1,10 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    { "label": "Workspace: check", "type": "process", "command": "cargo", "args": ["xtask", "check"], "group": { "kind": "build", "isDefault": true }, "problemMatcher": ["$rustc"] },
+    { "label": "Workspace: tests", "type": "process", "command": "cargo", "args": ["test", "--workspace", "--locked"], "group": { "kind": "test", "isDefault": true }, "problemMatcher": ["$rustc"] },
+    { "label": "Workspace: coverage", "type": "process", "command": "cargo", "args": ["xtask", "coverage"], "problemMatcher": ["$rustc"] },
+    { "label": "Workspace: refresh dashboard", "type": "process", "command": "cargo", "args": ["xtask", "report"], "problemMatcher": [] },
+    { "label": "Workspace: dashboard tests", "type": "process", "command": "bun", "args": ["run", "test"], "options": { "cwd": "${workspaceFolder}/tools/dashboard" }, "problemMatcher": [] }
+  ]
+}

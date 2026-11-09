@@ -1,0 +1,317 @@
+{
+  "schema_version": 1,
+  "target": "GoldenEye 007 for Wii (2010)",
+  "scope_complete": false,
+  "scope_note": "Initial acceptance inventory. Full-game scope audit is pending; this percentage is not total game completion.",
+  "next": "Continue toward the full native game. The supported fresh Tutorial loader now owns map constructors, base-only publication, context bindings, all196 trigger slots (194 objects), retained navigation/post-trigger resources, controller clock/cleanup owners, actual SoundInfo and three bank payload callbacks, twelve work/resource barriers, phase18 catalog rebuild and identity-bound phase19 flags108/local109 delivery. Native New Game reaches AwaitingPlayer with world_registered true and player/camera false. Full cached map bytes do not publish nonbase sections: MT has one initialized zone/binding; MG23 zones remain unrequested. Original timing/history, SDK dispatch, full bank playback and numerical parity remain unverified. Next implement ordinary SessionUpdate player creation with actual lifecycle/operation gates, EXItem/handler, world actor membership, physics and completion registry, then TP/FP components, camera/view setup, later loader phases, scheduling, physics and mission execution. Phase21 itself waits for actual player completion objects and must not advance from prepared component metadata. Preserve distinct scoped receipts, shared lifetimes and explicit unsupported providers. No full-game completion or verified parity is inferred from these counts.",
+  "criteria": [
+    {
+      "id": "assets.disc",
+      "domain": "Assets",
+      "title": "Disc and region identity",
+      "acceptance": "Reject unsupported editions; locate the exact game data partition.",
+      "state": "in_progress"
+    },
+    {
+      "id": "assets.archives",
+      "domain": "Assets",
+      "title": "Archive resource addressing",
+      "acceptance": "Resolve every resource by hash/name and validate complete payloads.",
+      "state": "in_progress"
+    },
+    {
+      "id": "assets.edb",
+      "domain": "Assets",
+      "title": "EDB resource sections",
+      "acceptance": "Decode version 263 headers and all referenced section ranges.",
+      "state": "in_progress"
+    },
+    {
+      "id": "assets.textures",
+      "domain": "Assets",
+      "title": "Textures and palettes",
+      "acceptance": "Compare decoded mipmaps, palettes, alpha, and swizzling to reference.",
+      "state": "in_progress"
+    },
+    {
+      "id": "assets.geometry",
+      "domain": "Assets",
+      "title": "World and character geometry",
+      "acceptance": "Preserve vertex data, indices, materials, transforms, and LODs.",
+      "state": "in_progress"
+    },
+    {
+      "id": "assets.animation",
+      "domain": "Assets",
+      "title": "Skeletons and animation",
+      "acceptance": "Match poses, blend behavior, timing, and root motion.",
+      "state": "not_started"
+    },
+    {
+      "id": "assets.audio",
+      "domain": "Assets",
+      "title": "Audio resources",
+      "acceptance": "Match sample decode, loop points, channels, rates, and localization.",
+      "state": "in_progress"
+    },
+    {
+      "id": "render.scene",
+      "domain": "Rendering",
+      "title": "Scene rendering",
+      "acceptance": "Reference captures match camera, culling, transforms, and draw ordering.",
+      "state": "in_progress"
+    },
+    {
+      "id": "render.materials",
+      "domain": "Rendering",
+      "title": "Materials and lighting",
+      "acceptance": "Match lighting, shading, fog, transparency, and shadows.",
+      "state": "in_progress"
+    },
+    {
+      "id": "render.effects",
+      "domain": "Rendering",
+      "title": "Particles and effects",
+      "acceptance": "Match particles, decals, water, explosions, and post-processing.",
+      "state": "not_started"
+    },
+    {
+      "id": "render.ui",
+      "domain": "Rendering",
+      "title": "HUD and menus",
+      "acceptance": "Match layout, fonts, navigation, safe areas, aspect ratios, and transitions.",
+      "state": "in_progress"
+    },
+    {
+      "id": "render.cinematics",
+      "domain": "Rendering",
+      "title": "Movies and cinematics",
+      "acceptance": "Match video/audio sync, subtitles, camera tracks, and skip behavior.",
+      "state": "in_progress"
+    },
+    {
+      "id": "sim.clock",
+      "domain": "Simulation",
+      "title": "Simulation timing",
+      "acceptance": "Match original tick/timing semantics and display-independent behavior.",
+      "state": "not_started"
+    },
+    {
+      "id": "sim.movement",
+      "domain": "Simulation",
+      "title": "Player movement",
+      "acceptance": "Compare trajectories, acceleration, crouching, leaning, and traversal.",
+      "state": "not_started"
+    },
+    {
+      "id": "sim.collision",
+      "domain": "Simulation",
+      "title": "Collision and physics",
+      "acceptance": "Compare collision, gravity, rigid bodies, projectiles, and penetration.",
+      "state": "in_progress"
+    },
+    {
+      "id": "sim.camera",
+      "domain": "Simulation",
+      "title": "Camera and aiming",
+      "acceptance": "Match FOV, recoil, aim assist, view bob, and input response.",
+      "state": "not_started"
+    },
+    {
+      "id": "sim.interactions",
+      "domain": "Simulation",
+      "title": "World interactions",
+      "acceptance": "Match doors, ladders, scripted traversal, pickups, and use prompts.",
+      "state": "not_started"
+    },
+    {
+      "id": "combat.weapons",
+      "domain": "Combat",
+      "title": "All weapon behaviors",
+      "acceptance": "Inventory and match fire modes, damage, spread, recoil, and attachments.",
+      "state": "not_started"
+    },
+    {
+      "id": "combat.ammo",
+      "domain": "Combat",
+      "title": "Ammunition and reloads",
+      "acceptance": "Match reserves, magazines, reload interruptions, and weapon switching.",
+      "state": "not_started"
+    },
+    {
+      "id": "combat.damage",
+      "domain": "Combat",
+      "title": "Damage and recovery",
+      "acceptance": "Match health, armor, hit regions, death, and regeneration.",
+      "state": "not_started"
+    },
+    {
+      "id": "combat.melee",
+      "domain": "Combat",
+      "title": "Melee and stealth",
+      "acceptance": "Match takedowns, detection consequences, animations, and damage.",
+      "state": "not_started"
+    },
+    {
+      "id": "combat.destructibles",
+      "domain": "Combat",
+      "title": "Destructible objects",
+      "acceptance": "Match breakage, explosions, chain reactions, and persistent state.",
+      "state": "not_started"
+    },
+    {
+      "id": "ai.perception",
+      "domain": "AI",
+      "title": "Perception and alerts",
+      "acceptance": "Match sight/hearing, suspicion, search, and alert propagation.",
+      "state": "not_started"
+    },
+    {
+      "id": "ai.navigation",
+      "domain": "AI",
+      "title": "Navigation and cover",
+      "acceptance": "Match path selection, traversal, cover selection, and avoidance.",
+      "state": "in_progress"
+    },
+    {
+      "id": "ai.combat",
+      "domain": "AI",
+      "title": "Enemy combat",
+      "acceptance": "Match aim, firing, grenade use, flanking, retreat, and difficulty.",
+      "state": "not_started"
+    },
+    {
+      "id": "ai.allies",
+      "domain": "AI",
+      "title": "Allied behavior",
+      "acceptance": "Match following, assistance, dialogue triggers, and survival rules.",
+      "state": "not_started"
+    },
+    {
+      "id": "campaign.inventory",
+      "domain": "Campaign",
+      "title": "Complete content inventory",
+      "acceptance": "Inventory every mission, encounter, cutscene, objective, and mode.",
+      "state": "not_started"
+    },
+    {
+      "id": "campaign.levels",
+      "domain": "Campaign",
+      "title": "All campaign levels",
+      "acceptance": "Match all level geometry, entities, triggers, and progression.",
+      "state": "not_started"
+    },
+    {
+      "id": "campaign.objectives",
+      "domain": "Campaign",
+      "title": "Objectives and scripts",
+      "acceptance": "Match all objective graphs, mission scripts, conditions, and failures.",
+      "state": "not_started"
+    },
+    {
+      "id": "campaign.checkpoints",
+      "domain": "Campaign",
+      "title": "Checkpoints and respawn",
+      "acceptance": "Match checkpoint timing, restored state, retries, and transitions.",
+      "state": "not_started"
+    },
+    {
+      "id": "campaign.difficulty",
+      "domain": "Campaign",
+      "title": "Difficulty and scoring",
+      "acceptance": "Match every difficulty, classic mode, completion ratings, and unlocks.",
+      "state": "not_started"
+    },
+    {
+      "id": "campaign.collectibles",
+      "domain": "Campaign",
+      "title": "Collectibles and optional content",
+      "acceptance": "Match collectibles, hidden content, and persistent unlocks.",
+      "state": "not_started"
+    },
+    {
+      "id": "audio.mixer",
+      "domain": "Audio",
+      "title": "Mixing and spatial audio",
+      "acceptance": "Match gain, falloff, priorities, occlusion, and concurrent voices.",
+      "state": "not_started"
+    },
+    {
+      "id": "audio.music",
+      "domain": "Audio",
+      "title": "Music behavior",
+      "acceptance": "Match cue timing, layers, transitions, and loops.",
+      "state": "in_progress"
+    },
+    {
+      "id": "audio.dialogue",
+      "domain": "Audio",
+      "title": "Dialogue and subtitles",
+      "acceptance": "Match localization, sequencing, subtitles, and interruption behavior.",
+      "state": "not_started"
+    },
+    {
+      "id": "multi.local",
+      "domain": "Multiplayer",
+      "title": "Local split screen",
+      "acceptance": "Match player counts, viewports, input ownership, and shared simulation.",
+      "state": "not_started"
+    },
+    {
+      "id": "multi.rules",
+      "domain": "Multiplayer",
+      "title": "Modes and rules",
+      "acceptance": "Inventory and match maps, modes, scoring, spawns, timers, and modifiers.",
+      "state": "not_started"
+    },
+    {
+      "id": "multi.content",
+      "domain": "Multiplayer",
+      "title": "Multiplayer content",
+      "acceptance": "Match characters, weapons, loadouts, unlocks, and map entities.",
+      "state": "not_started"
+    },
+    {
+      "id": "multi.network",
+      "domain": "Multiplayer",
+      "title": "Network behavior",
+      "acceptance": "Define and verify session, replication, latency, and disconnect behavior.",
+      "state": "not_started"
+    },
+    {
+      "id": "platform.input",
+      "domain": "Platform",
+      "title": "Windows input mappings",
+      "acceptance": "Map keyboard/mouse/controllers while retaining original input semantics.",
+      "state": "not_started"
+    },
+    {
+      "id": "platform.save",
+      "domain": "Platform",
+      "title": "Save and settings",
+      "acceptance": "Match save slots, progression, settings, corruption handling, and migration.",
+      "state": "not_started"
+    },
+    {
+      "id": "platform.performance",
+      "domain": "Platform",
+      "title": "Timing and performance",
+      "acceptance": "Maintain reference game timing and frame pacing under supported hardware.",
+      "state": "not_started"
+    },
+    {
+      "id": "platform.compatibility",
+      "domain": "Platform",
+      "title": "Edition compatibility",
+      "acceptance": "Verify every claimed region/revision and supported asset source format.",
+      "state": "not_started"
+    },
+    {
+      "id": "platform.distribution",
+      "domain": "Platform",
+      "title": "Asset-free distribution",
+      "acceptance": "Verify executable/source packaging and user-supplied asset startup.",
+      "state": "not_started"
+    }
+  ]
+}

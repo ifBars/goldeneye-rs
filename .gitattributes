@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.rvz binary
+*.zip binary
+*.bin binary
+*.000 binary
