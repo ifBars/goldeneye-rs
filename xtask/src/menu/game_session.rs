@@ -810,6 +810,14 @@ const PLAYER_COUNTS: &[&str] = &[
     "world_actor_lists",
     "world_membership_lists",
     "actor_registrations",
+    "shared_count",
+    "shared_live_leases",
+    "shared_allocations",
+    "shared_native_bytes",
+    "shared_host_capacity_bytes",
+    "shared_reset_calls",
+    "shared_entry_noops",
+    "shared_cache_stores",
 ];
 const PLAYER_FLAGS: &[&str] = &[
     "operation_complete",
@@ -823,6 +831,9 @@ const PLAYER_FLAGS: &[&str] = &[
     "camera_ready",
     "original_history_verified",
     "native_timing_verified",
+    "shared_reset_complete",
+    "runtime_base_reset_complete",
+    "derived_reset_prefix_complete",
 ];
 const PLAYER_HASHES: &[&str] = &[
     "base_state_sha256",
@@ -830,6 +841,8 @@ const PLAYER_HASHES: &[&str] = &[
     "world_state_sha256",
     "persistent_state_sha256",
     "state_sha256",
+    "shared_state_sha256",
+    "reset_state_sha256",
 ];
 
 fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Value) -> Result<()> {
@@ -856,8 +869,8 @@ fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Valu
     ensure!(
         player["origin"] == "fresh_constructor_snapshot"
             && player["lifetime"] == "session_worker"
-            && player["stage"] == "player_prelude_prepared"
-            && player["pending_dependency"] == "shared_constructor_reset"
+            && player["stage"] == "player_reset_scratch_pending"
+            && player["pending_dependency"] == "shared_reset_scratch_capacity"
             && [
                 "operation_complete",
                 "handler_kind_bound",
@@ -866,14 +879,17 @@ fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Valu
                 "player_created",
                 "camera_ready",
                 "original_history_verified",
-                "native_timing_verified"
+                "native_timing_verified",
+                "shared_reset_complete"
             ]
             .into_iter()
             .all(|field| player[field] == false)
             && [
                 "attempt_bound",
                 "catalog_bound",
-                "base_constructor_complete"
+                "base_constructor_complete",
+                "runtime_base_reset_complete",
+                "derived_reset_prefix_complete"
             ]
             .into_iter()
             .all(|field| player[field] == true)
@@ -883,9 +899,18 @@ fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Valu
             && snapshot["player_created"] == false
             && snapshot["camera_ready"] == false
             && count(player, "creation_dispatches")? == count(snapshot, "local_users")?
-            && player["base_reset_calls"] == player["creation_dispatches"]
+            && count(player, "base_reset_calls")? == 2 * count(player, "creation_dispatches")?
             && player["handler_rng_reads"] == player["creation_dispatches"]
             && count(player, "persistent_base_resets")? >= count(player, "base_reset_calls")?
+            && count(player, "shared_count")? >= 1
+            && player["shared_count"] == player["shared_live_leases"]
+            && player["shared_reset_calls"] == player["shared_live_leases"]
+            && player["shared_allocations"] == 3
+            && player["shared_native_bytes"] == 63_680
+            && count(player, "shared_host_capacity_bytes")?
+                >= count(player, "shared_native_bytes")?
+            && player["shared_entry_noops"] == 98
+            && player["shared_cache_stores"] == 1
             && player["catalog_entries"] == world["catalog_entries"]
             && count(player, "selected_catalog_index")? < count(player, "catalog_entries")?
             && count(player, "selected_source_ordinal")? < count(world, "original_slots")?
@@ -925,7 +950,7 @@ fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Valu
             && player["scope"]
                 .as_str()
                 .is_some_and(|text| !text.is_empty() && text.len() <= 4096),
-        "player prelude ownership, dependency or readiness evidence is contradictory"
+        "player shared allocation/reset prefix ownership, dependency or readiness evidence is contradictory"
     );
     Ok(())
 }
@@ -1352,7 +1377,11 @@ fn validate_tutorial_world(probe: &Value) -> Result<()> {
         ("requested_start_point_before", 1),
         ("requested_start_point_after", 1),
         ("handler_rng_reads", 1),
-        ("base_reset_calls", 1),
+        ("base_reset_calls", 2),
+        ("shared_allocations", 3),
+        ("shared_native_bytes", 63_680),
+        ("shared_entry_noops", 98),
+        ("shared_cache_stores", 1),
         ("world_actor_lists", 1),
         ("world_membership_lists", 10),
     ] {
@@ -1362,9 +1391,14 @@ fn validate_tutorial_world(probe: &Value) -> Result<()> {
         );
     }
     ensure!(
-        (1..=count(&probe["window"]["game_session"], "requested")?)
+        (2..=2 * count(&probe["window"]["game_session"], "requested")?)
             .contains(&count(player, "persistent_base_resets")?),
         "Tutorial persistent base reset count exceeds actual attempts"
+    );
+    ensure!(
+        (1..=count(&probe["window"]["game_session"], "requested")?)
+            .contains(&count(player, "shared_live_leases")?),
+        "Tutorial shared constructor leases exceed actual attempts"
     );
     Ok(())
 }
@@ -2958,16 +2992,20 @@ mod tests {
         let world = &mut probe["window"]["game_session"]["active"]["world_initialization"];
         world["actor_definitions"]["rng_draws"] = json!(2);
         world["player_initialization"] = json!({
-            "origin":"fresh_constructor_snapshot","lifetime":"session_worker","stage":"player_prelude_prepared",
-            "pending_dependency":"shared_constructor_reset","operation_complete":false,"attempt_bound":true,"catalog_bound":true,
+            "origin":"fresh_constructor_snapshot","lifetime":"session_worker","stage":"player_reset_scratch_pending",
+            "pending_dependency":"shared_reset_scratch_capacity","operation_complete":false,"attempt_bound":true,"catalog_bound":true,
             "operation_entries":0,"creation_dispatches":1,"catalog_entries":2,"selected_catalog_index":1,"selected_source_ordinal":4,
             "requested_start_point_before":1,"requested_start_point_after":1,"base_constructor_complete":true,
-            "handler_rng_reads":1,"base_reset_calls":1,"persistent_base_resets":4,"handler_kind_bound":false,"inventory_records":0,"inventory_capacity":0,
+            "handler_rng_reads":1,"base_reset_calls":2,"persistent_base_resets":2,"handler_kind_bound":false,"inventory_records":0,"inventory_capacity":0,
             "inventory_growth":16,"world_items":0,"world_actor_lists":1,"world_membership_lists":10,"actor_registrations":0,
             "physics_bound":false,"completion_published":false,"player_created":false,"camera_ready":false,
             "original_history_verified":false,"native_timing_verified":false,"base_state_sha256":"1".repeat(64),
             "prelude_state_sha256":"2".repeat(64),"world_state_sha256":"3".repeat(64),
-            "persistent_state_sha256":"4".repeat(64),"state_sha256":"5".repeat(64),"scope":"Authored sparse player prelude checkpoint"});
+            "persistent_state_sha256":"4".repeat(64),"state_sha256":"5".repeat(64),
+            "shared_count":1,"shared_live_leases":1,"shared_allocations":3,"shared_native_bytes":63680,"shared_host_capacity_bytes":64000,
+            "shared_reset_calls":1,"shared_entry_noops":98,"shared_cache_stores":1,"shared_reset_complete":false,
+            "runtime_base_reset_complete":true,"derived_reset_prefix_complete":true,
+            "shared_state_sha256":"6".repeat(64),"reset_state_sha256":"7".repeat(64),"scope":"Authored retained allocations and scratch-pending reset checkpoint"});
         probe
     }
 
@@ -2983,7 +3021,7 @@ mod tests {
         )
         .unwrap();
         let player = &probe["window"]["game_session"]["active"]["world_initialization"]["player_initialization"];
-        assert_eq!(player.as_object().unwrap().len(), 38);
+        assert_eq!(player.as_object().unwrap().len(), 51);
         assert_eq!(player["selected_catalog_index"], 1);
         assert_eq!(player["player_created"], false);
         assert_eq!(player["operation_complete"], false);
@@ -3001,7 +3039,7 @@ mod tests {
             ("base_constructor_complete", json!(false)),
             ("attempt_bound", json!(false)),
             ("catalog_bound", json!(false)),
-            ("base_reset_calls", json!(2)),
+            ("base_reset_calls", json!(1)),
             ("handler_rng_reads", json!(0)),
             ("selected_catalog_index", json!(2)),
             ("selected_source_ordinal", json!(u64::MAX)),
@@ -3013,6 +3051,19 @@ mod tests {
             ("base_state_sha256", json!("X".repeat(64))),
             ("original_history_verified", json!(true)),
             ("native_timing_verified", json!(true)),
+            ("shared_count", json!(0)),
+            ("shared_live_leases", json!(2)),
+            ("shared_reset_calls", json!(2)),
+            ("shared_allocations", json!(2)),
+            ("shared_native_bytes", json!(63_679)),
+            ("shared_host_capacity_bytes", json!(63_679)),
+            ("shared_entry_noops", json!(97)),
+            ("shared_cache_stores", json!(2)),
+            ("shared_reset_complete", json!(true)),
+            ("runtime_base_reset_complete", json!(false)),
+            ("derived_reset_prefix_complete", json!(false)),
+            ("shared_state_sha256", json!("short")),
+            ("reset_state_sha256", json!("X".repeat(64))),
             ("native_bytes", json!([1, 2, 3])),
         ] {
             let mut probe = player_probe_fixture();
@@ -3030,6 +3081,41 @@ mod tests {
                 "{field}"
             );
         }
+    }
+
+    #[test]
+    fn shared_player_prefix_retains_cancelled_leases_without_reallocating_or_claiming_completion() {
+        for persistent_resets in [2, 3, 4] {
+            let mut probe = player_probe_fixture();
+            let player = &mut probe["window"]["game_session"]["active"]["world_initialization"]["player_initialization"];
+            player["persistent_base_resets"] = json!(persistent_resets);
+            player["shared_host_capacity_bytes"] = json!(70_000);
+            player["shared_count"] = json!(2);
+            player["shared_live_leases"] = json!(2);
+            player["shared_reset_calls"] = json!(2);
+            player["shared_state_sha256"] = json!("a".repeat(64));
+            player["reset_state_sha256"] = json!("b".repeat(64));
+            let snapshot = &probe["window"]["game_session"]["active"];
+            let world = &snapshot["world_initialization"];
+            validate_player_initialization(&world["player_initialization"], world, snapshot)
+                .unwrap();
+            assert_eq!(world["player_initialization"]["shared_allocations"], 3);
+            assert_eq!(
+                world["player_initialization"]["shared_reset_complete"],
+                false
+            );
+        }
+        let mut probe = player_probe_fixture();
+        probe["window"]["game_session"]["active"]["world_initialization"]["player_initialization"]
+            .as_object_mut()
+            .unwrap()
+            .remove("shared_state_sha256");
+        let snapshot = &probe["window"]["game_session"]["active"];
+        let world = &snapshot["world_initialization"];
+        assert!(
+            validate_player_initialization(&world["player_initialization"], world, snapshot)
+                .is_err()
+        );
     }
 
     #[test]

@@ -1,5 +1,6 @@
 use super::*;
 use std::cell::Cell;
+mod reset_prefix;
 
 fn player(id: u64) -> PlayerId {
     PlayerId::new(id).unwrap()
@@ -263,4 +264,26 @@ fn state_visitor_is_deterministic_without_reading_unwritten_payloads() {
     let next = a.acquire(player(1), budget(), || Ok(())).unwrap();
     assert_ne!(next, la);
     assert_eq!((a.entry_noops(), a.cache_stores()), (196, 2));
+}
+
+#[test]
+fn pending_reset_keeps_count_and_storage_without_publishing_completion() {
+    let mut shared = Shared::from_boot();
+    let lease = shared.begin(player(19), budget()).unwrap();
+    assert_eq!(shared.reset_stage(lease).unwrap(), ResetStage::Counted);
+    assert_eq!((shared.count(), shared.reset_calls()), (1, 0));
+    assert_eq!(shared.retained_native_bytes(), 63_680);
+    shared.begin_reset(lease).unwrap();
+    assert_eq!(shared.reset_stage(lease).unwrap(), ResetStage::InProgress);
+    let pending = words(&shared);
+    assert!(shared.begin_reset(lease).is_err());
+    assert!(shared.begin(player(19), budget()).is_err());
+    assert_eq!(words(&shared), pending);
+    let second = shared.begin(player(20), budget()).unwrap();
+    shared.begin_reset(second).unwrap();
+    assert_eq!(
+        (shared.count(), shared.reset_calls(), shared.entry_noops()),
+        (2, 2, 98)
+    );
+    assert_eq!(shared.reset_stage(lease).unwrap(), ResetStage::InProgress);
 }

@@ -28,6 +28,17 @@ pub struct Evidence {
     pub handler_rng_reads: usize,
     pub base_reset_calls: usize,
     pub persistent_base_resets: usize,
+    pub shared_count: usize,
+    pub shared_live_leases: usize,
+    pub shared_allocations: usize,
+    pub shared_native_bytes: usize,
+    pub shared_host_capacity_bytes: usize,
+    pub shared_reset_calls: usize,
+    pub shared_entry_noops: usize,
+    pub shared_cache_stores: usize,
+    pub shared_reset_complete: bool,
+    pub runtime_base_reset_complete: bool,
+    pub derived_reset_prefix_complete: bool,
     pub handler_kind_bound: bool,
     pub inventory_records: usize,
     pub inventory_capacity: usize,
@@ -46,13 +57,19 @@ pub struct Evidence {
     pub prelude_state_sha256: String,
     pub world_state_sha256: String,
     pub persistent_state_sha256: String,
+    pub shared_state_sha256: String,
+    pub reset_state_sha256: String,
     pub state_sha256: String,
     pub scope: &'static str,
 }
 pub(super) fn build(owned: &Owned, world: &World, hook: &Attempt) -> Result<Evidence> {
     ensure!(
-        owned.base.stage() == base_handler::Stage::BasicComplete,
+        owned.base.stage() == base_handler::Stage::RuntimeResetComplete,
         "player base constructor has no complete receipt"
+    );
+    ensure!(
+        owned.reset.player() == owned.base.player(),
+        "derived reset identity differs"
     );
     ensure!(
         owned.base.completed_resets() == owned.resource_resets,
@@ -72,12 +89,16 @@ pub(super) fn build(owned: &Owned, world: &World, hook: &Attempt) -> Result<Evid
         world.visit_state_words(emit)
     });
     let persistent = hook.player_inputs_fingerprint()?;
+    let shared = hook.player_constructor_snapshot(owned.lease)?;
+    let reset = words(b"ge_player_derived_reset_prefix_v1\0", |emit| {
+        owned.reset.visit_state_words(emit)
+    });
     let inventory = owned.prelude.inventory();
     let mut result = Evidence {
         origin: "fresh_constructor_snapshot",
         lifetime: "session_worker",
-        stage: "player_prelude_prepared",
-        pending_dependency: "shared_constructor_reset",
+        stage: "player_reset_scratch_pending",
+        pending_dependency: "shared_reset_scratch_capacity",
         operation_complete: false,
         attempt_bound: true,
         catalog_bound: true,
@@ -92,6 +113,17 @@ pub(super) fn build(owned: &Owned, world: &World, hook: &Attempt) -> Result<Evid
         handler_rng_reads: owned.rng_reads,
         base_reset_calls: owned.base.completed_resets(),
         persistent_base_resets: hook.player_base_reset_writes()?,
+        shared_count: shared.count,
+        shared_live_leases: shared.live_leases,
+        shared_allocations: shared.allocations,
+        shared_native_bytes: shared.native_bytes,
+        shared_host_capacity_bytes: shared.host_capacity_bytes,
+        shared_reset_calls: shared.reset_calls,
+        shared_entry_noops: shared.entry_noops,
+        shared_cache_stores: shared.cache_stores,
+        shared_reset_complete: false,
+        runtime_base_reset_complete: true,
+        derived_reset_prefix_complete: true,
         handler_kind_bound: owned.base.word(0x224).is_some(),
         inventory_records: inventory.records().len(),
         inventory_capacity: inventory.capacity(),
@@ -110,11 +142,13 @@ pub(super) fn build(owned: &Owned, world: &World, hook: &Attempt) -> Result<Evid
         prelude_state_sha256: prelude,
         world_state_sha256: world_hash,
         persistent_state_sha256: persistent,
+        shared_state_sha256: shared.state_sha256,
+        reset_state_sha256: reset,
         state_sha256: String::new(),
-        scope: "The admitted session dispatches one identity-bound player attempt from its actual live StartPoint catalog. The generic/basic/player-basic constructor prefix consumes the same retained RNG stream, executes the real global and resource-state resets, and creates the derived prelude with one empty owned inventory. The actor world was constructed before map loading and is retained; no EXItem actor or physics owner has been created by this prefix. Shared PlayerNew allocations, its second reset and character/inventory setup, TP/FP initialization and completion publication remain required. No selected pose is applied to an incomplete player. Original history, timing, camera and gameplay parity are unverified; private state is hashed without serializing original arrays or native pointers.",
+        scope: "One generation-bound player attempt uses the actual live StartPoint catalog and shared RNG/resource owners. Three controller-lifetime allocations and their count precede the second base reset. The actual runtime base reset and derived clear/flag prefix execute in source order; the larger reset stops before its unbound shared scratch-capacity owner. Character/inventory selection, EXItem/physics, TP/FP setup, completion and camera remain incomplete. Cancelled partial constructors retain reached shared leases/backings until native cache cleanup is implemented; later attempts reuse storage with distinct player identities. The empty inventory and absent actor membership remain real. No selected pose is applied early. Original history, timing and numeric parity remain unverified; only counts and fingerprints are exported.",
     };
     let mut digest = Sha256::new();
-    digest.update(b"ge_player_attempt_v1\0");
+    digest.update(b"ge_player_attempt_v2\0");
     for id in [
         owned.request.attempt().get(),
         owned.request.session().get(),
@@ -156,6 +190,8 @@ pub(super) fn build(owned: &Owned, world: &World, hook: &Attempt) -> Result<Evid
         &result.prelude_state_sha256,
         &result.world_state_sha256,
         &result.persistent_state_sha256,
+        &result.shared_state_sha256,
+        &result.reset_state_sha256,
     ] {
         digest.update(text.as_bytes());
     }

@@ -22,11 +22,25 @@ Persistent operation/configuration/reset inputs stay in
 `game/world_hooks/player`. Cancellation invalidates the generation and releases
 worker-owned state; already-reached persistent writes are retained.
 
-The next constructor stage owns three shared allocations and invokes a second,
-larger reset. Character and default-inventory selection, scratch storage and
-required cleanup must be connected before that stage can complete. The checked
-shared-allocation and inventory subsystems have authored tests; their existence
-does not establish that the live constructor has executed them.
+The next constructor stage now acquires three actual allocations in a persistent
+controller owner: 63,680 native-layout bytes, with 98 entry-constructor no-ops.
+Unwritten payloads remain uninitialized and are never read for reporting. The
+shared count increases before the larger reset starts. That reset repeats the
+base resource/global writes, completes the runtime base-reset tail, and performs
+the derived clear and flag writes up to the scratch-capacity operation. The RNG
+is consumed once during construction, rather than again on each reset.
+
+The shared scratch owner still needs its actual initial capacity and growth
+provenance. It blocks character and default-inventory selection, even though
+those subsystems have separate authored tests. Later reset fields remain unknown;
+the constructor does not return a completed player.
+
+Each player identity belongs to its creation generation, independently of the
+reused user slot. Interrupted constructors retain their reached shared count and
+backings across cancellation; later attempts reuse the allocations. Native cache
+cleanup is not yet bound, so the host does not decrement that count or claim a
+completed native destructor. A 128-lease host budget bounds retained partial
+attempts; closing cleanup is required before repeated creation is fully supported.
 
 World actor membership and sparse physics ownership are also implemented as
 focused pure subsystems. Actor registration appends to the actor list while

@@ -24,7 +24,11 @@ trigger and loader operations, delivers matching-user readiness and reaches
 The [player continuation](player-creation.md) now dispatches an identity-bound
 attempt, selects from the actual live catalog and retains the first constructor
 and reset prefix on this same worker. Shared RNG/resource mutations use their
-existing owners. Later PlayerNew initialization and completion remain required.
+existing owners. Controller-lifetime shared constructor storage now precedes the
+second reset; the runtime base reset and derived prefix execute before stopping
+at the unbound scratch-capacity owner. Cancelled partial constructors preserve
+their reached shared leases until native cache cleanup is implemented. Later
+PlayerNew initialization and completion remain required.
 Frontend primary music/video advancement is suspended while accepted effects can
 finish; focus pause is separate, and Back restores the menu. The future world and
 camera remain in this window/device lifecycle, not a nested inspection viewer.

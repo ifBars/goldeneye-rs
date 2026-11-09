@@ -8,7 +8,8 @@ substitute the N64 game, an emulator or a generic FPS demo.
 
 Read README.md, docs/architecture.md and progress/roadmap.json before changing
 runtime behavior. The current New Game path prepares the Tutorial world and the
-first player-constructor prefix. Later player initialization and gameplay remain
+player constructor through shared allocations and the second reset's scratch
+boundary. Later player initialization and gameplay remain
 incomplete. docs/player-creation.md describes the reached boundary.
 
 ## Source and asset boundaries
@@ -45,7 +46,9 @@ gameplay merely to increase coverage or reported completion.
 
 ## Commands and evidence
 
-Run Cargo tasks serially with the default target directories:
+Keep local work lightweight after the reported CPU issue. Use hosted CI for full
+builds and coverage; do not start an unrestricted local rebuild. Run any authorized
+local Cargo tasks serially with the default target directories:
 
 ```powershell
 cargo xtask check

@@ -4,7 +4,9 @@
 mod basic;
 mod generic;
 mod reset;
+mod runtime_reset;
 mod types;
+pub use runtime_reset::RuntimeResetProvider;
 pub use types::{BasicReceipt, Binding, Failure, Provider, ResetReceipt, Stage};
 
 use super::identity::PlayerId;
@@ -125,12 +127,18 @@ impl Owner {
             Stage::ResetComplete => 6,
             Stage::BasicComplete => 7,
             Stage::RuntimeResetPrefix => 8,
+            Stage::RuntimeResetTail => 9,
+            Stage::RuntimeResetComplete => 10,
         });
         emit(match self.failure {
             None => 0,
             Some(Failure::RandomSeed) => 1,
             Some(Failure::GlobalReset) => 2,
             Some(Failure::ResourceReset) => 3,
+            Some(Failure::RuntimeDependency) => 4,
+            Some(Failure::RuntimeGlobalFloat) => 5,
+            Some(Failure::RuntimeDescriptor) => 6,
+            Some(Failure::RuntimeGlobalByte) => 7,
         });
         for value in [self.reset_calls, self.completed_resets] {
             emit(((value as u64) >> 32) as u32);

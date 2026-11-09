@@ -104,8 +104,8 @@ impl Owner {
         })
     }
 
-    /// Only 8010062c..54, after a later real 801002f0 invocation. Remaining
-    /// virtual-reset component/global operations belong to the outer owner.
+    /// Only 8010062c..54, after a later real 801002f0 invocation. Continue with
+    /// finish_runtime_reset before the derived PlayerNew reset may begin.
     pub fn finish_reset_prefix(&mut self) -> Result<()> {
         self.require(Stage::ResetComplete)?;
         ensure!(

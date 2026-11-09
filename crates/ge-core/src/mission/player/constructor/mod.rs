@@ -2,8 +2,10 @@
 //! owned storage. Reset and final cache cleanup remain real caller operations.
 mod allocation;
 mod prelude;
+mod reset_prefix;
 pub use allocation::{Allocation, Kind};
 pub use prelude::PendingPrelude;
+pub use reset_prefix::PendingReset;
 
 use super::identity::PlayerId;
 use anyhow::{Context, Result, ensure};
@@ -27,6 +29,7 @@ impl Lease {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ResetStage {
     Counted,
+    InProgress,
     Complete,
     Failed,
     ReleaseFailed,
@@ -140,6 +143,26 @@ impl Shared {
         budget: Budget,
         reset: impl FnOnce() -> Result<()>,
     ) -> Result<Lease> {
+        let lease = self.begin(player, budget)?;
+        self.begin_reset(lease)?;
+        let result = reset();
+        let entry = self
+            .entries
+            .iter_mut()
+            .find(|entry| entry.lease == lease)
+            .expect("the reset callback cannot remove its lease");
+        entry.stage = if result.is_ok() {
+            ResetStage::Complete
+        } else {
+            ResetStage::Failed
+        };
+        result?;
+        Ok(lease)
+    }
+
+    /// Allocate and increment the source count before starting the virtual
+    /// reset. A retained Counted/InProgress lease is not reset completion.
+    pub fn begin(&mut self, player: PlayerId, budget: Budget) -> Result<Lease> {
         ensure!(
             !self.allocation_failed,
             "constructor retains a failed allocation prefix"
@@ -210,13 +233,28 @@ impl Shared {
             lease,
             stage: ResetStage::Counted,
         });
-        self.reset_calls += 1;
-        if let Err(error) = reset() {
-            self.entries.last_mut().expect("just inserted lease").stage = ResetStage::Failed;
-            return Err(error);
-        }
-        self.entries.last_mut().expect("just inserted lease").stage = ResetStage::Complete;
         Ok(lease)
+    }
+
+    /// Start exactly one reset invocation. The caller may retain an incomplete
+    /// continuation while a later required provider is unavailable.
+    pub fn begin_reset(&mut self, lease: Lease) -> Result<()> {
+        let entry = self
+            .entries
+            .iter_mut()
+            .find(|entry| entry.lease == lease)
+            .context("constructor lease is stale or foreign")?;
+        ensure!(
+            entry.stage == ResetStage::Counted,
+            "constructor reset already started"
+        );
+        let calls = self
+            .reset_calls
+            .checked_add(1)
+            .context("constructor reset count overflow")?;
+        entry.stage = ResetStage::InProgress;
+        self.reset_calls = calls;
+        Ok(())
     }
 
     /// Caller has performed required per-player cleanup. On the last lease the
@@ -269,7 +307,7 @@ impl Shared {
     /// Versioned owned-state words only. Uninitialized payload/header bytes are
     /// represented by metadata/unknown spans, never read or serialized.
     pub fn visit_state_words(&self, mut visit: impl FnMut(u32)) {
-        visit(1);
+        visit(2);
         visit(self.count);
         visit(u32::from(self.cache_enabled));
         visit(u32::from(self.allocation_failed));
@@ -287,6 +325,7 @@ impl Shared {
             }
             visit(match entry.stage {
                 ResetStage::Counted => 0,
+                ResetStage::InProgress => 4,
                 ResetStage::Complete => 1,
                 ResetStage::Failed => 2,
                 ResetStage::ReleaseFailed => 3,
