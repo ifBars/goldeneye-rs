@@ -2410,7 +2410,7 @@ test('shared constructor reuse permits retained cancellation leases and complete
       const text=d.querySelector('#game-session-summary').textContent;
       assert.match(text,/all 4 difficulties admitted/);
       assert.match(text,/3 shared constructor allocations and 1 lease persist across cancellation/);
-      assert.match(text,/Handler kind \(field 224\) remains unknown/);
+      assert.match(text,/handler scalar remains unresolved; reading it stops explicitly/);
       assert.match(text,/TP\/FP initialization, player completion and camera remain pending/);
       assert.equal(player.shared_allocations,3);
       assert.equal(player.shared_reset_complete,true);
