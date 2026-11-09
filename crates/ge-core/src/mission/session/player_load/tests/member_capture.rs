@@ -98,7 +98,17 @@ fn foreign_or_missing_metadata_is_an_error_and_never_publishes_a_player_attempt(
         (SessionId::new(38).unwrap(), binding.user()),
         (binding.session(), UserId::new(95).unwrap()),
     ] {
-        session.member_snapshot = Some(MemberSnapshot::from_supplied(id, user, Some(0)));
+        let mut records = crate::mission::session::records::Owner::from_constructor(id);
+        records
+            .register_member(
+                MemberSnapshot::from_constructor(id, user),
+                crate::mission::session::records::Budget {
+                    records: 1,
+                    visits: 1,
+                },
+            )
+            .unwrap();
+        session.member_records = Some(records);
         assert!(
             session
                 .begin_player_attempt(&binding, &owner(), &registry(&[1], true), budget())
@@ -106,7 +116,7 @@ fn foreign_or_missing_metadata_is_an_error_and_never_publishes_a_player_attempt(
         );
         assert!(session.player_attempt().is_none());
     }
-    session.member_snapshot = None;
+    session.member_records = None;
     assert!(
         session
             .begin_player_attempt(&binding, &owner(), &registry(&[1], true), budget())
