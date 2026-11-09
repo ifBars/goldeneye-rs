@@ -155,8 +155,8 @@ impl Owned {
         use ge_core::mission::session::player_load::PlayerDependency;
         if self.flag.is_none() {
             PlayerDependency::SourceUserFlag
-        } else if self.virtual_init.stage() == virtual_init::Stage::HandlerKindPending {
-            PlayerDependency::PhysicsInitialization
+        } else if self.virtual_init.stage() == virtual_init::Stage::BasicComplete {
+            PlayerDependency::ComponentInitialization
         } else {
             PlayerDependency::OwnerInitialization
         }
@@ -164,6 +164,7 @@ impl Owned {
     pub fn initialize_virtual(
         &mut self,
         context: &crate::mission::MissionContext,
+        session: &Session,
         world: &mut World,
         registry: &mut ge_core::mission::player::item_registry::Registry,
         hook: &world_hooks::Attempt,
@@ -176,11 +177,11 @@ impl Owned {
             &mut self.base,
             world,
             registry,
-            |position| {
-                hook.ensure_current()?;
-                super::world::zones::player_origin(context, position)
+            &mut providers::VirtualEnvironment {
+                context,
+                session,
+                hook,
             },
-            |item| hook.player_registration_mask(item),
         )?;
         hook.ensure_current()?;
         Ok(())

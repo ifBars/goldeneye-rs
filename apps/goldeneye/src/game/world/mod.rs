@@ -334,6 +334,7 @@ impl OwnedWorld {
                     let player = actors.players.get_mut(&id).expect("just inserted player");
                     player.initialize_virtual(
                         context,
+                        session,
                         &mut actors.world,
                         &mut actors.registry,
                         hook,

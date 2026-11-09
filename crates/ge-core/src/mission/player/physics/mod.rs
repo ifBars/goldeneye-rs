@@ -1,7 +1,10 @@
 //! Sparse owned constructor state for the source player physics item. No
 //! collision step, elapsed clock, player completion or camera is implied.
+mod handler_scalar;
+use super::identity::ItemId;
 use crate::mission::world_hooks::buffer::Buffer;
 use anyhow::{Context, Result, ensure};
+pub use handler_scalar::DeferredHandlerScalar;
 use std::{fmt, num::NonZeroU64};
 
 pub const SOURCE_BYTES: usize = 0x200;
@@ -10,7 +13,7 @@ pub const SOURCE_BYTES: usize = 0x200;
 pub struct MissingHandlerKind;
 impl fmt::Display for MissingHandlerKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("player physics requires the actual handler +224 input")
+        f.write_str("player physics scalar requires the captured handler +224 input")
     }
 }
 impl std::error::Error for MissingHandlerKind {}
@@ -20,18 +23,23 @@ pub struct Owner {
     // become zero merely because the host uses initialized Rust storage.
     known: [Option<u8>; SOURCE_BYTES],
     item: Option<NonZeroU64>,
+    item_identity: Option<ItemId>,
     buffer: Buffer,
+    handler_scalar_sequence: u64,
+    deferred_handler_scalar: Option<DeferredHandlerScalar>,
 }
 
 impl fmt::Debug for Owner {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("PlayerPhysicsOwner")
             .field("item", &self.item)
+            .field("item_identity", &self.item_identity)
             .field(
                 "known_scalar_bytes",
                 &self.known.iter().filter(|v| v.is_some()).count(),
             )
             .field("buffer", &self.buffer)
+            .field("deferred_handler_scalar", &self.deferred_handler_scalar)
             .finish()
     }
 }
@@ -43,7 +51,10 @@ impl Owner {
         let mut owner = Self {
             known: [None; SOURCE_BYTES],
             item: None,
+            item_identity: None,
             buffer: Buffer::empty(16),
+            handler_scalar_sequence: 0,
+            deferred_handler_scalar: None,
         };
         for offset in [0x8, 0xa, 0xc] {
             owner.store_half(offset, 0);
@@ -81,7 +92,16 @@ impl Owner {
 
     pub fn bind_item(&mut self, item: u64) -> Result<()> {
         self.item = Some(NonZeroU64::new(item).context("physics item identity must be nonzero")?);
+        self.item_identity = None;
         Ok(())
+    }
+    pub fn bind_item_identity(&mut self, item: ItemId) -> Result<()> {
+        self.bind_item(item.get())?;
+        self.item_identity = Some(item);
+        Ok(())
+    }
+    pub fn item_identity(&self) -> Option<ItemId> {
+        self.item_identity
     }
     pub fn item(&self) -> Option<u64> {
         self.item.map(NonZeroU64::get)
@@ -149,26 +169,6 @@ impl Owner {
         Ok(())
     }
 
-    /// An explicit raw handler input, not an inferred PlayerNew type/default.
-    pub fn apply_handler_kind(&mut self, kind: Option<u32>) -> Result<()> {
-        let kind = kind.ok_or(MissingHandlerKind)?;
-        let value = if kind & 0xff00_0000 == 0x0100_0000 {
-            4000. * f32::from_bits(self.word(0x1d0).context("physics height is unwritten")?)
-        } else {
-            match kind & 0xffff_0000 {
-                0x4003_0000 | 0x4004_0000 => 1000.,
-                0x4000_0000 | 0x4001_0000 | 0x4002_0000 => 500.,
-                _ => 0.,
-            }
-        };
-        ensure!(
-            value.is_finite(),
-            "physics handler scalar exceeds the finite host subset"
-        );
-        self.store_word(0x168, value.to_bits());
-        Ok(())
-    }
-
     /// Source 80100db0..e00 ordering. The caller owns the real world membership
     /// operation (800f24a0); failure keeps earlier stores and skips the suffix.
     pub fn apply_player_initialization(
@@ -191,11 +191,12 @@ impl Owner {
     }
 
     /// Canonical private fingerprint input: version, byte count, ordered
-    /// (offset,presence,value), semantic item presence/id high/low, then buffer
+    /// (offset,presence,value), semantic item presence/id high/low, captured
+    /// handler-scalar operation provenance, then buffer
     /// capacity/growth/count, backing presence/length/capacity high/low and bytes.
     /// This emits owned state, not an original native image or addresses.
     pub fn visit_state_words(&self, mut visit: impl FnMut(u32)) {
-        visit(1);
+        visit(2);
         visit(SOURCE_BYTES as u32);
         for (offset, value) in self.known.iter().enumerate() {
             visit(offset as u32);
@@ -208,6 +209,35 @@ impl Owner {
         if let Some(item) = self.item {
             visit((item.get() >> 32) as u32);
             visit(item.get() as u32);
+        }
+        visit(u32::from(self.item_identity.is_some()));
+        if let Some(item) = self.item_identity {
+            for id in [item.world().get(), item.get()] {
+                visit((id >> 32) as u32);
+                visit(id as u32);
+            }
+        }
+        visit((self.handler_scalar_sequence >> 32) as u32);
+        visit(self.handler_scalar_sequence as u32);
+        visit(u32::from(self.deferred_handler_scalar.is_some()));
+        if let Some(pending) = self.deferred_handler_scalar {
+            // Semantic source setter, not a native address or clock sample.
+            visit(1);
+            visit((pending.setter_sequence() >> 32) as u32);
+            visit(pending.setter_sequence() as u32);
+            visit(u32::from(pending.item().is_some()));
+            if let Some(item) = pending.item() {
+                visit((item >> 32) as u32);
+                visit(item as u32);
+            }
+            visit(u32::from(pending.item_identity().is_some()));
+            if let Some(item) = pending.item_identity() {
+                for id in [item.world().get(), item.get()] {
+                    visit((id >> 32) as u32);
+                    visit(id as u32);
+                }
+            }
+            visit(pending.half_height_bits());
         }
         visit(self.buffer.capacity());
         visit(self.buffer.growth());

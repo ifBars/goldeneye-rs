@@ -1,5 +1,5 @@
-//! The reached PlayerBasic virtual initializer. Missing handler-kind input
-//! retains real factory/actor/physics ownership before the activation boundary.
+//! The actual PlayerBasic initializer. Unresolved scalar operands are retained
+//! by physics; independent activation and the session suffix still execute.
 use anyhow::{Context, Result, ensure};
 use ge_core::mission::{
     player::{
@@ -16,8 +16,7 @@ use ge_core::mission::{
 pub(super) enum Stage {
     Fresh,
     Running,
-    HandlerKindPending,
-    PhysicsInitialized,
+    BasicComplete,
     Failed,
 }
 
@@ -27,6 +26,11 @@ pub(super) struct Owned {
     physics: Option<physics::Owner>,
     origin: Option<zone::Context>,
     membership: Option<u32>,
+    completion: Option<base_handler::VirtualBasicReceipt>,
+}
+pub(super) trait Environment: base_handler::VirtualSessionProvider {
+    fn origin_zone(&mut self, position: [u32; 4]) -> Result<zone::Context>;
+    fn registration_mask(&mut self, item: ItemId) -> Result<u32>;
 }
 impl Owned {
     pub fn new() -> Self {
@@ -36,6 +40,7 @@ impl Owned {
             physics: None,
             origin: None,
             membership: None,
+            completion: None,
         }
     }
     pub fn stage(&self) -> Stage {
@@ -53,14 +58,16 @@ impl Owned {
     pub fn membership(&self) -> Option<u32> {
         self.membership
     }
+    pub fn completion(&self) -> Option<&base_handler::VirtualBasicReceipt> {
+        self.completion.as_ref()
+    }
 
     pub fn initialize(
         &mut self,
         base: &mut base_handler::Owner,
         world: &mut World,
         registry: &mut Registry,
-        origin: impl FnOnce([u32; 4]) -> Result<zone::Context>,
-        registration_mask: impl FnOnce(ItemId) -> Result<u32>,
+        environment: &mut impl Environment,
     ) -> Result<()> {
         ensure!(
             self.stage == Stage::Fresh,
@@ -71,7 +78,7 @@ impl Owned {
             "virtual initialization requires actual constructor-flag completion"
         );
         self.stage = Stage::Running;
-        let result = self.run(base, world, registry, origin, registration_mask);
+        let result = self.run(base, world, registry, environment);
         if result.is_err() {
             self.stage = Stage::Failed;
         }
@@ -82,8 +89,7 @@ impl Owned {
         base: &mut base_handler::Owner,
         world: &mut World,
         registry: &mut Registry,
-        origin: impl FnOnce([u32; 4]) -> Result<zone::Context>,
-        registration_mask: impl FnOnce(ItemId) -> Result<u32>,
+        environment: &mut impl Environment,
     ) -> Result<()> {
         let item = world.construct_item()?;
         self.item = Some(item);
@@ -102,10 +108,10 @@ impl Owned {
         base.bind_item(world.item(item)?)?;
         // This is the actual constructor-origin query. The selected StartPoint
         // is not written into the unfinished owner before this call.
-        let zone = origin(world.item(item)?.position_bits())?;
+        let zone = environment.origin_zone(world.item(item)?.position_bits())?;
         world.item_mut(item)?.set_zone(zone.callback_zone);
         self.origin = Some(zone);
-        let desired = registration_mask(item)?;
+        let desired = environment.registration_mask(item)?;
         self.membership = Some(desired);
         world.register_if_absent(item, desired, &mut Components)?;
         base.initialize_virtual_motion(world.item(item)?)?;
@@ -121,23 +127,15 @@ impl Owned {
             .physics
             .as_mut()
             .context("physics factory did not return an owner")?;
-        physics.bind_item(item.get())?;
-        let result = physics.apply_player_initialization(base.word(0x224), || {
+        physics.bind_item_identity(item)?;
+        physics.apply_player_initialization(base.word(0x224), || {
             let mask = world.item(item)?.membership_mask();
             world.update_membership(item, mask | 0x10)?;
             Ok(())
-        });
-        match result {
-            Ok(()) => self.stage = Stage::PhysicsInitialized,
-            Err(error)
-                if error
-                    .downcast_ref::<physics::MissingHandlerKind>()
-                    .is_some() =>
-            {
-                self.stage = Stage::HandlerKindPending;
-            }
-            Err(error) => return Err(error),
-        }
+        })?;
+        self.completion =
+            Some(base.finish_virtual_basic(world.item_mut(item)?, physics, environment)?);
+        self.stage = Stage::BasicComplete;
         Ok(())
     }
 }

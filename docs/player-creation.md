@@ -68,11 +68,28 @@ membership and sparse physics ownership are now connected to the virtual
 initializer. Actor registration appends to the actor list while
 membership changes insert at each bit-list head. Fresh items own five embedded
 and five extra membership nodes. Physics preserves unwritten fields and performs
-the source capsule calculation; an unavailable handler-kind input stops before
-activation. The wrapperless item factory also updates the actual persistent
+the source capsule calculation. The handler-scalar setter always overwrites its
+field in the original, so unavailable input now invalidates the constructor value
+and retains the captured item identity, half-height and setter invocation. Reading
+that scalar errors explicitly. Independent activation and suffix operations can
+continue without guessing a value. The wrapperless item factory updates the actual persistent
 numeric-ID registry before it returns. Its counter increments before storage
 growth; a later failure preserves that prefix. The initial zone query uses the
 real constructor-origin item, before any selected StartPoint pose is applied.
+
+After activation, the basic initializer clears its session field and counts the
+active session's retained kind2 member records. Each record owns the actual
+matching metadata and its backlink; the constructor's interface kind is distinct
+from the metadata's platform field. The count does not come from the request or
+descriptor. Supplied flag snapshots preserve record ownership, including when the
+flag is unknown. The ordered semantic registry is a single-player host adaptation;
+SDK storage layout, handles, transport and original history remain unverified.
+
+The final byte store and typed basic return receipt follow a successful session
+query. A failed provider retains earlier activation and writes without publishing
+that return. Completing this basic initializer does not complete PlayerNew or
+authorize player publication. The next source operation enters TP/FP setup; the
+actual visual skin dependencies and component owners still need to be connected.
 
 The controller arena retains actual player, item and physics objects, their
 registry rows and actor memberships across cancellation. Worker teardown leaves

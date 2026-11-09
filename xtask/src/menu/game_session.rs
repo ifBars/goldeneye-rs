@@ -893,6 +893,8 @@ const VIRTUAL_FLAGS: &[&str] = &[
     "physics_backlink_bound",
     "physics_activated",
     "initializer_complete",
+    "scalar_pending",
+    "scalar_value_known",
 ];
 const VIRTUAL_HASHES: &[&str] = &[
     "item_state_sha256",
@@ -901,7 +903,8 @@ const VIRTUAL_HASHES: &[&str] = &[
 ];
 
 /// A null pair is the explicit unknown-argument reset-only branch. Present
-/// objects prove retained owners, not physics activation or initializer return.
+/// objects prove retained owners and the basic initializer return, separately
+/// from PlayerNew completion and the unresolved physics scalar.
 fn validate_player_virtual_owners(player: &Value) -> Result<bool> {
     let flag = &player["constructor_flag"];
     let virtual_init = &player["virtual_initialization"];
@@ -940,13 +943,12 @@ fn validate_player_virtual_owners(player: &Value) -> Result<bool> {
     let records = count(virtual_init, "item_registry_records")?;
     let capacity = count(virtual_init, "item_registry_capacity")?;
     ensure!(
-        virtual_init["stage"] == "physics_handler_kind_pending"
-            && virtual_init["pending_dependency"] == "handler_kind"
-            && VIRTUAL_FLAGS[..7]
+        virtual_init["stage"] == "player_basic_complete"
+            && virtual_init["pending_dependency"] == "tp_fp_components"
+            && VIRTUAL_FLAGS[..10]
                 .iter()
                 .all(|field| virtual_init[field] == true)
-            && virtual_init["physics_activated"] == false
-            && virtual_init["initializer_complete"] == false
+            && virtual_init["scalar_value_known"] == false
             && records >= 1
             && records <= count(player, "world_items")?
             && capacity >= records
@@ -961,7 +963,7 @@ fn validate_player_virtual_owners(player: &Value) -> Result<bool> {
             && virtual_init["origin_zone_queries"] == 1
             && count(virtual_init, "origin_zone_nodes")? >= 1
             && virtual_init["desired_membership"] == 0x2d
-            && virtual_init["item_membership"] == 0x2d
+            && virtual_init["item_membership"] == 0x3d
             && virtual_init["item_flags"] == 0x2b
             && virtual_init["item_priority"] == 255
             && count(player, "actor_registrations")? >= 1
@@ -1015,8 +1017,8 @@ fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Valu
         player["origin"] == "fresh_constructor_snapshot"
             && player["lifetime"] == "controller_arena"
             && (if virtual_reached {
-                player["stage"] == "player_physics_prefix_pending"
-                    && player["pending_dependency"] == "handler_kind"
+                player["stage"] == "player_components_pending"
+                    && player["pending_dependency"] == "tp_fp_components"
             } else {
                 player["stage"] == "player_reset_complete"
                     && player["pending_dependency"] == "constructor_source_flag"
@@ -3205,8 +3207,8 @@ mod tests {
         let world = &mut probe["window"]["game_session"]["active"]["world_initialization"];
         world["actor_definitions"]["rng_draws"] = json!(2);
         world["player_initialization"] = json!({
-            "origin":"fresh_constructor_snapshot","lifetime":"controller_arena","stage":"player_physics_prefix_pending",
-            "pending_dependency":"handler_kind","operation_complete":false,"attempt_bound":true,"catalog_bound":true,
+            "origin":"fresh_constructor_snapshot","lifetime":"controller_arena","stage":"player_components_pending",
+            "pending_dependency":"tp_fp_components","operation_complete":false,"attempt_bound":true,"catalog_bound":true,
             "operation_entries":0,"creation_dispatches":1,"catalog_entries":2,"selected_catalog_index":1,"selected_source_ordinal":4,
             "requested_start_point_before":1,"requested_start_point_after":1,"base_constructor_complete":true,
             "handler_rng_reads":1,"base_reset_calls":2,"persistent_base_resets":2,"handler_kind_bound":false,"inventory_records":1,"inventory_capacity":16,
@@ -3215,7 +3217,7 @@ mod tests {
             "original_history_verified":false,"native_timing_verified":false,"base_state_sha256":"1".repeat(64),
             "prelude_state_sha256":"2".repeat(64),"world_state_sha256":"3".repeat(64),
             "persistent_state_sha256":"4".repeat(64),"state_sha256":"5".repeat(64),
-            "scope":"Authored retained actor and capsule prefix; missing handler kind blocks activation and player completion"});
+            "scope":"Authored retained actor and capsule prefix; deferred scalar; basic return does not complete PlayerNew"});
         let shared = json!({
             "shared_count":1,"shared_live_leases":1,"shared_allocations":3,"shared_native_bytes":63680,"shared_host_capacity_bytes":64000,
             "shared_reset_calls":1,"shared_entry_noops":98,"shared_cache_stores":1,"shared_reset_complete":true,
@@ -3240,16 +3242,16 @@ mod tests {
             .extend(loadout.as_object().unwrap().clone());
         world["player_initialization"]["constructor_flag"] = json!({"origin":"captured_member_snapshot",
             "raw":0,"changed":false,"interface_callbacks":0,"original_history_verified":false});
-        let mut virtual_init = json!({"stage":"physics_handler_kind_pending","pending_dependency":"handler_kind",
+        let mut virtual_init = json!({"stage":"player_basic_complete","pending_dependency":"tp_fp_components",
             "item_registry_records":1,"item_registry_capacity":16,"item_registry_growth":16,"item_registry_counter":1,
             "item_registry_native_bytes":128,"item_registry_host_capacity_bytes":512,
-            "origin_zone_queries":1,"origin_zone_nodes":2,"desired_membership":0x2d,"item_membership":0x2d,
+            "origin_zone_queries":1,"origin_zone_nodes":2,"desired_membership":0x2d,"item_membership":0x3d,
             "item_flags":0x2b,"item_priority":255});
         let links = json!({"factory_complete":true,"item_registry_bound":true,"actor_registered":true,
             "handler_bound":true,"origin_zone_queried":true,"physics_constructed":true,"physics_backlink_bound":true,
-            "physics_activated":false,"initializer_complete":false,"item_state_sha256":"a".repeat(64),
+            "physics_activated":true,"initializer_complete":true,"scalar_pending":true,"scalar_value_known":false,"item_state_sha256":"a".repeat(64),
             "physics_state_sha256":"b".repeat(64),"registry_state_sha256":"c".repeat(64),
-            "scope":"Authored real ownership prefix, no activation or completed player"});
+            "scope":"Authored basic return and activation with deferred scalar, no completed PlayerNew"});
         virtual_init
             .as_object_mut()
             .unwrap()
@@ -3273,7 +3275,7 @@ mod tests {
         assert_eq!(player.as_object().unwrap().len(), 77);
         assert_eq!(
             player["virtual_initialization"].as_object().unwrap().len(),
-            27
+            29
         );
         assert_eq!(player["selected_catalog_index"], 1);
         assert_eq!(player["player_created"], false);
@@ -3425,8 +3427,10 @@ mod tests {
             ("origin_zone_queried", json!(false)),
             ("physics_constructed", json!(false)),
             ("physics_backlink_bound", json!(false)),
-            ("physics_activated", json!(true)),
-            ("initializer_complete", json!(true)),
+            ("physics_activated", json!(false)),
+            ("initializer_complete", json!(false)),
+            ("scalar_pending", json!(false)),
+            ("scalar_value_known", json!(true)),
             ("item_registry_records", json!(0)),
             ("item_registry_capacity", json!(0)),
             ("item_registry_growth", json!(0)),
@@ -3436,7 +3440,7 @@ mod tests {
             ("item_registry_host_capacity_bytes", json!(127)),
             ("origin_zone_queries", json!(0)),
             ("origin_zone_nodes", json!(0)),
-            ("item_membership", json!(0x3d)),
+            ("item_membership", json!(0x2d)),
             ("desired_membership", json!(0x2f)),
             ("item_flags", json!(0x0b)),
             ("item_priority", json!(0)),

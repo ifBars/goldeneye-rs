@@ -33,7 +33,12 @@ finishes the reset. An identity-bound per-user metadata snapshot supplies the
 constructor flag captured before construction. Its consumer precedes virtual
 initialization, which now creates the wrapperless EXItem and numeric-ID record,
 queries the actual constructor-origin zone, registers actor memberships and
-binds the sparse physics capsule. Missing handler kind stops before activation.
+binds and activates the sparse physics capsule. Its unconditional scalar setter
+retains an unresolved expression when handler input is unknown; the actual getter
+errors instead of using stale constructor data. Independent activation and the
+basic session suffix execute in source order. That suffix counts actual retained
+kind2 member records, not the descriptor's local-user count. A typed basic return
+receipt remains separate from PlayerNew completion, TP/FP components and camera.
 The controller arena retains the actual player/item/physics owners and registry
 rows across worker cancellation. Its world/arena mutex is separate from manager
 state, so reached reset/configuration writes can use their original owners.

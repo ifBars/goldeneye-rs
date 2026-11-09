@@ -36,6 +36,8 @@ pub struct VirtualInitialization {
     pub physics_backlink_bound: bool,
     pub physics_activated: bool,
     pub initializer_complete: bool,
+    pub scalar_pending: bool,
+    pub scalar_value_known: bool,
     pub item_state_sha256: String,
     pub physics_state_sha256: String,
     pub registry_state_sha256: String,
@@ -66,8 +68,8 @@ pub(super) fn virtual_init(
         return Ok(None);
     }
     ensure!(
-        owned.virtual_init.stage() == virtual_init::Stage::HandlerKindPending,
-        "virtual initializer has not reached its supported physics boundary"
+        owned.virtual_init.stage() == virtual_init::Stage::BasicComplete,
+        "virtual initializer has not completed its actual basic suffix"
     );
     let id = owned
         .virtual_init
@@ -102,12 +104,21 @@ pub(super) fn virtual_init(
     ensure!(
         item.physics()
             .is_some_and(|id| id.get() == owned.base.player().get())
-            && physics.item() == Some(id.get()),
+            && physics.item() == Some(id.get())
+            && physics.item_identity() == Some(id),
         "physics backlink differs from its actual retained owner"
     );
+    let completion = owned
+        .virtual_init
+        .completion()
+        .ok_or_else(|| anyhow::anyhow!("basic initializer has no return receipt"))?;
+    ensure!(
+        completion.player() == owned.base.player() && completion.item() == id,
+        "basic initializer return receipt differs from actual owners"
+    );
     Ok(Some(VirtualInitialization {
-        stage: "physics_handler_kind_pending",
-        pending_dependency: "handler_kind",
+        stage: "player_basic_complete",
+        pending_dependency: "tp_fp_components",
         item_registry_records: registry.count(),
         item_registry_capacity: registry.capacity() as usize,
         item_registry_growth: registry.growth() as usize,
@@ -128,7 +139,9 @@ pub(super) fn virtual_init(
         physics_constructed: owned.virtual_init.physics().is_some(),
         physics_backlink_bound: physics.item() == Some(id.get()),
         physics_activated: physics.byte(0x1ff) == Some(1),
-        initializer_complete: false,
+        initializer_complete: true,
+        scalar_pending: physics.scalar_pending(),
+        scalar_value_known: physics.handler_scalar_bits().is_ok(),
         item_state_sha256: super::words(b"ge_player_item_v1\0", |emit| {
             item.visit_state_words(emit)
         }),
@@ -138,6 +151,6 @@ pub(super) fn virtual_init(
         registry_state_sha256: super::words(b"ge_player_item_registry_v1\0", |emit| {
             registry.visit_state_words(emit)
         }),
-        scope: "The controller retains actual player, EXItem, numeric-ID registry, actor memberships and sparse physics ownership across cancellation. The zone query uses constructor-origin position before the selected spawn pose is applied. Physics gravity/capsule writes and paired item links are retained at the missing handler-kind read; activation, initializer return, TP/FP components, completion and camera remain incomplete. Original prior actor history and numeric parity are unverified.",
+        scope: "The controller retains actual player, EXItem, numeric-ID registry, actor memberships and sparse physics ownership across cancellation. Constructor-origin placement, physics activation and the PlayerBasic suffix have executed. The handler scalar owns unresolved captured operands and its getter fails explicitly. The suffix counts actual kind2 session records and returns a typed basic receipt; this does not complete PlayerNew, TP/FP components, player publication, simulation or camera. Original history and numeric parity are unverified.",
     }))
 }

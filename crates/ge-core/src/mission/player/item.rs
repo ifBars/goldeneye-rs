@@ -233,6 +233,10 @@ impl Item {
         self.flags |= 0x20;
         self.word_180 = Some(0);
     }
+    /// Reached source multi-user branch after the actual session count query.
+    pub fn mark_multiple_local_users(&mut self) {
+        self.flags |= 0x200;
+    }
     /// Binding returns the real backlink association for the caller's handler.
     /// Clearing this link never implies destruction of the separate owner.
     pub fn bind_handler(&mut self, handler: Option<PlayerId>) -> Option<(PlayerId, ItemId)> {

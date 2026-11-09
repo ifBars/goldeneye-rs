@@ -104,3 +104,43 @@ impl base_handler::ConstructorFlagProvider for FlagNotifications<'_> {
         anyhow::bail!("bound constructor interface needs its actual dirty-channel provider")
     }
 }
+
+pub(super) struct VirtualEnvironment<'a> {
+    pub context: &'a crate::mission::MissionContext,
+    pub session: &'a Session,
+    pub hook: &'a world_hooks::Attempt,
+}
+impl base_handler::VirtualSessionProvider for VirtualEnvironment<'_> {
+    fn session_present(&mut self) -> Result<bool> {
+        self.hook.ensure_current()?;
+        anyhow::ensure!(
+            self.session.stage() == ge_core::mission::session::Stage::Active
+                && self.session.active() == Some(self.session.identity()),
+            "virtual initialization lost its actual active session"
+        );
+        anyhow::ensure!(
+            self.session.descriptor().is_some(),
+            "active descriptor owner is absent"
+        );
+        Ok(true)
+    }
+    fn session_user_count(&mut self) -> Result<u32> {
+        self.hook.ensure_current()?;
+        self.session.active_member_record_count()
+    }
+}
+impl super::virtual_init::Environment for VirtualEnvironment<'_> {
+    fn origin_zone(
+        &mut self,
+        position: [u32; 4],
+    ) -> Result<ge_core::mission::triggers::zone::Context> {
+        self.hook.ensure_current()?;
+        super::super::world::zones::player_origin(self.context, position)
+    }
+    fn registration_mask(
+        &mut self,
+        item: ge_core::mission::player::identity::ItemId,
+    ) -> Result<u32> {
+        self.hook.player_registration_mask(item)
+    }
+}

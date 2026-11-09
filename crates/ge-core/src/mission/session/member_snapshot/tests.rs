@@ -28,7 +28,7 @@ fn matching_metadata_is_constructed_alongside_actual_user_and_cleared_by_teardow
     session.mode_result(OperationResult::Succeeded).unwrap();
     session.begin_create().unwrap();
     session.create_result(OperationResult::Pending).unwrap();
-    assert!(session.member_snapshot.is_none());
+    assert!(session.member_records.is_none());
     session.create_result(OperationResult::Succeeded).unwrap();
     let snapshot = session.member_snapshot(id, user).unwrap();
     assert_eq!(snapshot.session(), id);
@@ -38,7 +38,7 @@ fn matching_metadata_is_constructed_alongside_actual_user_and_cleared_by_teardow
     assert_eq!(session.managers().unwrap().user.created_byte_raw, 0);
     assert_eq!(session.managers().unwrap().user.flags_raw, 0);
     session.teardown().unwrap();
-    assert!(session.member_snapshot.is_none());
+    assert!(session.member_records.is_none());
     assert!(session.member_snapshot(id, user).is_err());
 }
 

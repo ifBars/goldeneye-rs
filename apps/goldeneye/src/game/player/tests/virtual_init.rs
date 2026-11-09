@@ -150,15 +150,47 @@ fn zone(position: [u32; 4]) -> Result<zone::Context> {
         nodes_visited: 2,
     })
 }
+#[derive(Default)]
+struct Environment {
+    fail_zone: bool,
+    fail_mask: bool,
+    fail_count: bool,
+    calls: Vec<&'static str>,
+}
+impl base_handler::VirtualSessionProvider for Environment {
+    fn session_present(&mut self) -> Result<bool> {
+        self.calls.push("session");
+        Ok(true)
+    }
+    fn session_user_count(&mut self) -> Result<u32> {
+        self.calls.push("count");
+        ensure!(!self.fail_count, "actual record owner is unavailable");
+        Ok(1)
+    }
+}
+impl super::Environment for Environment {
+    fn origin_zone(&mut self, position: [u32; 4]) -> Result<zone::Context> {
+        self.calls.push("zone");
+        ensure!(!self.fail_zone, "zone provider unavailable");
+        zone(position)
+    }
+    fn registration_mask(&mut self, _: ItemId) -> Result<u32> {
+        self.calls.push("mask");
+        ensure!(!self.fail_mask, "config field is unavailable");
+        Ok(0x2d)
+    }
+}
 #[test]
-fn actual_factory_actor_and_physics_links_stop_before_missing_kind_activation() {
+fn actual_factory_activation_and_basic_return_preserve_deferred_scalar() {
     let mut base = base(7);
     let mut world = world();
     let mut registry = Registry::from_constructor();
     let mut init = Owned::new();
-    init.initialize(&mut base, &mut world, &mut registry, zone, |_| Ok(0x2d))
+    let mut environment = Environment::default();
+    init.initialize(&mut base, &mut world, &mut registry, &mut environment)
         .unwrap();
-    assert_eq!(init.stage(), Stage::HandlerKindPending);
+    assert_eq!(init.stage(), Stage::BasicComplete);
+    assert_eq!(environment.calls, ["zone", "mask", "session", "count"]);
     let id = init.item().unwrap();
     let item = world.item(id).unwrap();
     assert_eq!(registry.records()[0].item(), id);
@@ -174,29 +206,39 @@ fn actual_factory_actor_and_physics_links_stop_before_missing_kind_activation() 
             item.priority(),
             item.zone()
         ),
-        (0x2b, 0x2d, 0xff, 0x103)
+        (0x2b, 0x3d, 0xff, 0x103)
     );
     assert_eq!(item.position_bits(), [0; 4]);
     assert_eq!(base.word(0x224), None);
     let physics = init.physics().unwrap();
     assert_eq!(physics.item(), Some(id.get()));
+    assert_eq!(physics.item_identity(), Some(id));
     assert_eq!(physics.word(0x160), Some(30f32.to_bits()));
     assert_eq!(physics.word(0x1d0), Some(0.825f32.to_bits()));
     assert_eq!(physics.word(0x1cc), Some(0.5f32.to_bits()));
     assert_eq!(physics.word(0x1c8), Some(1));
-    assert_eq!(physics.byte(0x1ff), Some(0));
-    assert_eq!(physics.half(8), Some(0));
-    assert_eq!(physics.word(0x180), Some(0));
+    assert_eq!(physics.byte(0x1ff), Some(1));
+    assert_eq!(physics.half(8), Some(0x4000));
+    assert_eq!(physics.word(0x180), Some(2f32.to_bits()));
+    assert_eq!(physics.word(0x168), None);
     assert!(
-        init.initialize(
-            &mut base,
-            &mut world,
-            &mut registry,
-            |_| panic!("replayed zone"),
-            |_| panic!("replayed flags")
-        )
-        .is_err()
+        physics
+            .handler_scalar_bits()
+            .unwrap_err()
+            .is::<physics::MissingHandlerKind>()
     );
+    let pending = physics.deferred_handler_scalar().unwrap();
+    assert_eq!(pending.item_identity(), Some(id));
+    assert_eq!(pending.half_height_bits(), 0.825f32.to_bits());
+    assert_eq!(base.stage(), base_handler::Stage::VirtualBasicComplete);
+    assert_eq!(base.byte(0x618), Some(1));
+    assert_eq!(init.completion().unwrap().item(), id);
+    assert_eq!(init.completion().unwrap().player(), base.player());
+    assert!(
+        init.initialize(&mut base, &mut world, &mut registry, &mut environment)
+            .is_err()
+    );
+    assert_eq!(environment.calls, ["zone", "mask", "session", "count"]);
     assert_eq!(
         (world.item_count(), registry.count(), registry.counter()),
         (1, 1, 1)
@@ -209,20 +251,14 @@ fn failed_origin_or_registration_provider_retains_reached_real_objects() {
         let mut world = world();
         let mut registry = Registry::from_constructor();
         let mut init = Owned::new();
+        let mut environment = Environment {
+            fail_zone,
+            fail_mask: true,
+            ..Environment::default()
+        };
         assert!(
-            init.initialize(
-                &mut base,
-                &mut world,
-                &mut registry,
-                |point| {
-                    if fail_zone {
-                        anyhow::bail!("zone provider unavailable")
-                    }
-                    zone(point)
-                },
-                |_| anyhow::bail!("config field is unknown")
-            )
-            .is_err()
+            init.initialize(&mut base, &mut world, &mut registry, &mut environment)
+                .is_err()
         );
         assert_eq!(init.stage(), Stage::Failed);
         let id = init.item().unwrap();
@@ -235,4 +271,36 @@ fn failed_origin_or_registration_provider_retains_reached_real_objects() {
         assert_eq!(base.stage(), base_handler::Stage::VirtualItemBound);
         assert_eq!(init.origin().is_some(), !fail_zone);
     }
+}
+
+#[test]
+fn count_failure_retains_actual_activation_but_does_not_publish_basic_return() {
+    let mut base = base(10);
+    let mut world = world();
+    let mut registry = Registry::from_constructor();
+    let mut init = Owned::new();
+    let mut environment = Environment {
+        fail_count: true,
+        ..Environment::default()
+    };
+    assert!(
+        init.initialize(&mut base, &mut world, &mut registry, &mut environment)
+            .is_err()
+    );
+    assert_eq!(init.stage(), Stage::Failed);
+    assert!(init.completion().is_none());
+    assert_eq!(base.stage(), base_handler::Stage::VirtualBasicSuffix);
+    assert_eq!(
+        world.item(init.item().unwrap()).unwrap().membership_mask(),
+        0x3d
+    );
+    assert_eq!(init.physics().unwrap().byte(0x1ff), Some(1));
+    assert!(init.physics().unwrap().scalar_pending());
+    assert_eq!(base.word(0x574), Some(0));
+    let before = environment.calls.clone();
+    assert!(
+        init.initialize(&mut base, &mut world, &mut registry, &mut environment)
+            .is_err()
+    );
+    assert_eq!(environment.calls, before);
 }

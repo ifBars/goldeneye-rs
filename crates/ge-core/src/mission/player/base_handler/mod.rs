@@ -8,9 +8,11 @@ mod reset;
 mod runtime_reset;
 mod types;
 mod virtual_init;
+mod virtual_suffix;
 pub use constructor_flag::{ConstructorFlagProvider, ConstructorFlagReceipt};
 pub use runtime_reset::RuntimeResetProvider;
 pub use types::{BasicReceipt, Binding, Failure, Provider, ResetReceipt, Stage};
+pub use virtual_suffix::{VirtualBasicReceipt, VirtualSessionProvider};
 
 use super::identity::{ItemId, PlayerId};
 use anyhow::{Result, ensure};
@@ -141,6 +143,8 @@ impl Owner {
             Stage::ConstructorFlagComplete => 12,
             Stage::VirtualItemBound => 13,
             Stage::VirtualMotionComplete => 14,
+            Stage::VirtualBasicSuffix => 15,
+            Stage::VirtualBasicComplete => 16,
         });
         emit(match self.failure {
             None => 0,
@@ -152,6 +156,7 @@ impl Owner {
             Some(Failure::RuntimeDescriptor) => 6,
             Some(Failure::RuntimeGlobalByte) => 7,
             Some(Failure::ConstructorFlag) => 8,
+            Some(Failure::VirtualSession) => 9,
         });
         for value in [self.reset_calls, self.completed_resets] {
             emit(((value as u64) >> 32) as u32);

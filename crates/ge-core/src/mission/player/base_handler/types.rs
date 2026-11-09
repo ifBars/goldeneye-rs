@@ -17,6 +17,8 @@ pub enum Stage {
     ConstructorFlagComplete,
     VirtualItemBound,
     VirtualMotionComplete,
+    VirtualBasicSuffix,
+    VirtualBasicComplete,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Failure {
@@ -28,6 +30,7 @@ pub enum Failure {
     RuntimeDescriptor,
     RuntimeGlobalByte,
     ConstructorFlag,
+    VirtualSession,
 }
 
 /// Semantic bindings replace source vtable/string addresses. No source pointer

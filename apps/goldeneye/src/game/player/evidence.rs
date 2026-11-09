@@ -99,7 +99,7 @@ pub(super) fn build(
     ensure!(
         matches!(
             owned.base.stage(),
-            base_handler::Stage::RuntimeResetComplete | base_handler::Stage::VirtualMotionComplete
+            base_handler::Stage::RuntimeResetComplete | base_handler::Stage::VirtualBasicComplete
         ),
         "player base constructor has no complete receipt"
     );
@@ -157,12 +157,12 @@ pub(super) fn build(
         origin: "fresh_constructor_snapshot",
         lifetime: "controller_arena",
         stage: if virtual_reached {
-            "player_physics_prefix_pending"
+            "player_components_pending"
         } else {
             "player_reset_complete"
         },
         pending_dependency: if virtual_reached {
-            "handler_kind"
+            "tp_fp_components"
         } else {
             "constructor_source_flag"
         },
@@ -240,7 +240,7 @@ pub(super) fn build(
         constructor_flag,
         virtual_initialization,
         state_sha256: String::new(),
-        scope: "The same-user metadata flag is captured before construction and consumed after the complete reset. The reached virtual initializer owns a wrapperless EXItem, persistent numeric registry and real actor membership, followed by sparse motion and physics capsule initialization. Actual player/item/physics owners remain in the controller arena across cancellation; no registry entry outlives its owner. The handler-kind input remains unknown, so physics activation and later initializer/TP/FP/completion/camera operations are not published. Constructor-origin and final selected-spawn queries remain separate; no spawn pose is applied early. Fresh ownership does not establish original history, scheduler timing or numeric parity.",
+        scope: "The captured same-user flag is consumed after the complete reset. The actual PlayerBasic initializer retains its EXItem, numeric registry, actor/physics owners and activation, then counts registered kind2 session records and returns its typed receipt. Unknown handler input remains an unresolved time-local physics scalar; no value is guessed. The controller arena preserves reached owners across cancellation. PlayerNew, TP/FP components, completion and camera remain pending. Constructor-origin and selected-spawn queries stay separate; no selected pose is applied early. Fresh ownership does not establish original history, timing or numeric parity.",
     };
     let mut digest = Sha256::new();
     digest.update(b"ge_player_attempt_v4\0");

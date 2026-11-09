@@ -10,8 +10,10 @@ Read README.md, docs/architecture.md and progress/roadmap.json before changing
 runtime behavior. The current New Game path prepares the Tutorial world and the
 player constructor through shared allocations and its complete virtual reset,
 including scratch, character and default-inventory selection. The captured
-per-user flag now permits EXItem/actor registration and a partial physics owner;
-the missing handler-kind input stops activation. Later initialization and gameplay remain
+per-user flag now permits EXItem/actor registration, physics activation and the
+basic initializer's session suffix. The handler scalar retains captured unknown
+operands; its getter must fail until those inputs are resolved. TP/FP components,
+later initialization and gameplay remain
 incomplete. docs/player-creation.md describes the reached boundary.
 
 ## Source and asset boundaries

@@ -1,5 +1,6 @@
 use super::*;
 use std::cell::Cell;
+mod handler_scalar;
 
 #[test]
 fn constructor_retains_unknowns_and_owns_empty_buffer() {
@@ -65,51 +66,57 @@ fn sphere_branch_preserves_unreached_capsule_scratch() {
 }
 
 #[test]
-fn handler_selection_uses_topbyte_before_high_half_and_requires_input() {
+fn handler_selection_uses_topbyte_before_high_half_and_defers_unknown_input() {
     let mut owner = Owner::from_constructor();
-    let before = owner.word(0x168);
+    owner.apply_handler_kind(None).unwrap();
+    assert!(owner.scalar_pending());
+    assert_eq!(owner.word(0x168), None);
     assert!(
         owner
-            .apply_handler_kind(None)
+            .handler_scalar_bits()
             .unwrap_err()
             .is::<MissingHandlerKind>()
     );
-    assert_eq!(owner.word(0x168), before);
     owner
         .set_height_radius(2f32.to_bits(), 1f32.to_bits())
         .unwrap();
     owner.apply_handler_kind(Some(0x01ff_ffff)).unwrap();
     assert_eq!(owner.word(0x168), Some(4000f32.to_bits()));
+    assert_eq!(owner.handler_scalar_bits().unwrap(), 4000f32.to_bits());
+    assert!(!owner.scalar_pending());
     for kind in [0x4003_0001, 0x4004_ffff] {
         owner.apply_handler_kind(Some(kind)).unwrap();
         assert_eq!(owner.word(0x168), Some(1000f32.to_bits()));
+        assert_eq!(owner.handler_scalar_bits().unwrap(), 1000f32.to_bits());
     }
     for kind in [0x4000_0000, 0x4001_0001, 0x4002_ffff] {
         owner.apply_handler_kind(Some(kind)).unwrap();
         assert_eq!(owner.word(0x168), Some(500f32.to_bits()));
+        assert_eq!(owner.handler_scalar_bits().unwrap(), 500f32.to_bits());
     }
     owner.apply_handler_kind(Some(0x4200_0000)).unwrap();
     assert_eq!(owner.word(0x168), Some(0));
 }
 
 #[test]
-fn missing_handler_retains_reached_prefix_without_activation() {
+fn deferred_handler_continues_independent_activation_and_suffix() {
     let mut owner = Owner::from_constructor();
     owner.bind_item(7).unwrap();
     let calls = Cell::new(0);
-    let error = owner
+    owner
         .apply_player_initialization(None, || {
             calls.set(calls.get() + 1);
             Ok(())
         })
-        .unwrap_err();
-    assert!(error.is::<MissingHandlerKind>());
+        .unwrap();
     assert_eq!(owner.word(0x160), Some(30f32.to_bits()));
     assert_eq!(owner.word(0x1c8), Some(1));
-    assert_eq!(owner.word(0x168), Some(1f32.to_bits()));
-    assert_eq!(owner.byte(0x1ff), Some(0));
-    assert_eq!(owner.half(8), Some(0));
-    assert_eq!(calls.get(), 0);
+    assert_eq!(owner.word(0x168), None);
+    assert!(owner.scalar_pending());
+    assert_eq!(owner.byte(0x1ff), Some(1));
+    assert_eq!(owner.word(0x180), Some(2f32.to_bits()));
+    assert_eq!(owner.half(8), Some(0x4000));
+    assert_eq!(calls.get(), 1);
 }
 
 #[test]
