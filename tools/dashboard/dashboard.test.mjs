@@ -2262,20 +2262,27 @@ test('incomplete loader Wait28 retains its pending phase and legacy zero session
 
 
 function playerPreludeFixture(catalogEntries=2) {
-  return {origin:'fresh_constructor_snapshot',lifetime:'session_worker',stage:'player_reset_scratch_pending',
-    pending_dependency:'shared_reset_scratch_capacity',operation_complete:false,attempt_bound:true,catalog_bound:true,
+  return {origin:'fresh_constructor_snapshot',lifetime:'session_worker',stage:'player_reset_complete',
+    pending_dependency:'constructor_source_flag',operation_complete:false,attempt_bound:true,catalog_bound:true,
     operation_entries:0,creation_dispatches:1,catalog_entries:catalogEntries,selected_catalog_index:1,selected_source_ordinal:4,
     requested_start_point_before:1,requested_start_point_after:1,base_constructor_complete:true,
     handler_rng_reads:1,base_reset_calls:2,persistent_base_resets:2,handler_kind_bound:false,
-    inventory_records:0,inventory_capacity:0,inventory_growth:16,world_items:0,world_actor_lists:1,
+    inventory_records:1,inventory_capacity:16,inventory_growth:16,world_items:0,world_actor_lists:1,
     world_membership_lists:10,actor_registrations:0,physics_bound:false,completion_published:false,
     player_created:false,camera_ready:false,original_history_verified:false,native_timing_verified:false,
     base_state_sha256:'1'.repeat(64),prelude_state_sha256:'2'.repeat(64),world_state_sha256:'3'.repeat(64),
     persistent_state_sha256:'4'.repeat(64),state_sha256:'5'.repeat(64),
     shared_count:1,shared_live_leases:1,shared_allocations:3,shared_native_bytes:63680,shared_host_capacity_bytes:64000,
-    shared_reset_calls:1,shared_entry_noops:98,shared_cache_stores:1,shared_reset_complete:false,
+    shared_reset_calls:1,shared_entry_noops:98,shared_cache_stores:1,shared_reset_complete:true,
     runtime_base_reset_complete:true,derived_reset_prefix_complete:true,
-    shared_state_sha256:'6'.repeat(64),reset_state_sha256:'7'.repeat(64),scope:'Authored retained shared allocations and scratch-pending reset'};
+    shared_state_sha256:'6'.repeat(64),reset_state_sha256:'7'.repeat(64),
+    scratch_prepared:true,character_bound:true,inventory_selection_complete:true,
+    scratch_capacity:32,scratch_growth:16,scratch_records:0,scratch_native_bytes:4736,scratch_host_capacity_bytes:4800,scratch_reallocations:1,
+    character_resource:0x01090013,character_key:0x4d0000a7,character_source_index:8,guns_resource:0x0109000f,guns_payload_bytes:1234,
+    metadata_source_index:4,metadata_sorted_index:5,weapon_registry_keys:9,primary_order_keys:8,secondary_order_keys:3,
+    inventory_primary_order_index:6,inventory_interface_callbacks:0,inventory_selected_record:0,
+    scratch_state_sha256:'8'.repeat(64),loadout_state_sha256:'9'.repeat(64),
+    scope:'Authored complete virtual reset with character and inventory bound; constructor flag and player initialization pending'};
 }
 function withPlayerPrelude(report) {
   withCompletedLoader(report);
@@ -2287,23 +2294,25 @@ function withPlayerPrelude(report) {
   return report;
 }
 
-test('player prelude reports actual partial owners while preserving absent legacy and gameplay boundaries',async()=>{
+test('player virtual reset reports retained scratch character and inventory while preserving gameplay boundaries',async()=>{
   await inspect(embed(withPlayerPrelude(gameSessionFixture())),d=>{
     const text=d.querySelector('#game-session-summary').textContent;
-    assert.match(text,/Player reset paused at scratch capacity: 1 creation dispatches selected catalog index 1 of 2 entries \(source ordinal 4\)/);
+    assert.match(text,/Player virtual reset complete: 1 creation dispatches selected catalog index 1 of 2 entries \(source ordinal 4\)/);
     assert.match(text,/2 reset calls and 1 shared RNG reads \(2 retained global base resets\)/);
     assert.match(text,/3 allocations \(63,680 native-layout bytes; 64,000 host capacity bytes\), 1 counted players and 1 live leases across 1 reset calls/);
     assert.match(text,/98 source entry no-ops and 1 cache-enable stores were reached/);
-    assert.match(text,/inventory owns 0 records with capacity 0 and growth 16/);
+    assert.match(text,/Character binding and inventory selection completed from supplied data/);
+    assert.match(text,/Scratch retains capacity 32, 0 records and 4,736 bytes after 1 reallocation/);
+    assert.match(text,/inventory owns 1 record with capacity 16 and growth 16/);
     assert.match(text,/1 actor lists and 10 membership lists retain 0 world items and 0 actor registrations/);
-    assert.match(text,/runtime base reset and derived reset prefix completed; shared reset scratch capacity remains pending/);
+    assert.match(text,/constructor source flag and EXItem initialization remain pending/);
     assert.match(text,/Physics, player completion and camera output remain incomplete/);
     assert.match(text,/Sessions await player creation/);
     assert.equal(d.querySelector('#parity-count').textContent,'0 of 3 tracked criteria verified');
   });
   await inspect(embed(withCompletedLoader(gameSessionFixture())),d=>{
     assert.match(d.querySelector('#game-session-summary').textContent,/Player constructor evidence is absent/);
-    assert.doesNotMatch(d.querySelector('#game-session-summary').textContent,/Player reset paused at scratch capacity/);
+    assert.doesNotMatch(d.querySelector('#game-session-summary').textContent,/Player virtual reset complete/);
   });
 });
 
@@ -2315,16 +2324,25 @@ test('player prelude rejects type count readiness digest and private-payload con
     player=>{player.attempt_bound=false;},player=>{player.catalog_bound=false;},player=>{player.base_constructor_complete=false;},
     player=>{player.catalog_entries=3;},player=>{player.selected_catalog_index=2;},player=>{player.selected_source_ordinal=-1;},
     player=>{player.handler_rng_reads=0;},player=>{player.base_reset_calls=1;},player=>{player.persistent_base_resets=0;},
-    player=>{player.inventory_records=1;},player=>{player.inventory_capacity=16;},player=>{player.world_items=1;},
+    player=>{player.inventory_records=0;},player=>{player.inventory_capacity=0;},player=>{player.world_items=1;},
     player=>{player.actor_registrations=1;},player=>{player.stage='player_created';},player=>{player.pending_dependency='none';},
     player=>{player.original_history_verified=true;},player=>{player.native_timing_verified=true;},
     player=>{player.base_state_sha256='X'.repeat(64);},player=>{player.prelude_state_sha256='short';},
     player=>{delete player.shared_count;},player=>{player.shared_count=-1;},player=>{player.shared_live_leases=0;},
     player=>{player.shared_reset_calls=2;},player=>{player.shared_allocations=2;},player=>{player.shared_native_bytes=63679;},
     player=>{player.shared_host_capacity_bytes=63679;},player=>{player.shared_entry_noops=97;},player=>{player.shared_cache_stores=2;},
-    player=>{player.shared_reset_complete=true;},player=>{player.runtime_base_reset_complete=false;},
+    player=>{player.shared_reset_complete=false;},player=>{player.runtime_base_reset_complete=false;},
     player=>{player.derived_reset_prefix_complete=false;},player=>{player.shared_state_sha256='short';},
     player=>{player.reset_state_sha256='X'.repeat(64);},player=>{player.shared_payload=[1,2,3];},
+    player=>{player.scratch_prepared=false;},player=>{player.character_bound=false;},player=>{player.inventory_selection_complete=false;},
+    player=>{player.scratch_capacity=31;},player=>{player.scratch_growth=0;},player=>{player.scratch_records=1;},
+    player=>{player.scratch_native_bytes=4735;},player=>{player.scratch_host_capacity_bytes=4735;},player=>{player.scratch_reallocations=2;},
+    player=>{player.character_resource=0;},player=>{player.character_key=0x4d000000;},player=>{player.character_source_index=-1;},
+    player=>{player.guns_resource=0;},player=>{player.guns_payload_bytes=0;},player=>{player.weapon_registry_keys=5;},
+    player=>{player.primary_order_keys=6;},player=>{player.secondary_order_keys=0;},player=>{player.inventory_primary_order_index=8;},
+    player=>{player.inventory_interface_callbacks=1;},player=>{player.inventory_selected_record=1;},
+    player=>{player.scratch_state_sha256='X'.repeat(64);},player=>{player.loadout_state_sha256='short';},
+    player=>{player.pose_bits=[0,0,0,0];},player=>{player.scratch_payload=[1,2,3];},
   ];
   for(const change of changes) {
     const report=withPlayerPrelude(gameSessionFixture());
@@ -2332,7 +2350,7 @@ test('player prelude rejects type count readiness digest and private-payload con
     await inspect(embed(report),d=>{
       const text=d.querySelector('#game-session-summary').textContent;
       assert.match(text,/has not been recorded completely/);
-      assert.doesNotMatch(text,/Player reset paused at scratch capacity|all 4 difficulties admitted/);
+      assert.doesNotMatch(text,/Player virtual reset complete|all 4 difficulties admitted/);
     });
   }
 });
@@ -2341,7 +2359,7 @@ test('player prelude stale mixed missing and unready world records cannot promot
   for(const state of ['stale','failed']) {
     const report=withPlayerPrelude(gameSessionFixture(state));
     await inspect(embed(report),d=>{
-      assert.doesNotMatch(d.querySelector('#game-session-summary').textContent,/Player reset paused at scratch capacity|all 4 difficulties admitted/);
+      assert.doesNotMatch(d.querySelector('#game-session-summary').textContent,/Player virtual reset complete|all 4 difficulties admitted/);
     });
   }
   for(const change of [world=>{world.player_initialization=null;},world=>{delete world.player_initialization;},
@@ -2354,7 +2372,20 @@ test('player prelude stale mixed missing and unready world records cannot promot
   }
 });
 
-test('shared constructor reuse permits retained cancellation leases and varying hashes without reallocating or completing reset',async()=>{
+test('completed reset requires new scratch and loadout evidence without reusing the older partial schema',async()=>{
+  for(const field of ['scratch_prepared','scratch_capacity','character_key','metadata_sorted_index','scratch_state_sha256','loadout_state_sha256']) {
+    const report=withPlayerPrelude(gameSessionFixture());
+    delete report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization[field];
+    await inspect(embed(report),d=>{
+      const text=d.querySelector('#game-session-summary').textContent;
+      assert.match(text,/has not been recorded completely/);
+      assert.doesNotMatch(text,/Player virtual reset complete|Character binding and inventory selection completed/);
+      assert.equal(d.querySelector('#menu-number').textContent,'100%','launch acceptance remains independent');
+    });
+  }
+});
+
+test('shared constructor reuse permits retained cancellation leases and completed reset without reallocating or creating a player',async()=>{
   for(const resets of [2,3,4]) {
     const report=withPlayerPrelude(gameSessionFixture());
     const data=report.menu.details.game_session;
@@ -2369,10 +2400,11 @@ test('shared constructor reuse permits retained cancellation leases and varying 
       const text=d.querySelector('#game-session-summary').textContent;
       assert.match(text,/all 4 difficulties admitted/);
       assert.match(text,/3 allocations \(63,680 native-layout bytes; 70,000 host capacity bytes\)/);
-      assert.match(text,/shared reset scratch capacity remains pending/);
+      assert.match(text,/constructor source flag and EXItem initialization remain pending/);
       assert.match(text,/Physics, player completion and camera output remain incomplete/);
       assert.equal(player.shared_allocations,3);
-      assert.equal(player.shared_reset_complete,false);
+      assert.equal(player.shared_reset_complete,true);
+      assert.equal(player.scratch_reallocations,1);
       assert.equal(d.querySelector('#menu-number').textContent,'100%','the historical launch denominator stays separate');
     });
     player.shared_live_leases=1;

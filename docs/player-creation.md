@@ -27,13 +27,28 @@ controller owner: 63,680 native-layout bytes, with 98 entry-constructor no-ops.
 Unwritten payloads remain uninitialized and are never read for reporting. The
 shared count increases before the larger reset starts. That reset repeats the
 base resource/global writes, completes the runtime base-reset tail, and performs
-the derived clear and flag writes up to the scratch-capacity operation. The RNG
+the derived clear and flag writes before the scratch-capacity operation. The RNG
 is consumed once during construction, rather than again on each reset.
 
-The shared scratch owner still needs its actual initial capacity and growth
-provenance. It blocks character and default-inventory selection, even though
-those subsystems have separate authored tests. Later reset fields remain unknown;
-the constructor does not return a completed player.
+The shared scratch owner now starts from its proven startup-constructor header:
+capacity/count zero, growth 16 and no backing. The first reset allocates 4,736
+bytes for 32 records without initializing their payloads. Later attempts reuse
+the same backing. Its growth rule preserves the source's deficit comparison;
+it is not a general-purpose minimum-capacity helper.
+
+Character selection uses the actual catalog row already retained by
+MissionContext and checks the admitted single-user session. The existing empty
+inventory is reset, admits its default record, and selects slots using the
+user-supplied metadata and both weapon orders. Weapon values use the reached
+base/reset fields. The early C54 flag stays unknown through the supported
+convergent calculation; its later reset store does not rewrite that history.
+
+The remaining virtual reset now copies defaults through owned providers, clears
+the actual C18 buffer and performs the final sparse writes. The shared quad has
+an explicit pre-main constructor owner; the separate vector is read from local
+supplied DATA rather than embedded in source. A typed, matching-player completion
+proof finishes the shared reset lease. The enclosing player constructor still
+needs its incoming source flag before its next virtual initialization call.
 
 Each player identity belongs to its creation generation, independently of the
 reused user slot. Interrupted constructors retain their reached shared count and
@@ -42,7 +57,8 @@ cleanup is not yet bound, so the host does not decrement that count or claim a
 completed native destructor. A 128-lease host budget bounds retained partial
 attempts; closing cleanup is required before repeated creation is fully supported.
 
-World actor membership and sparse physics ownership are also implemented as
+The reset's completion does not authorize player publication. World actor
+membership and sparse physics ownership are also implemented as
 focused pure subsystems. Actor registration appends to the actor list while
 membership changes insert at each bit-list head. Fresh items own five embedded
 and five extra membership nodes. Physics preserves unwritten fields and performs

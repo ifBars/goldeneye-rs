@@ -8,8 +8,9 @@ substitute the N64 game, an emulator or a generic FPS demo.
 
 Read README.md, docs/architecture.md and progress/roadmap.json before changing
 runtime behavior. The current New Game path prepares the Tutorial world and the
-player constructor through shared allocations and the second reset's scratch
-boundary. Later player initialization and gameplay remain
+player constructor through shared allocations and its complete virtual reset,
+including scratch, character and default-inventory selection. The incoming
+constructor flag, later player initialization and gameplay remain
 incomplete. docs/player-creation.md describes the reached boundary.
 
 ## Source and asset boundaries

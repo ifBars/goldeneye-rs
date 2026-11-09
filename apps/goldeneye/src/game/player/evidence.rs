@@ -39,6 +39,28 @@ pub struct Evidence {
     pub shared_reset_complete: bool,
     pub runtime_base_reset_complete: bool,
     pub derived_reset_prefix_complete: bool,
+    pub scratch_capacity: usize,
+    pub scratch_growth: usize,
+    pub scratch_records: usize,
+    pub scratch_native_bytes: usize,
+    pub scratch_host_capacity_bytes: usize,
+    pub scratch_reallocations: usize,
+    pub character_resource: usize,
+    pub character_key: usize,
+    pub character_source_index: usize,
+    pub guns_resource: usize,
+    pub guns_payload_bytes: usize,
+    pub metadata_source_index: usize,
+    pub metadata_sorted_index: usize,
+    pub weapon_registry_keys: usize,
+    pub primary_order_keys: usize,
+    pub secondary_order_keys: usize,
+    pub inventory_primary_order_index: usize,
+    pub inventory_interface_callbacks: usize,
+    pub inventory_selected_record: usize,
+    pub scratch_prepared: bool,
+    pub character_bound: bool,
+    pub inventory_selection_complete: bool,
     pub handler_kind_bound: bool,
     pub inventory_records: usize,
     pub inventory_capacity: usize,
@@ -59,6 +81,8 @@ pub struct Evidence {
     pub persistent_state_sha256: String,
     pub shared_state_sha256: String,
     pub reset_state_sha256: String,
+    pub scratch_state_sha256: String,
+    pub loadout_state_sha256: String,
     pub state_sha256: String,
     pub scope: &'static str,
 }
@@ -94,11 +118,32 @@ pub(super) fn build(owned: &Owned, world: &World, hook: &Attempt) -> Result<Evid
         owned.reset.visit_state_words(emit)
     });
     let inventory = owned.prelude.inventory();
+    let selected = inventory
+        .selection()
+        .ok_or_else(|| anyhow::anyhow!("player inventory selection is incomplete"))?;
+    let scratch = hook.player_scratch_snapshot()?;
+    let source = owned.loadout.provenance();
+    ensure!(
+        owned.reset.stage() == ge_core::mission::player::constructor::DerivedResetStage::Complete
+            && shared.reset_complete
+            && owned.request.source_flag_raw().is_none(),
+        "player reset completion or following constructor boundary differs"
+    );
+    let character = owned
+        .reset
+        .character()
+        .ok_or_else(|| anyhow::anyhow!("player character is not bound"))?;
+    ensure!(
+        character.key == source.character_key
+            && character.source_index == source.character_source_index
+            && selected.metadata_sorted_index == source.metadata_sorted_index,
+        "player loadout retained binding differs from actual selection"
+    );
     let mut result = Evidence {
         origin: "fresh_constructor_snapshot",
         lifetime: "session_worker",
-        stage: "player_reset_scratch_pending",
-        pending_dependency: "shared_reset_scratch_capacity",
+        stage: "player_reset_complete",
+        pending_dependency: "constructor_source_flag",
         operation_complete: false,
         attempt_bound: true,
         catalog_bound: true,
@@ -121,9 +166,31 @@ pub(super) fn build(owned: &Owned, world: &World, hook: &Attempt) -> Result<Evid
         shared_reset_calls: shared.reset_calls,
         shared_entry_noops: shared.entry_noops,
         shared_cache_stores: shared.cache_stores,
-        shared_reset_complete: false,
+        shared_reset_complete: shared.reset_complete,
         runtime_base_reset_complete: true,
         derived_reset_prefix_complete: true,
+        scratch_capacity: scratch.capacity,
+        scratch_growth: scratch.growth,
+        scratch_records: scratch.count,
+        scratch_native_bytes: scratch.native_bytes,
+        scratch_host_capacity_bytes: scratch.host_capacity_bytes,
+        scratch_reallocations: scratch.reallocations,
+        character_resource: source.character_resource as usize,
+        character_key: source.character_key as usize,
+        character_source_index: source.character_source_index,
+        guns_resource: source.guns_resource as usize,
+        guns_payload_bytes: source.guns_payload_bytes as usize,
+        metadata_source_index: source.metadata_source_index,
+        metadata_sorted_index: source.metadata_sorted_index,
+        weapon_registry_keys: source.weapon_registry_keys,
+        primary_order_keys: source.primary_order_keys,
+        secondary_order_keys: source.secondary_order_keys,
+        inventory_primary_order_index: selected.primary_order_index,
+        inventory_interface_callbacks: selected.interface_callbacks,
+        inventory_selected_record: selected.primary_record,
+        scratch_prepared: scratch.capacity > 0 && scratch.native_bytes > 0,
+        character_bound: owned.reset.character().is_some(),
+        inventory_selection_complete: inventory.selection().is_some(),
         handler_kind_bound: owned.base.word(0x224).is_some(),
         inventory_records: inventory.records().len(),
         inventory_capacity: inventory.capacity(),
@@ -144,11 +211,13 @@ pub(super) fn build(owned: &Owned, world: &World, hook: &Attempt) -> Result<Evid
         persistent_state_sha256: persistent,
         shared_state_sha256: shared.state_sha256,
         reset_state_sha256: reset,
+        scratch_state_sha256: scratch.state_sha256,
+        loadout_state_sha256: source.state_sha256.clone(),
         state_sha256: String::new(),
-        scope: "One generation-bound player attempt uses the actual live StartPoint catalog and shared RNG/resource owners. Three controller-lifetime allocations and their count precede the second base reset. The actual runtime base reset and derived clear/flag prefix execute in source order; the larger reset stops before its unbound shared scratch-capacity owner. Character/inventory selection, EXItem/physics, TP/FP setup, completion and camera remain incomplete. Cancelled partial constructors retain reached shared leases/backings until native cache cleanup is implemented; later attempts reuse storage with distinct player identities. The empty inventory and absent actor membership remain real. No selected pose is applied early. Original history, timing and numeric parity remain unverified; only counts and fingerprints are exported.",
+        scope: "The actual single-user attempt completes shared storage, the second base reset, persistent scratch preparation, retained character binding, default inventory admission/selection and the remaining derived virtual-reset writes. Supplied default-vector values remain in the local DATA owner; the shared reset quad uses an explicit pre-main constructor snapshot. Unknown early C54 is preserved through convergent weapon-value branches and cleared only by its later source store. The source user flag is still unbound, so constructor flag application, virtual initialization, EXItem/physics, TP/FP setup and completion remain pending. Cancelled constructors retain reached leases/backings until native cache cleanup is bound. No player, selected StartPoint pose or camera is published. Original history, timing and numeric parity remain unverified.",
     };
     let mut digest = Sha256::new();
-    digest.update(b"ge_player_attempt_v2\0");
+    digest.update(b"ge_player_attempt_v3\0");
     for id in [
         owned.request.attempt().get(),
         owned.request.session().get(),
@@ -192,6 +261,8 @@ pub(super) fn build(owned: &Owned, world: &World, hook: &Attempt) -> Result<Evid
         &result.persistent_state_sha256,
         &result.shared_state_sha256,
         &result.reset_state_sha256,
+        &result.scratch_state_sha256,
+        &result.loadout_state_sha256,
     ] {
         digest.update(text.as_bytes());
     }

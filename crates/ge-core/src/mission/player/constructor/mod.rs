@@ -3,9 +3,13 @@
 mod allocation;
 mod prelude;
 mod reset_prefix;
+mod scratch;
 pub use allocation::{Allocation, Kind};
 pub use prelude::PendingPrelude;
-pub use reset_prefix::PendingReset;
+pub use reset_prefix::{
+    CharacterBinding, PendingReset, ResetCompletion, Stage as DerivedResetStage, TailProvider,
+};
+pub use scratch::{Scratch, ScratchBudget, ScratchReceipt};
 
 use super::identity::PlayerId;
 use anyhow::{Context, Result, ensure};
@@ -254,6 +258,31 @@ impl Shared {
             .context("constructor reset count overflow")?;
         entry.stage = ResetStage::InProgress;
         self.reset_calls = calls;
+        Ok(())
+    }
+
+    /// Only the completed, identity-bound derived reset can finish a retained
+    /// continuation. Constructor flags, virtual initialization and publication
+    /// still follow this source return point.
+    pub fn complete_pending_reset(
+        &mut self,
+        lease: Lease,
+        completion: &ResetCompletion,
+    ) -> Result<()> {
+        ensure!(
+            completion.player() == lease.player(),
+            "reset completion belongs to another player"
+        );
+        let entry = self
+            .entries
+            .iter_mut()
+            .find(|entry| entry.lease == lease)
+            .context("constructor lease is stale or foreign")?;
+        ensure!(
+            entry.stage == ResetStage::InProgress,
+            "constructor reset is not in progress"
+        );
+        entry.stage = ResetStage::Complete;
         Ok(())
     }
 

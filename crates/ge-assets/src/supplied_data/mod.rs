@@ -42,6 +42,9 @@ impl SuppliedData {
     pub fn identity(&self) -> &Identity {
         &self.identity
     }
+    pub fn player_reset_defaults(&self) -> Result<crate::player_static::ResetDefaults> {
+        crate::player_static::ResetDefaults::read(&self.data)
+    }
     pub fn weapon_tables(
         &self,
         registry_keys: usize,

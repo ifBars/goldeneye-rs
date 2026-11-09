@@ -25,8 +25,12 @@ The [player continuation](player-creation.md) now dispatches an identity-bound
 attempt, selects from the actual live catalog and retains the first constructor
 and reset prefix on this same worker. Shared RNG/resource mutations use their
 existing owners. Controller-lifetime shared constructor storage now precedes the
-second reset; the runtime base reset and derived prefix execute before stopping
-at the unbound scratch-capacity owner. Cancelled partial constructors preserve
+second reset. The persistent scratch owner, actual retained character row and
+default inventory now feed the remaining derived reset. Its default vector
+comes from the same verified supplied DATA owner as the weapon tables, while
+the shared quad has explicit startup-constructor ownership. Typed completion
+finishes the reset; an unbound incoming flag still stops the enclosing player
+constructor before virtual initialization. Cancelled constructors preserve
 their reached shared leases until native cache cleanup is implemented. Later
 PlayerNew initialization and completion remain required.
 Frontend primary music/video advancement is suspended while accepted effects can

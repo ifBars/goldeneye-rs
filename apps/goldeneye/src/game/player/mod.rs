@@ -1,6 +1,8 @@
 //! The actual one-shot player constructor prefix on the retained CPU worker.
-//! The second reset stops at its actual shared scratch-capacity dependency.
+//! The reset precedes still-required constructor flags and virtual initialization.
 mod evidence;
+mod loadout;
+mod providers;
 use super::{actors::Definitions, resource_states, world_hooks};
 use anyhow::{Result, ensure};
 pub use evidence::Evidence;
@@ -13,6 +15,13 @@ use ge_core::mission::{
     },
     session::{Session, player_load::PlayerRequest},
 };
+use providers::Provider;
+
+pub(super) struct Bindings<'a> {
+    pub session: &'a Session,
+    pub mission: &'a crate::mission::MissionContext,
+    pub assets: &'a mut ge_assets::resource::GameAssets,
+}
 
 pub(super) struct Owned {
     request: PlayerRequest,
@@ -20,6 +29,7 @@ pub(super) struct Owned {
     prelude: PendingPrelude,
     lease: Lease,
     reset: PendingReset,
+    loadout: loadout::Sources,
     operations: usize,
     catalog_entries: usize,
     rng_reads: usize,
@@ -30,7 +40,7 @@ impl Owned {
         request: PlayerRequest,
         operations: usize,
         catalog_entries: usize,
-        session: &Session,
+        bindings: Bindings<'_>,
         definitions: &mut Definitions,
         resources: &mut resource_states::Attempt,
         hook: &world_hooks::Attempt,
@@ -44,7 +54,7 @@ impl Owned {
             definitions,
             resources,
             hook,
-            session,
+            session: bindings.session,
             rng_reads: 0,
             resource_resets: 0,
         };
@@ -55,7 +65,7 @@ impl Owned {
         base.apply_reset(hook.player_reset_input()?, &mut provider)?;
         hook.ensure_current()?;
         let basic = base.finish_basic()?;
-        let prelude = PendingPrelude::after_basic(&basic);
+        let mut prelude = PendingPrelude::after_basic(&basic);
         ensure!(
             prelude.player() == player,
             "player constructor receipt identity differs"
@@ -64,7 +74,42 @@ impl Owned {
         base.apply_reset(hook.player_reset_input()?, &mut provider)?;
         base.finish_reset_prefix()?;
         base.finish_runtime_reset(&mut provider)?;
-        let reset = PendingReset::after_base(&base)?;
+        let mut reset = PendingReset::after_base(&base)?;
+        hook.prepare_player_scratch(lease, &mut reset)?;
+        let loadout = loadout::Sources::load(bindings.assets, bindings.mission, bindings.session)?;
+        hook.ensure_current()?;
+        let character = loadout.selected_character();
+        reset.bind_character(ge_core::mission::player::constructor::CharacterBinding {
+            registry_resource: ge_assets::character::CATALOG_RESOURCE,
+            key: character.key(),
+            source_index: character.source_index(),
+        })?;
+        reset.begin_inventory()?;
+        let inputs = ge_core::mission::player::inventory::PoseInputs {
+            blend_bits: reset
+                .word(0xd10)
+                .ok_or_else(|| anyhow::anyhow!("player reset blend is unknown"))?,
+            c54_raw: reset.byte(0xc54),
+            player_flags_raw: reset
+                .halfword(0xc56)
+                .ok_or_else(|| anyhow::anyhow!("inventory flags are unknown"))?,
+            flag_5ee_raw: base
+                .byte(0x5ee)
+                .ok_or_else(|| anyhow::anyhow!("player multiplier flag is unknown"))?,
+            flag_95c_raw: base
+                .byte(0x95c)
+                .ok_or_else(|| anyhow::anyhow!("player modifier flag is unknown"))?,
+            multiplayer_raw: hook.player_multiplayer_byte()?,
+        };
+        let mut flags = providers::InventoryFlags { base: &base, hook };
+        loadout.initialize_inventory(prelude.inventory_mut(), inputs, &mut flags)?;
+        reset.record_inventory(prelude.inventory())?;
+        let mut tail = providers::Tail {
+            hook,
+            sources: &loadout,
+        };
+        reset.finish_tail(&mut prelude, &mut tail)?;
+        hook.complete_player_reset(lease, &reset)?;
         hook.ensure_current()?;
         Ok(Self {
             request,
@@ -72,6 +117,7 @@ impl Owned {
             prelude,
             lease,
             reset,
+            loadout,
             operations,
             catalog_entries,
             rng_reads: provider.rng_reads,
@@ -81,50 +127,5 @@ impl Owned {
     pub fn evidence(&self, world: &World, hook: &world_hooks::Attempt) -> Result<Evidence> {
         hook.ensure_current()?;
         evidence::build(self, world, hook)
-    }
-}
-struct Provider<'a> {
-    definitions: &'a mut Definitions,
-    resources: &'a mut resource_states::Attempt,
-    hook: &'a world_hooks::Attempt,
-    session: &'a Session,
-    rng_reads: usize,
-    resource_resets: usize,
-}
-impl base_handler::RuntimeResetProvider for Provider<'_> {
-    fn reset_runtime_global_float(&mut self, bits: u32) -> Result<()> {
-        self.hook.reset_player_runtime_float(bits)
-    }
-    fn session_descriptor_present(&mut self) -> Result<bool> {
-        self.hook.ensure_current()?;
-        Ok(self.session.descriptor().is_some())
-    }
-    fn session_descriptor_mode(&mut self) -> Result<u32> {
-        self.hook.ensure_current()?;
-        Ok(self
-            .session
-            .descriptor()
-            .ok_or_else(|| anyhow::anyhow!("player reset session descriptor disappeared"))?
-            .word_2c_raw)
-    }
-    fn set_runtime_multiplayer_byte(&mut self, value: u8) -> Result<()> {
-        self.hook.set_player_multiplayer_byte(value)
-    }
-}
-impl base_handler::Provider for Provider<'_> {
-    fn draw_handler_seed(&mut self) -> Result<u16> {
-        self.hook.ensure_current()?;
-        let seed = self.definitions.draw_handler_seed()?;
-        self.rng_reads += 1;
-        Ok(seed)
-    }
-    fn reset_base_global_byte(&mut self) -> Result<()> {
-        self.hook.reset_player_base_byte()
-    }
-    fn reset_resource_state(&mut self, token: u32, value: u32) -> Result<()> {
-        self.resources
-            .set(token, value, || self.hook.ensure_current())?;
-        self.resource_resets += 1;
-        Ok(())
     }
 }

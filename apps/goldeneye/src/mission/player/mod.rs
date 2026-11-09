@@ -40,6 +40,7 @@ pub(super) struct FirstPersonBinding {
 pub(super) struct PlayerComponents {
     registry_resource: Edb,
     catalog: CharacterCatalog,
+    selected_character_key: u32,
     first_person: FirstPersonBinding,
     evidence: Evidence,
 }
@@ -190,6 +191,7 @@ impl PlayerComponents {
         Ok(Self {
             registry_resource,
             catalog,
+            selected_character_key: requested,
             first_person: FirstPersonBinding {
                 component,
                 skin_resource,
@@ -207,6 +209,12 @@ impl PlayerComponents {
 
     pub fn actor_definition_source(&self) -> &Edb {
         &self.registry_resource
+    }
+
+    pub fn selected_character(&self) -> Result<&character::CharacterRow> {
+        self.catalog
+            .find(self.selected_character_key)
+            .context("retained selected character row is absent")
     }
 
     pub fn evidence(&self) -> &Evidence {

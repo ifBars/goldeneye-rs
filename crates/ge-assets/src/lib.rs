@@ -20,6 +20,7 @@ pub mod graph;
 pub mod map_animator;
 pub mod mission;
 pub mod navigation;
+pub mod player_static;
 pub mod portals;
 mod reference;
 pub mod resource;

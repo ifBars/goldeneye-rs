@@ -325,7 +325,11 @@ impl OwnedWorld {
                     request,
                     operations,
                     self.registry.catalog().len(),
-                    session,
+                    super::player::Bindings {
+                        session,
+                        mission: context,
+                        assets,
+                    },
                     &mut self.definitions,
                     &mut self._resource_states,
                     &self._world_hooks,

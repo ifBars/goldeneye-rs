@@ -44,6 +44,9 @@ impl PendingPrelude {
     pub fn local_buffer(&self) -> &Buffer {
         &self.local
     }
+    pub(super) fn clear_local_buffer(&mut self) -> crate::mission::world_hooks::buffer::ClearStats {
+        self.local.clear_backing()
+    }
     pub fn inventory(&self) -> &Inventory {
         &self.inventory
     }

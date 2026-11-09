@@ -818,6 +818,25 @@ const PLAYER_COUNTS: &[&str] = &[
     "shared_reset_calls",
     "shared_entry_noops",
     "shared_cache_stores",
+    "scratch_capacity",
+    "scratch_growth",
+    "scratch_records",
+    "scratch_native_bytes",
+    "scratch_host_capacity_bytes",
+    "scratch_reallocations",
+    "character_resource",
+    "character_key",
+    "character_source_index",
+    "guns_resource",
+    "guns_payload_bytes",
+    "metadata_source_index",
+    "metadata_sorted_index",
+    "weapon_registry_keys",
+    "primary_order_keys",
+    "secondary_order_keys",
+    "inventory_primary_order_index",
+    "inventory_interface_callbacks",
+    "inventory_selected_record",
 ];
 const PLAYER_FLAGS: &[&str] = &[
     "operation_complete",
@@ -834,6 +853,9 @@ const PLAYER_FLAGS: &[&str] = &[
     "shared_reset_complete",
     "runtime_base_reset_complete",
     "derived_reset_prefix_complete",
+    "scratch_prepared",
+    "character_bound",
+    "inventory_selection_complete",
 ];
 const PLAYER_HASHES: &[&str] = &[
     "base_state_sha256",
@@ -843,6 +865,8 @@ const PLAYER_HASHES: &[&str] = &[
     "state_sha256",
     "shared_state_sha256",
     "reset_state_sha256",
+    "scratch_state_sha256",
+    "loadout_state_sha256",
 ];
 
 fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Value) -> Result<()> {
@@ -869,8 +893,8 @@ fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Valu
     ensure!(
         player["origin"] == "fresh_constructor_snapshot"
             && player["lifetime"] == "session_worker"
-            && player["stage"] == "player_reset_scratch_pending"
-            && player["pending_dependency"] == "shared_reset_scratch_capacity"
+            && player["stage"] == "player_reset_complete"
+            && player["pending_dependency"] == "constructor_source_flag"
             && [
                 "operation_complete",
                 "handler_kind_bound",
@@ -879,8 +903,7 @@ fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Valu
                 "player_created",
                 "camera_ready",
                 "original_history_verified",
-                "native_timing_verified",
-                "shared_reset_complete"
+                "native_timing_verified"
             ]
             .into_iter()
             .all(|field| player[field] == false)
@@ -889,7 +912,11 @@ fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Valu
                 "catalog_bound",
                 "base_constructor_complete",
                 "runtime_base_reset_complete",
-                "derived_reset_prefix_complete"
+                "derived_reset_prefix_complete",
+                "shared_reset_complete",
+                "scratch_prepared",
+                "character_bound",
+                "inventory_selection_complete"
             ]
             .into_iter()
             .all(|field| player[field] == true)
@@ -916,15 +943,29 @@ fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Valu
             && count(player, "selected_source_ordinal")? < count(world, "original_slots")?
             && player["requested_start_point_before"] == snapshot["start_point_id"]
             && count(player, "requested_start_point_after")? <= u64::from(u32::MAX)
-            && [
-                "inventory_records",
-                "inventory_capacity",
-                "world_items",
-                "actor_registrations"
-            ]
-            .into_iter()
-            .all(|field| player[field] == 0)
+            && ["world_items", "actor_registrations"]
+                .into_iter()
+                .all(|field| player[field] == 0)
             && player["inventory_growth"] == 16
+            && player["inventory_records"] == 1
+            && player["inventory_capacity"] == 16
+            && player["inventory_selected_record"] == 0
+            && player["inventory_interface_callbacks"] == 0
+            && player["scratch_capacity"] == 32
+            && player["scratch_growth"] == 16
+            && player["scratch_records"] == 0
+            && player["scratch_native_bytes"] == 4736
+            && count(player, "scratch_host_capacity_bytes")? >= 4736
+            && player["scratch_reallocations"] == 1
+            && player["character_resource"] == 0x0109_0013
+            && count(player, "character_key")? >> 16 == 0x4d00
+            && count(player, "character_key")? & 0xffff != 0
+            && player["guns_resource"] == 0x0109_000f
+            && count(player, "guns_payload_bytes")? > 0
+            && count(player, "metadata_sorted_index")? < count(player, "weapon_registry_keys")?
+            && count(player, "inventory_primary_order_index")?
+                < count(player, "primary_order_keys")?
+            && count(player, "secondary_order_keys")? > 0
             && count(player, "world_actor_lists")? > 0
             && count(player, "world_membership_lists")? >= 5
             && count(
@@ -950,7 +991,7 @@ fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Valu
             && player["scope"]
                 .as_str()
                 .is_some_and(|text| !text.is_empty() && text.len() <= 4096),
-        "player shared allocation/reset prefix ownership, dependency or readiness evidence is contradictory"
+        "player virtual reset, scratch/loadout ownership, dependency or readiness evidence is contradictory"
     );
     Ok(())
 }
@@ -1384,6 +1425,23 @@ fn validate_tutorial_world(probe: &Value) -> Result<()> {
         ("shared_cache_stores", 1),
         ("world_actor_lists", 1),
         ("world_membership_lists", 10),
+        ("scratch_capacity", 32),
+        ("scratch_growth", 16),
+        ("scratch_records", 0),
+        ("scratch_native_bytes", 4736),
+        ("scratch_reallocations", 1),
+        ("character_resource", 0x0109_0013),
+        ("character_key", 0x4d00_01b9),
+        ("character_source_index", 1),
+        ("guns_resource", 0x0109_000f),
+        ("metadata_source_index", 0),
+        ("metadata_sorted_index", 23),
+        ("weapon_registry_keys", 69),
+        ("primary_order_keys", 29),
+        ("secondary_order_keys", 7),
+        ("inventory_primary_order_index", 27),
+        ("inventory_interface_callbacks", 0),
+        ("inventory_selected_record", 0),
     ] {
         ensure!(
             player[field] == expected,
@@ -2992,26 +3050,39 @@ mod tests {
         let world = &mut probe["window"]["game_session"]["active"]["world_initialization"];
         world["actor_definitions"]["rng_draws"] = json!(2);
         world["player_initialization"] = json!({
-            "origin":"fresh_constructor_snapshot","lifetime":"session_worker","stage":"player_reset_scratch_pending",
-            "pending_dependency":"shared_reset_scratch_capacity","operation_complete":false,"attempt_bound":true,"catalog_bound":true,
+            "origin":"fresh_constructor_snapshot","lifetime":"session_worker","stage":"player_reset_complete",
+            "pending_dependency":"constructor_source_flag","operation_complete":false,"attempt_bound":true,"catalog_bound":true,
             "operation_entries":0,"creation_dispatches":1,"catalog_entries":2,"selected_catalog_index":1,"selected_source_ordinal":4,
             "requested_start_point_before":1,"requested_start_point_after":1,"base_constructor_complete":true,
-            "handler_rng_reads":1,"base_reset_calls":2,"persistent_base_resets":2,"handler_kind_bound":false,"inventory_records":0,"inventory_capacity":0,
+            "handler_rng_reads":1,"base_reset_calls":2,"persistent_base_resets":2,"handler_kind_bound":false,"inventory_records":1,"inventory_capacity":16,
             "inventory_growth":16,"world_items":0,"world_actor_lists":1,"world_membership_lists":10,"actor_registrations":0,
             "physics_bound":false,"completion_published":false,"player_created":false,"camera_ready":false,
             "original_history_verified":false,"native_timing_verified":false,"base_state_sha256":"1".repeat(64),
             "prelude_state_sha256":"2".repeat(64),"world_state_sha256":"3".repeat(64),
             "persistent_state_sha256":"4".repeat(64),"state_sha256":"5".repeat(64),
-            "scope":"Authored retained allocations and scratch-pending reset checkpoint"});
+            "scope":"Authored completed virtual reset with retained character and inventory; constructor flag and player initialization pending"});
         let shared = json!({
             "shared_count":1,"shared_live_leases":1,"shared_allocations":3,"shared_native_bytes":63680,"shared_host_capacity_bytes":64000,
-            "shared_reset_calls":1,"shared_entry_noops":98,"shared_cache_stores":1,"shared_reset_complete":false,
+            "shared_reset_calls":1,"shared_entry_noops":98,"shared_cache_stores":1,"shared_reset_complete":true,
             "runtime_base_reset_complete":true,"derived_reset_prefix_complete":true,
             "shared_state_sha256":"6".repeat(64),"reset_state_sha256":"7".repeat(64)});
         world["player_initialization"]
             .as_object_mut()
             .unwrap()
             .extend(shared.as_object().unwrap().clone());
+        let loadout = json!({
+            "scratch_prepared":true,"character_bound":true,"inventory_selection_complete":true,
+            "scratch_capacity":32,"scratch_growth":16,"scratch_records":0,"scratch_native_bytes":4736,
+            "scratch_host_capacity_bytes":4800,"scratch_reallocations":1,
+            "character_resource":0x0109_0013,"character_key":0x4d00_00a7,"character_source_index":8,
+            "guns_resource":0x0109_000f,"guns_payload_bytes":1234,"metadata_source_index":4,
+            "metadata_sorted_index":5,"weapon_registry_keys":9,"primary_order_keys":8,"secondary_order_keys":3,
+            "inventory_primary_order_index":6,"inventory_interface_callbacks":0,"inventory_selected_record":0,
+            "scratch_state_sha256":"8".repeat(64),"loadout_state_sha256":"9".repeat(64)});
+        world["player_initialization"]
+            .as_object_mut()
+            .unwrap()
+            .extend(loadout.as_object().unwrap().clone());
         probe
     }
 
@@ -3027,7 +3098,7 @@ mod tests {
         )
         .unwrap();
         let player = &probe["window"]["game_session"]["active"]["world_initialization"]["player_initialization"];
-        assert_eq!(player.as_object().unwrap().len(), 51);
+        assert_eq!(player.as_object().unwrap().len(), 75);
         assert_eq!(player["selected_catalog_index"], 1);
         assert_eq!(player["player_created"], false);
         assert_eq!(player["operation_complete"], false);
@@ -3050,7 +3121,8 @@ mod tests {
             ("selected_catalog_index", json!(2)),
             ("selected_source_ordinal", json!(u64::MAX)),
             ("requested_start_point_before", json!(2)),
-            ("inventory_capacity", json!(16)),
+            ("inventory_records", json!(0)),
+            ("inventory_capacity", json!(0)),
             ("world_items", json!(1)),
             ("stage", json!("player_created")),
             ("pending_dependency", json!("none")),
@@ -3065,11 +3137,32 @@ mod tests {
             ("shared_host_capacity_bytes", json!(63_679)),
             ("shared_entry_noops", json!(97)),
             ("shared_cache_stores", json!(2)),
-            ("shared_reset_complete", json!(true)),
+            ("shared_reset_complete", json!(false)),
             ("runtime_base_reset_complete", json!(false)),
             ("derived_reset_prefix_complete", json!(false)),
             ("shared_state_sha256", json!("short")),
             ("reset_state_sha256", json!("X".repeat(64))),
+            ("scratch_prepared", json!(false)),
+            ("character_bound", json!(false)),
+            ("inventory_selection_complete", json!(false)),
+            ("scratch_capacity", json!(31)),
+            ("scratch_growth", json!(0)),
+            ("scratch_records", json!(1)),
+            ("scratch_native_bytes", json!(4735)),
+            ("scratch_host_capacity_bytes", json!(4735)),
+            ("scratch_reallocations", json!(2)),
+            ("character_resource", json!(0)),
+            ("character_key", json!(0x4d00_0000_u32)),
+            ("guns_resource", json!(0)),
+            ("guns_payload_bytes", json!(0)),
+            ("weapon_registry_keys", json!(5)),
+            ("primary_order_keys", json!(6)),
+            ("secondary_order_keys", json!(0)),
+            ("inventory_interface_callbacks", json!(1)),
+            ("inventory_selected_record", json!(1)),
+            ("scratch_state_sha256", json!("X".repeat(64))),
+            ("loadout_state_sha256", json!("short")),
+            ("pose_bits", json!([0, 0, 0, 0])),
             ("native_bytes", json!([1, 2, 3])),
         ] {
             let mut probe = player_probe_fixture();
@@ -3090,7 +3183,60 @@ mod tests {
     }
 
     #[test]
-    fn shared_player_prefix_retains_cancelled_leases_without_reallocating_or_claiming_completion() {
+    fn player_reset_requires_all_scratch_and_loadout_fields_without_exporting_source_payloads() {
+        for field in [
+            "scratch_prepared",
+            "character_bound",
+            "inventory_selection_complete",
+            "scratch_capacity",
+            "scratch_growth",
+            "scratch_records",
+            "scratch_native_bytes",
+            "scratch_host_capacity_bytes",
+            "scratch_reallocations",
+            "character_resource",
+            "character_key",
+            "character_source_index",
+            "guns_resource",
+            "guns_payload_bytes",
+            "metadata_source_index",
+            "metadata_sorted_index",
+            "weapon_registry_keys",
+            "primary_order_keys",
+            "secondary_order_keys",
+            "inventory_primary_order_index",
+            "inventory_interface_callbacks",
+            "inventory_selected_record",
+            "scratch_state_sha256",
+            "loadout_state_sha256",
+        ] {
+            let mut probe = player_probe_fixture();
+            probe["window"]["game_session"]["active"]["world_initialization"]["player_initialization"]
+                .as_object_mut().unwrap().remove(field);
+            let snapshot = &probe["window"]["game_session"]["active"];
+            let world = &snapshot["world_initialization"];
+            assert!(
+                validate_player_initialization(&world["player_initialization"], world, snapshot)
+                    .is_err(),
+                "{field}"
+            );
+        }
+        // This deliberately uses authored values rather than Tutorial corpus
+        // counts: generic validation checks relationships, not its row count.
+        let probe = player_probe_fixture();
+        let snapshot = &probe["window"]["game_session"]["active"];
+        let world = &snapshot["world_initialization"];
+        let player = &world["player_initialization"];
+        assert_eq!(player["weapon_registry_keys"], 9);
+        assert_eq!(player["metadata_sorted_index"], 5);
+        assert_eq!(player["primary_order_keys"], 8);
+        assert_eq!(player["inventory_primary_order_index"], 6);
+        validate_player_initialization(player, world, snapshot).unwrap();
+    }
+
+    #[test]
+    fn shared_player_reset_retains_cancelled_leases_without_reallocating_or_claiming_player_completion()
+     {
         for persistent_resets in [2, 3, 4] {
             let mut probe = player_probe_fixture();
             let player = &mut probe["window"]["game_session"]["active"]["world_initialization"]["player_initialization"];
@@ -3108,8 +3254,9 @@ mod tests {
             assert_eq!(world["player_initialization"]["shared_allocations"], 3);
             assert_eq!(
                 world["player_initialization"]["shared_reset_complete"],
-                false
+                true
             );
+            assert_eq!(world["player_initialization"]["scratch_reallocations"], 1);
         }
         let mut probe = player_probe_fixture();
         probe["window"]["game_session"]["active"]["world_initialization"]["player_initialization"]

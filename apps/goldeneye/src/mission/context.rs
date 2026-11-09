@@ -178,7 +178,7 @@ impl MissionContext {
             .context("mission source-row address overflow")?;
         let raw = selected.words_raw();
         ensure!(
-            player_components.evidence().requested_character == selected.character_request(),
+            player_components.selected_character()?.key() == selected.character_request(),
             "player component binding differs from selected level character request"
         );
         let selection = SelectionEvidence {
@@ -244,6 +244,25 @@ impl MissionContext {
 
     pub(crate) fn actor_definition_source(&self) -> &Edb {
         self.player_components.actor_definition_source()
+    }
+
+    /// The actual retained group-one selection, checked against the owned level
+    /// registry. Serialized diagnostics never authorize a character binding.
+    pub(crate) fn selected_character(&self) -> Result<&ge_assets::character::CharacterRow> {
+        let level = self
+            .registry
+            .selected_primary()
+            .context("selected level is absent")?;
+        ensure!(
+            self.registry.current_hash() == level.hash(),
+            "selected level identity differs"
+        );
+        let row = self.player_components.selected_character()?;
+        ensure!(
+            row.key() == level.character_request(),
+            "selected character differs from level request"
+        );
+        Ok(row)
     }
 
     pub fn registry(&self) -> &LevelRegistry {

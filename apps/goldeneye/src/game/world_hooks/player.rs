@@ -1,6 +1,7 @@
 //! Persistent player-constructor inputs. The operation queue is distinct from
 //! admission and loader work; reached reset writes survive cancellation.
 mod constructor;
+mod scratch;
 use super::Attempt;
 use anyhow::{Result, ensure};
 use ge_core::mission::{
@@ -23,6 +24,9 @@ pub(super) struct Persistent {
     runtime_float_writes: usize,
     multiplayer_byte: Option<u8>,
     multiplayer_writes: usize,
+    scratch: player_constructor::Scratch,
+    reset_quad_bits: [u32; 4],
+    reset_quad_reads: usize,
 }
 impl Persistent {
     pub fn from_constructor() -> Self {
@@ -38,6 +42,11 @@ impl Persistent {
             runtime_float_writes: 0,
             multiplayer_byte: None,
             multiplayer_writes: 0,
+            scratch: player_constructor::Scratch::from_constructor(),
+            // Explicit pre-main static constructor, not inferred BSS contents.
+            // No original later mutation/history is claimed by this owner.
+            reset_quad_bits: [0; 4],
+            reset_quad_reads: 0,
         }
     }
 }
@@ -114,13 +123,17 @@ impl Attempt {
             .map_err(|_| anyhow::anyhow!("player input owner lock is poisoned"))?;
         self.ensure_current()?;
         let mut hash = Sha256::new();
-        hash.update(b"ge_player_persistent_inputs_v2\0");
+        hash.update(b"ge_player_persistent_inputs_v3\0");
         hash.update(state.player.game_field_328_bits.to_be_bytes());
         hash.update([u8::from(state.player.reset_byte.is_some())]);
         if let Some(byte) = state.player.reset_byte {
             hash.update([byte]);
         }
         hash.update((state.player.reset_writes as u64).to_be_bytes());
+        for word in state.player.reset_quad_bits {
+            hash.update(word.to_be_bytes());
+        }
+        hash.update((state.player.reset_quad_reads as u64).to_be_bytes());
         for value in [
             state.player.runtime_float,
             state.player.multiplayer_byte.map(u32::from),
