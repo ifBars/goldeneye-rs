@@ -55,7 +55,9 @@ separately from reference parity. A passing build doesn't mean the game is playa
 
 See [CONTRIBUTING.md](CONTRIBUTING.md), the [architecture](docs/architecture.md)
 and the [roadmap](progress/roadmap.json). Generated reports and local research
-files stay out of Git.
+files stay out of Git. Ideas for features beyond the original, such as online
+play, bots and replays, are kept in [native extensions](docs/native-extensions.md)
+and are not part of the parity roadmap.
 
 ## License
 
