@@ -19,6 +19,10 @@ pub const TP_COMPONENT: ResourceBinding = ResourceBinding {
     file: 0x0102_0017,
     reference: 0,
 };
+pub const FP_COMPONENT: ResourceBinding = ResourceBinding {
+    file: 0x0102_0016,
+    reference: 0,
+};
 
 /// Semantic reference to the retained host wrapper. Directory ordinals are not
 /// native file-cache generations and never stand in for that mutable cache.
@@ -66,8 +70,8 @@ pub struct SkeletonRuntime {
 impl SkeletonRuntime {
     pub(super) fn initialize(input: SkeletonInput<'_>, budget: SkeletonBudget) -> Result<Self> {
         ensure!(
-            input.primary == DEFAULT_SKIN,
-            "TP primary skeleton binding differs"
+            input.primary.reference >> 24 == 0x0d,
+            "player primary skeleton requires a skin reference"
         );
         ensure!(
             input.auxiliary_words <= budget.auxiliary_words,

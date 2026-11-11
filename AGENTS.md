@@ -24,8 +24,11 @@ item, with matching skeletal and item backlinks. Visual postbind now reuses the
 wrapper, binds the visual secondary skin, repeats ordered dependency requests,
 resets the base owner's override list and links it to the item. Four TP headers
 are configured. The actual embedded receiver and shared callback table now bind
-before the typed TP helper return; FP construction is next. The pose postprocess
-target is assigned, but its body and frame scheduling remain unavailable.
+before the typed TP helper return. FP now constructs its own animator/skeleton
+from the retained character file, refreshes through the same scratch owner and
+appends after TP. Both helpers return before the real resource-list searches
+configure FP masks. Initial animation modes are next. Pose postprocess targets
+are assigned, but their body and frame scheduling remain unavailable.
 Later initialization and gameplay remain
 incomplete. docs/player-creation.md describes the reached boundary.
 

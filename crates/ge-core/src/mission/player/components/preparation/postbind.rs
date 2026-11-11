@@ -107,7 +107,7 @@ impl Preparation {
                 "explicit visual overrides require actual material providers"
             );
             item.bind_visual_overrides(base.player())?;
-            animator.configure_tp_headers();
+            animator.configure_headers();
             self.postbind = Some(VisualPostbind {
                 component: animator.identity(),
                 item: item.id(),

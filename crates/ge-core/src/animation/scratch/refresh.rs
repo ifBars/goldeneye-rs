@@ -81,6 +81,12 @@ impl Context {
     }
 }
 impl Refresh {
+    /// Both operations must come from the same retained arena, in order.
+    pub fn follows_in_same_arena(&self, previous: &Self) -> bool {
+        self.owner == previous.owner
+            && self.ordinal > previous.ordinal
+            && self.allocation > previous.allocation
+    }
     pub fn ordinal(&self) -> u64 {
         self.ordinal
     }

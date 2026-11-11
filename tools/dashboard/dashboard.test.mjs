@@ -2263,7 +2263,7 @@ test('incomplete loader Wait28 retains its pending phase and legacy zero session
 
 function playerPreludeFixture(catalogEntries=2) {
   return {origin:'fresh_constructor_snapshot',lifetime:'controller_arena',stage:'player_components_pending',
-    pending_dependency:'fp_component',operation_complete:false,attempt_bound:true,catalog_bound:true,
+    pending_dependency:'initial_animation_modes',operation_complete:false,attempt_bound:true,catalog_bound:true,
     operation_entries:0,creation_dispatches:1,catalog_entries:catalogEntries,selected_catalog_index:1,selected_source_ordinal:4,
     requested_start_point_before:1,requested_start_point_after:1,base_constructor_complete:true,
     handler_rng_reads:1,base_reset_calls:2,persistent_base_resets:2,handler_kind_bound:false,
@@ -2287,6 +2287,12 @@ function playerPreludeFixture(catalogEntries=2) {
     component_initialization:componentPlayerFixture(),
     scope:'Authored retained EXItem actor and capsule; basic return with unresolved scalar; PlayerNew remains incomplete'};
 }
+function firstPersonPlayerFixture() {
+  return {helper_returned:true,identity_registered:true,item_list_ordinal:1,ordered_links_bound:true,
+    masks_configured:true,table_shared:true,pose_target_assigned:true,visual_postbind_skipped:true,
+    skeleton:skeletonPlayerFixture(),bind_refresh:{...refreshPlayerFixture(),refresh_ordinal:2,allocation_ordinal:2},
+    state_sha256:'f'.repeat(64)};
+}
 function callbacksPlayerFixture() {
   return {interface_bound:true,table_shared:true,callback_slots:4,noop_slots:2,
     pose_target_assigned:true,pose_postprocess_implemented:false,tp_helper_returned:true,
@@ -2299,7 +2305,7 @@ function postbindPlayerFixture() {
 }
 function attachmentPlayerFixture() {
   return {identity_registered:true,item_backlink_bound:true,item_list_member:true,item_list_ordinal:0,
-    item_components:1,registry_identities:1,component_flag_8e:0,first_node_links_null:true,state_sha256:'c'.repeat(64)};
+    item_components:2,registry_identities:2,component_flag_8e:0,head_link_null:true,next_link_bound:true,state_sha256:'c'.repeat(64)};
 }
 function refreshPlayerFixture() {
   return {arena_bytes:0x4000,reserved_bytes:0x2200,reservation_start:0,cursor_after:0,
@@ -2313,13 +2319,13 @@ function skeletonPlayerFixture() {
     retained_component_file_bytes:2048,state_sha256:'a'.repeat(64)};
 }
 function componentPlayerFixture() {
-  return {stage:'fp_component_pending',pending_dependency:'fp_component',
+  return {stage:'initial_modes_pending',pending_dependency:'initial_animation_modes',
     native_component_bytes:0x1b8,constructed_slots:4,active_slots:1,retained_file_bytes:1024,retained_section_bytes:256,
-    third_person_constructed:true,third_person_attached:true,first_person_constructed:false,skin_request_resolved:true,
+    third_person_constructed:true,third_person_attached:true,first_person_constructed:true,skin_request_resolved:true,
     texture_dependencies_enumerated:true,component_binding_complete:true,
     texture_directory_outcome:'enumerated',texture_requests:3,texture_targets_resident:3,
     texture_residency_complete:true,texture_requests_state_sha256:'f'.repeat(64),preparation_state_sha256:'d'.repeat(64),
-    target_state_sha256:'e'.repeat(64),skeleton_binding:skeletonPlayerFixture(),bind_refresh:refreshPlayerFixture(),attachment:attachmentPlayerFixture(),visual_postbind:postbindPlayerFixture(),callbacks:callbacksPlayerFixture(),scope:'Authored TP helper return; FP construction pending'};
+    target_state_sha256:'e'.repeat(64),skeleton_binding:skeletonPlayerFixture(),bind_refresh:refreshPlayerFixture(),attachment:attachmentPlayerFixture(),visual_postbind:postbindPlayerFixture(),callbacks:callbacksPlayerFixture(),first_person:firstPersonPlayerFixture(),scope:'Authored TP/FP helper returns; initial modes pending'};
 }
 function virtualPlayerFixture() {
   return {stage:'player_basic_complete',pending_dependency:'tp_fp_components',
@@ -2536,10 +2542,10 @@ test('TP skeleton binding keeps shared refresh attachment and FP explicit',async
     const text=d.querySelector('#game-session-summary').textContent;
     assert.match(text,/Third-person constructor retained: 4 animation slots, 1 active/);
     assert.match(text,/skin request retains 1,024 file bytes and 256 logical section bytes/);
-    assert.match(text,/Texture residency completed: 3 ordered target requests. Default skeleton initialized: 2 bones and 4 auxiliary words. Its animator backlink and secondary skin are bound. Shared zero-time refresh completed and released its scratch reservation. TP is attached to its item. Visual postbind completed: the visual skin and empty override collection are bound; all four animation headers are configured. TP helper returned: the player receiver and shared callback table are bound. FP construction is next. Pose postprocessing and frame scheduling remain incomplete/);
+    assert.match(text,/Texture residency completed: 3 ordered target requests. Default skeleton initialized: 2 bones and 4 auxiliary words. Its animator backlink and secondary skin are bound. Shared zero-time refresh completed and released its scratch reservation. TP is attached to its item. Visual postbind completed: the visual skin and empty override collection are bound; all four animation headers are configured. TP and FP helpers returned: both animators share the callback table and scratch owner. FP is attached after TP with its own skeleton and configured masks. Initial animation modes, pose postprocessing and frame scheduling remain incomplete/);
   });
   const changes=[state=>{state.third_person_constructed=false;},state=>{state.third_person_attached=false;},
-    state=>{state.first_person_constructed=true;},state=>{state.texture_dependencies_enumerated=false;},
+    state=>{state.first_person_constructed=false;},state=>{state.texture_dependencies_enumerated=false;},
     state=>{state.component_binding_complete=false;},state=>{state.skin_request_resolved=false;},
     state=>{state.texture_directory_outcome='unknown';},state=>{state.texture_requests=4097;},
     state=>{state.texture_targets_resident=2;},state=>{state.texture_residency_complete=false;},state=>{state.texture_requests_state_sha256='short';},
@@ -2558,7 +2564,7 @@ test('TP skeleton binding keeps shared refresh attachment and FP explicit',async
     changes.push(state=>{state.bind_refresh[key]=value;});
   changes.push(state=>{delete state.bind_refresh;});
   for (const [key,value] of Object.entries({identity_registered:false,item_backlink_bound:false,item_list_member:false,
-    item_list_ordinal:1,item_components:0,registry_identities:0,component_flag_8e:1,first_node_links_null:false,
+    item_list_ordinal:1,item_components:0,registry_identities:0,component_flag_8e:1,head_link_null:false,next_link_bound:false,
     state_sha256:'short',source_pointer:123}))
     changes.push(state=>{state.attachment[key]=value;});
   changes.push(state=>{delete state.attachment;});
@@ -2572,6 +2578,15 @@ test('TP skeleton binding keeps shared refresh attachment and FP explicit',async
     state_sha256:'short',raw_code:[1,2,3]})) changes.push(state=>{state.callbacks[key]=value;});
   for (const key of Object.keys(callbacksPlayerFixture())) changes.push(state=>{delete state.callbacks[key];});
   changes.push(state=>{delete state.callbacks;});
+  for (const [key,value] of Object.entries({helper_returned:false,identity_registered:false,item_list_ordinal:0,
+    ordered_links_bound:false,masks_configured:false,table_shared:false,pose_target_assigned:false,
+    visual_postbind_skipped:false,skeleton:null,bind_refresh:null,state_sha256:'short',pose:[1,2,3]}))
+    changes.push(state=>{state.first_person[key]=value;});
+  for (const key of Object.keys(firstPersonPlayerFixture())) changes.push(state=>{delete state.first_person[key];});
+  changes.push(state=>{delete state.first_person;});
+  changes.push(state=>{state.first_person.bind_refresh.refresh_ordinal=1;});
+  changes.push(state=>{state.first_person.bind_refresh.allocation_ordinal=1;});
+  changes.push(state=>{state.first_person.skeleton.frame_stamp_known=true;});
   for(const change of changes) {
     const invalid=withPlayerPrelude(gameSessionFixture());
     change(invalid.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization);

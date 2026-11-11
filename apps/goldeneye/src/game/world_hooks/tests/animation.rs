@@ -17,8 +17,10 @@ fn animation_arena_and_context_persist_after_cancellation_without_stale_callback
     shared.invalidate();
     let mut unreached = Preparation::new();
     assert!(first.finish_tp_bind(&mut unreached).is_err());
+    assert!(first.finish_fp_bind(&mut unreached).is_err());
     let second = shared.begin(2).unwrap();
     assert!(second.finish_tp_bind(&mut unreached).is_err());
+    assert!(second.finish_fp_bind(&mut unreached).is_err());
     {
         let mut state = shared.0.state.lock().unwrap();
         assert_eq!(state.animation_scratch.cursor(), 0);

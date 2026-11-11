@@ -1,5 +1,6 @@
 //! Live TP entry uses the existing inventory, definition registry and resource
 //! wrappers. No diagnostic layer initializer or elapsed prewarm runs here.
+mod first_person;
 mod postbind;
 mod skeleton;
 mod textures;
@@ -31,6 +32,7 @@ pub(super) struct Owned {
     pub component_source: Option<post_trigger_resources::FileBinding>,
     pub skin: Option<ge_assets::skin::Skin>,
     pub postbind: postbind::Owned,
+    pub first_person: first_person::Assets,
 }
 impl Owned {
     pub fn new() -> Self {
@@ -42,6 +44,7 @@ impl Owned {
             component_source: None,
             skin: None,
             postbind: postbind::Owned::new(),
+            first_person: first_person::Assets::default(),
         }
     }
 }
@@ -71,7 +74,7 @@ pub(super) fn initialize(
         &mut Provider {
             session: sources.session,
             hook,
-            identities: sources.identities,
+            identities: &mut *sources.identities,
         },
     )?;
     hook.ensure_current()?;
@@ -147,7 +150,7 @@ pub(super) fn initialize(
     hook.ensure_current()?;
     // Actual TP helper return precedes the separate FP construction call. No
     // animation event or pose postprocessor is invoked by the source tail.
-    Ok(())
+    first_person::initialize(player, sources, world, hook)
 }
 struct Provider<'a> {
     session: &'a Session,

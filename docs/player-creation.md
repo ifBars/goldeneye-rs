@@ -230,6 +230,31 @@ known NULL receiver links. Dispatch takes the actual shared-byte provider when
 invoked; it does not capture a new constant or execute during binding. Live frame
 scheduling and Sound-class callback behavior remain outside this reached path.
 
+
+After the TP return, the same retained character row now supplies FP's skin file.
+A second persistent component identity is allocated before the repeated direct
+visual lookup. The flag1 branch skips TP visual residency and visual postbind;
+it looks up the character skin file and FP component wrapper, then binds fixed
+skin 0x0d00016f and raw component reference zero. FP owns its own skeletal locals,
+constructor matrices, auxiliary storage and unknown captured frame stamp. The
+same controller scratch/context performs and releases its second zero-time
+refresh. No diagnostic prewarm, new inventory, or sampled pose substitutes for it.
+
+FP attachment follows that real bind return. Its item backlink and cache byte
+are written before the intrusive append: FP.previous links to TP, FP.next is NULL,
+then TP.next links to FP before publishing the item's new tail. Checked host
+list failure retains the reached prefix and cannot return the helper. The
+successful tail configures all four FP headers and binds the same embedded
+receiver, shared callback table and pose target as TP. It does not reset the
+base visual override list or replace TP's visual skeleton.
+
+Only after FP helper return do the two original resource-header searches walk
+the actual item list to find FP. They write masks +0x136 and +0x131 to 0xfb in
+that order. The checkpoint now awaits the initial animation mode requests.
+Actual mode controls, postprocessed poses, scheduling, completed player and
+camera remain required. Constructor state and both helper returns establish no
+reference parity or native frame behavior.
+
 The controller arena retains actual player, item and physics objects, their
 registry rows and actor memberships across cancellation. Worker teardown leaves
 no item reference pointing at a dropped player. The global world is constructed

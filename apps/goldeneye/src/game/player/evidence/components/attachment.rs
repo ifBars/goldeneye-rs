@@ -12,7 +12,8 @@ pub struct AttachmentBinding {
     pub item_components: usize,
     pub registry_identities: usize,
     pub component_flag_8e: u8,
-    pub first_node_links_null: bool,
+    pub head_link_null: bool,
+    pub next_link_bound: bool,
     pub state_sha256: String,
 }
 pub(super) fn build(
@@ -28,6 +29,10 @@ pub(super) fn build(
         .attachment()
         .context("TP attachment return is absent")?;
     let item = world.item(attachment.item())?;
+    let fp = preparation
+        .first_person()
+        .context("FP item peer is absent")?
+        .animator();
     ensure!(
         attachment.component() == animator.identity()
             && attachment.component().player() == player.base.player()
@@ -35,12 +40,14 @@ pub(super) fn build(
             && animator.item() == Some(item.id())
             && player.base.item() == Some(item.id())
             && item.handler() == Some(animator.player())
-            && item.components() == [animator.identity().id()]
+            && item.components() == [animator.identity().id(), fp.identity().id()]
             && attachment.ordinal() == 0
             && animator.word(8).is_none()
             && animator.byte(0x8e) == Some(0)
             && animator.word(0) == Some(0)
-            && animator.word(4) == Some(0),
+            && animator.word(4).is_none()
+            && animator.next_component() == Some(fp.identity())
+            && fp.previous_component() == Some(animator.identity()),
         "TP attachment owners differ"
     );
     Ok(AttachmentBinding {
@@ -51,7 +58,8 @@ pub(super) fn build(
         item_components: item.components().len(),
         registry_identities: identities.len(),
         component_flag_8e: 0,
-        first_node_links_null: true,
+        head_link_null: true,
+        next_link_bound: true,
         state_sha256: super::super::words(b"ge_player_tp_attachment_v1\0", |emit| {
             attachment.visit_state_words(emit)
         }),

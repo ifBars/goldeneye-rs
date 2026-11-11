@@ -1,7 +1,7 @@
 use super::super::identity::{ItemId, PlayerId};
 use super::{
     Identity, ResourceBinding, SkeletonBudget, SkeletonInput, SkeletonRuntime,
-    skeleton::TP_COMPONENT,
+    skeleton::{DEFAULT_SKIN, FP_COMPONENT, TP_COMPONENT},
 };
 use anyhow::{Result, ensure};
 use std::sync::Arc;
@@ -20,6 +20,8 @@ pub struct Animator {
     skeleton: Option<SkeletonRuntime>,
     component: Option<ResourceBinding>,
     callbacks: Option<Arc<super::callbacks::Table>>,
+    previous: Option<Identity>,
+    next: Option<Identity>,
 }
 impl Animator {
     pub(super) fn from_constructor(identity: Identity) -> Self {
@@ -31,6 +33,8 @@ impl Animator {
             skeleton: None,
             component: None,
             callbacks: None,
+            previous: None,
+            next: None,
         };
         for offset in [
             0, 4, 8, 0x10, 0x14, 0x1c, 0x20, 0x28, 0x5c, 0x60, 0x94, 0x114, 0x118, 0x11c, 0x120,
@@ -107,18 +111,51 @@ impl Animator {
     pub fn item(&self) -> Option<ItemId> {
         self.item
     }
-    pub(super) fn prepare_first_item_append(&mut self, item: ItemId) -> Result<()> {
+    pub fn previous_component(&self) -> Option<Identity> {
+        self.previous
+    }
+    pub fn next_component(&self) -> Option<Identity> {
+        self.next
+    }
+    pub(super) fn append_after(
+        &mut self,
+        previous: &mut Self,
+        item: &mut super::super::item::Item,
+        limit: usize,
+    ) -> Result<()> {
         ensure!(
-            self.item.is_none() && self.word(8) == Some(0),
-            "TP item backlink is already bound"
+            previous.item() == Some(item.id())
+                && previous.next.is_none()
+                && previous.word(4) == Some(0)
+                && self.player() == previous.player(),
+            "component tail owner differs or is already linked"
         );
-        self.item = Some(item);
-        self.bytes[8..12].fill(None);
-        self.bytes[0x8e] = Some(0);
+        self.prepare_item_backlink(item.id())?;
+        // Intrusive append: new.previous, new.next=NULL, old_tail.next, then
+        // the owner's tail. Keep reached links on checked host-list failure.
+        self.previous = Some(previous.identity());
+        self.bytes[0..4].fill(None);
+        self.word_store(4, 0);
+        previous.next = Some(self.identity());
+        previous.bytes[4..8].fill(None);
+        item.attach_component(self.identity().id(), limit)
+    }
+    pub(super) fn prepare_first_item_append(&mut self, item: ItemId) -> Result<()> {
+        self.prepare_item_backlink(item)?;
         // The reached list is empty: append stores NULL previous/next before
         // publishing the new head/tail, even though construction wrote NULL.
         self.word_store(0, 0);
         self.word_store(4, 0);
+        Ok(())
+    }
+    fn prepare_item_backlink(&mut self, item: ItemId) -> Result<()> {
+        ensure!(
+            self.item.is_none() && self.word(8) == Some(0),
+            "component item backlink is already bound"
+        );
+        self.item = Some(item);
+        self.bytes[8..12].fill(None);
+        self.bytes[0x8e] = Some(0);
         Ok(())
     }
     /// Fresh bind prefix. The caller must execute the actual shared zero-time
@@ -130,8 +167,20 @@ impl Animator {
         budget: SkeletonBudget,
     ) -> Result<()> {
         ensure!(
-            component == TP_COMPONENT,
+            component == TP_COMPONENT && input.primary == DEFAULT_SKIN,
             "TP component file/reference differs"
+        );
+        self.bind_skeleton_pair(input, component, budget)
+    }
+    pub(super) fn bind_skeleton_pair(
+        &mut self,
+        input: SkeletonInput<'_>,
+        component: ResourceBinding,
+        budget: SkeletonBudget,
+    ) -> Result<()> {
+        ensure!(
+            component == TP_COMPONENT || component == FP_COMPONENT,
+            "unsupported player component pair"
         );
         ensure!(
             self.skeleton.is_none() && self.word(0x114) == Some(0),
@@ -182,7 +231,7 @@ impl Animator {
             .bind_secondary(binding);
         Ok(())
     }
-    pub(super) fn configure_tp_headers(&mut self) {
+    pub(super) fn configure_headers(&mut self) {
         for start in [0x138, 0x158, 0x178, 0x198] {
             self.half_store(start + 8, 1);
             self.bytes[start + 10] = Some(3);
@@ -191,6 +240,14 @@ impl Animator {
     }
     pub fn component(&self) -> Option<ResourceBinding> {
         self.component
+    }
+    pub(super) fn set_first_person_mask(&mut self, at: usize) -> Result<()> {
+        ensure!(
+            matches!(at, 0x131 | 0x136) && self.component == Some(FP_COMPONENT),
+            "invalid FP mask target"
+        );
+        self.bytes[at] = Some(0xfb);
+        Ok(())
     }
     pub fn callback_table(&self) -> Option<&Arc<super::callbacks::Table>> {
         self.callbacks.as_ref()
@@ -222,7 +279,7 @@ impl Animator {
             self.skeleton
                 .as_ref()
                 .is_some_and(|runtime| runtime.animator() == Some(self.identity))
-                && self.component == Some(TP_COMPONENT),
+                && matches!(self.component, Some(TP_COMPONENT | FP_COMPONENT)),
             "TP refresh requires bound skeletal owners"
         );
         ensure!(
@@ -253,7 +310,7 @@ impl Animator {
         (self.flag_8f_known_mask, 0)
     }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(4);
+        emit(5);
         self.identity.visit_state_words(&mut emit);
         emit(u32::from(self.item.is_some()));
         if let Some(item) = self.item {
@@ -284,7 +341,13 @@ impl Animator {
         }
         emit(u32::from(self.callbacks.is_some()));
         if let Some(table) = &self.callbacks {
-            table.visit_state_words(emit);
+            table.visit_state_words(&mut emit);
+        }
+        for link in [self.previous, self.next] {
+            emit(u32::from(link.is_some()));
+            if let Some(link) = link {
+                link.visit_state_words(&mut emit);
+            }
         }
     }
 }

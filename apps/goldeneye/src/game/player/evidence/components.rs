@@ -7,11 +7,13 @@ use ge_core::mission::player::{
 use serde::Serialize;
 mod attachment;
 mod callbacks;
+mod first_person;
 mod postbind;
 mod refresh;
 mod skeleton;
 pub use attachment::AttachmentBinding;
 pub use callbacks::CallbackBinding;
+pub use first_person::FirstPersonBinding;
 pub use postbind::VisualPostbind;
 pub use refresh::BindRefresh;
 pub use skeleton::SkeletonBinding;
@@ -43,6 +45,7 @@ pub struct ComponentInitialization {
     pub attachment: AttachmentBinding,
     pub visual_postbind: VisualPostbind,
     pub callbacks: CallbackBinding,
+    pub first_person: FirstPersonBinding,
     pub scope: &'static str,
 }
 pub(super) fn build(
@@ -56,8 +59,8 @@ pub(super) fn build(
     }
     let preparation = &player.components.preparation;
     ensure!(
-        preparation.stage() == Stage::AwaitingFirstPerson,
-        "component preparation has not reached its actual TP helper return"
+        preparation.stage() == Stage::AwaitingInitialModes,
+        "component preparation has not reached the TP/FP helper returns and FP masks"
     );
     let owner = preparation
         .animator()
@@ -96,13 +99,13 @@ pub(super) fn build(
         owner.player() == player.base.player()
             && target.file() == visual.file()
             && target.target() == visual.skin()
-            && world.item(receipt.item())?.components() == [owner.identity().id()]
+            && world.item(receipt.item())?.components().first() == Some(&owner.identity().id())
             && preparation.textures().is_some(),
         "TP owner, source or attachment boundary differs"
     );
     Ok(Some(ComponentInitialization {
-        stage: "fp_component_pending",
-        pending_dependency: "fp_component",
+        stage: "initial_modes_pending",
+        pending_dependency: "initial_animation_modes",
         native_component_bytes: 0x1b8,
         constructed_slots: 4,
         active_slots: usize::from(owner.byte(0x130).context("TP active count unknown")?),
@@ -110,7 +113,7 @@ pub(super) fn build(
         retained_section_bytes: target.section_bytes(),
         third_person_constructed: true,
         third_person_attached: true,
-        first_person_constructed: false,
+        first_person_constructed: true,
         skin_request_resolved: true,
         texture_dependencies_enumerated: textures.outcome == TextureOutcome::Enumerated,
         texture_directory_outcome: match textures.outcome {
@@ -132,6 +135,7 @@ pub(super) fn build(
         attachment: attachment::build(player, world, identities)?,
         visual_postbind: postbind::build(player, world)?,
         callbacks: callbacks::build(player, world, hook)?,
-        scope: "The TP helper returned after binding the actual embedded player receiver, shared four-slot callback table and pose postprocess routing target. No event or pose callback executes on this constructor tail. FP construction is next. Pose postprocessing, frame scheduling, player completion, camera and native history remain incomplete or unverified.",
+        first_person: first_person::build(player, world, identities, hook)?,
+        scope: "The actual TP and FP helper returns now precede FP mask configuration. Each animator owns its own skeleton and both share the controller's scratch/context and callback table. FP uses the retained character skin file and skips TP visual postbind. Initial animation modes, pose postprocessing, frame scheduling, player completion and camera remain incomplete; native history is unverified.",
     }))
 }

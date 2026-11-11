@@ -13,7 +13,8 @@ pub(super) fn validate(state: &Value) -> Result<()> {
             "item_components",
             "registry_identities",
             "component_flag_8e",
-            "first_node_links_null",
+            "head_link_null",
+            "next_link_bound",
             "state_sha256",
         ],
     )?;
@@ -22,13 +23,14 @@ pub(super) fn validate(state: &Value) -> Result<()> {
             "identity_registered",
             "item_backlink_bound",
             "item_list_member",
-            "first_node_links_null"
+            "head_link_null",
+            "next_link_bound"
         ]
         .into_iter()
         .all(|key| state[key] == true)
             && state["item_list_ordinal"] == 0
-            && state["item_components"] == 1
-            && (1..=65_536).contains(&count(state, "registry_identities")?)
+            && state["item_components"] == 2
+            && (2..=65_536).contains(&count(state, "registry_identities")?)
             && state["component_flag_8e"] == 0
             && state["state_sha256"]
                 .as_str()
@@ -47,8 +49,8 @@ pub(super) mod tests {
     use serde_json::json;
     pub(in super::super) fn fixture() -> Value {
         json!({"identity_registered":true,"item_backlink_bound":true,"item_list_member":true,
-            "item_list_ordinal":0,"item_components":1,"registry_identities":1,"component_flag_8e":0,
-            "first_node_links_null":true,"state_sha256":"c".repeat(64)})
+            "item_list_ordinal":0,"item_components":2,"registry_identities":2,"component_flag_8e":0,
+            "head_link_null":true,"next_link_bound":true,"state_sha256":"c".repeat(64)})
     }
     #[test]
     fn rejects_missing_owner_membership_activation_and_private_payload_shortcuts() {
@@ -57,7 +59,8 @@ pub(super) mod tests {
             ("identity_registered", json!(false)),
             ("item_backlink_bound", json!(false)),
             ("item_list_member", json!(false)),
-            ("first_node_links_null", json!(false)),
+            ("head_link_null", json!(false)),
+            ("next_link_bound", json!(false)),
             ("item_list_ordinal", json!(1)),
             ("item_components", json!(0)),
             ("registry_identities", json!(0)),

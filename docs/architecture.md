@@ -77,8 +77,15 @@ attempts, and its skeletal runtime records the PlayerNew postprocess target.
 These assignments invoke no event or pose work. Supported PlayerNew event routes
 preserve file fallback, signed reset-byte returns and acknowledgement token
 updates; required owner/global inputs remain fallible. A typed TP helper return
-now precedes FP construction. Pose postprocessing and frame dispatch remain
-unavailable; this return does not establish player or gameplay readiness.
+now precedes a separate FP constructor. FP repeats the direct character visual
+lookup, then uses the retained character's FP skin file and fixed skin reference;
+it skips TP visual residency/postbind. Its own skeletal runtime binds before a
+second zero-time callback through the same retained scratch/context. Attachment
+writes FP's previous link and TP's next link before publishing the item tail.
+Both animators retain the same callback table. After FP helper return, two actual
+resource-header searches configure the FP masks. Initial modes, pose
+postprocessing and frame dispatch remain unavailable; these helper returns do
+not establish player or gameplay readiness.
 The controller arena retains the actual player/item/physics owners and registry
 rows across worker cancellation. Its world/arena mutex is separate from manager
 state, so reached reset/configuration writes can use their original owners.

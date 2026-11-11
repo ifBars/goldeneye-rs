@@ -9,6 +9,7 @@ use anyhow::{Context, Result, ensure};
 mod attachment;
 mod binding;
 mod callbacks;
+mod first_person;
 mod postbind;
 pub use attachment::Attachment;
 pub use binding::BindReturn;
@@ -36,6 +37,9 @@ pub enum Stage {
     AwaitingCallbacks,
     BindingCallbacks,
     AwaitingFirstPerson,
+    BuildingFirstPerson,
+    AwaitingFirstPersonMasks,
+    AwaitingInitialModes,
     Failed,
 }
 /// Directory absence ends the source loop before any part is read. It stays
@@ -83,6 +87,7 @@ pub struct Preparation {
     attachment: Option<Attachment>,
     postbind: Option<VisualPostbind>,
     third_person_return: Option<ThirdPersonReturn>,
+    first_person: Option<super::FirstPerson>,
 }
 impl Default for Preparation {
     fn default() -> Self {
@@ -104,6 +109,7 @@ impl Preparation {
             attachment: None,
             postbind: None,
             third_person_return: None,
+            first_person: None,
         }
     }
     pub fn stage(&self) -> Stage {
@@ -310,7 +316,7 @@ impl Preparation {
         result
     }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(7);
+        emit(8);
         emit(match self.stage {
             Stage::Fresh => 0,
             Stage::Clearing => 1,
@@ -332,6 +338,9 @@ impl Preparation {
             Stage::AwaitingCallbacks => 17,
             Stage::BindingCallbacks => 18,
             Stage::AwaitingFirstPerson => 19,
+            Stage::BuildingFirstPerson => 20,
+            Stage::AwaitingFirstPersonMasks => 21,
+            Stage::AwaitingInitialModes => 22,
         });
         emit(u32::from(self.player.is_some()));
         if let Some(player) = self.player {
@@ -388,7 +397,11 @@ impl Preparation {
         }
         emit(u32::from(self.third_person_return.is_some()));
         if let Some(returned) = &self.third_person_return {
-            returned.visit_state_words(emit);
+            returned.visit_state_words(&mut emit);
+        }
+        emit(u32::from(self.first_person.is_some()));
+        if let Some(fp) = &self.first_person {
+            fp.visit_state_words(emit);
         }
     }
 }

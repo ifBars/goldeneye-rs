@@ -1,6 +1,8 @@
 //! Actual fresh TP/FP entry; allocation, residency, binding and attachment are
 //! separate source operations. An owned constructor is not a bound component.
 mod animator;
+mod first_person;
+pub use first_person::{FirstPerson, FirstPersonStage};
 pub mod callbacks;
 mod preparation;
 mod registry;

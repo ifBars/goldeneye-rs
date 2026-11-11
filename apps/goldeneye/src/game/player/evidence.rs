@@ -167,7 +167,7 @@ pub(super) fn build(
             "player_reset_complete"
         },
         pending_dependency: if virtual_reached {
-            "fp_component"
+            "initial_animation_modes"
         } else {
             "constructor_source_flag"
         },

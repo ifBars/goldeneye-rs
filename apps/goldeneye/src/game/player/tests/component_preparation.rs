@@ -381,7 +381,120 @@ fn actual_basic_return_enters_tp_with_same_inventory_and_preserves_deferred_phys
     );
     assert!(
         preparation
-            .finish_third_person(&base, world.item_mut(receipt.item()).unwrap(), table)
+            .finish_third_person(
+                &base,
+                world.item_mut(receipt.item()).unwrap(),
+                std::sync::Arc::clone(&table)
+            )
+            .is_err()
+    );
+    let tp = preparation.animator().unwrap().identity();
+    let fp_identity = provider.identities.allocate(base.player()).unwrap();
+    assert!(
+        preparation
+            .begin_first_person(tp, character, 0x010a_0078)
+            .is_err()
+    );
+    preparation
+        .begin_first_person(fp_identity, character, 0x010a_0078)
+        .unwrap();
+    assert!(
+        preparation
+            .configure_first_person_masks(world.item(receipt.item()).unwrap())
+            .is_err()
+    );
+    preparation
+        .first_person_mut()
+        .unwrap()
+        .visual_lookup(visual)
+        .unwrap();
+    preparation
+        .first_person_mut()
+        .unwrap()
+        .bind_skeleton(
+            components::SkeletonInput {
+                primary: components::ResourceBinding {
+                    file: 0x010a_0078,
+                    reference: 0x0d00_016f,
+                },
+                bones: &[],
+                auxiliary_words: 3,
+                captured_frame_counter: None,
+            },
+            components::ResourceBinding {
+                file: 0x0102_0016,
+                reference: 0,
+            },
+            components::SkeletonBudget::default(),
+        )
+        .unwrap();
+    preparation
+        .first_person_mut()
+        .unwrap()
+        .finish_bind_zero_time(&mut context, &mut arena)
+        .unwrap();
+    assert_eq!(
+        preparation
+            .first_person()
+            .unwrap()
+            .refresh()
+            .unwrap()
+            .ordinal(),
+        2
+    );
+    assert_eq!(arena.cursor(), 0);
+    assert_eq!(arena.live_reservations(), 0);
+    preparation
+        .finish_first_person(
+            &base,
+            world.item_mut(receipt.item()).unwrap(),
+            std::sync::Arc::clone(&table),
+            8,
+        )
+        .unwrap();
+    assert_eq!(
+        preparation.stage(),
+        components::Stage::AwaitingFirstPersonMasks
+    );
+    let fp = preparation.first_person().unwrap().animator();
+    assert_eq!(fp.byte(0x131), Some(0xff));
+    assert_eq!(fp.byte(0x136), Some(0xff));
+    assert_eq!(fp.previous_component(), Some(tp));
+    assert_eq!(fp.next_component(), None);
+    assert_eq!(fp.word(0), None);
+    assert_eq!(fp.word(4), Some(0));
+    assert_eq!(fp.item(), Some(receipt.item()));
+    assert!(std::sync::Arc::ptr_eq(fp.callback_table().unwrap(), &table));
+    assert_eq!(
+        fp.skeleton().unwrap().pose_callback(),
+        Some(components::PoseCallback::PlayerNewPostprocess)
+    );
+    assert_eq!(
+        preparation.animator().unwrap().next_component(),
+        Some(fp_identity)
+    );
+    assert_eq!(preparation.animator().unwrap().word(4), None);
+    assert_eq!(
+        world.item(receipt.item()).unwrap().components(),
+        &[tp.id(), fp_identity.id()]
+    );
+    preparation
+        .configure_first_person_masks(world.item(receipt.item()).unwrap())
+        .unwrap();
+    assert_eq!(preparation.stage(), components::Stage::AwaitingInitialModes);
+    let fp = preparation.first_person().unwrap().animator();
+    assert_eq!(fp.byte(0x131), Some(0xfb));
+    assert_eq!(fp.byte(0x136), Some(0xfb));
+    assert_eq!(base.visual_skeleton(), Some(tp));
+    assert_eq!(base.visual_overrides().unwrap().generation, 1);
+    assert!(
+        preparation
+            .finish_first_person(&base, world.item_mut(receipt.item()).unwrap(), table, 8)
+            .is_err()
+    );
+    assert!(
+        preparation
+            .configure_first_person_masks(world.item(receipt.item()).unwrap())
             .is_err()
     );
 }
