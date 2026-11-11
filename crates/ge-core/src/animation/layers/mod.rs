@@ -1,6 +1,7 @@
 //! Actual layer membership driven by owned host node allocations. Execution is
 //! incremental like the source; errors latch failure and require discarding the
 //! state/host attempt. This is not child ticking, pose sampling or camera output.
+mod capture;
 mod execute;
 mod types;
 pub use types::{Budget, Host, NodeId, Slot, SlotOverride, Snapshot};

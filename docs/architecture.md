@@ -88,8 +88,13 @@ reads the actual fresh reset fields, stores direction -1, finds both components
 by their resource headers and resolves the current signed inventory slot. The
 same retained supplied tables map FP, TP and TP-secondary inputs in that order;
 mode availability stays a lazy query on the matching component wrapper. No mode
-body or control node is created by these queries. TP mode/control dispatch must
-execute before FP dispatch and the optional second generic request. Pose
+body or control node is created by these queries. TP dispatch now performs its
+initial control capture before mode selection. A real header owner precedes the
+ordinary empty refresh through the same scratch/context; reached flags clear
+before primary locals and auxiliary words are copied. The physical-slot helper
+creates four separately owned controls while preserving active count one. Its
+shared fallback stores persist across cancellation. TP mode selection and
+execution still precede FP dispatch and the optional second generic request. Pose
 postprocessing and frame dispatch remain unavailable; these constructor and
 mapping operations do not establish player or gameplay readiness.
 The controller arena retains the actual player/item/physics owners and registry

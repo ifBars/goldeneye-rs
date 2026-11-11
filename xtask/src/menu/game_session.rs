@@ -6,6 +6,7 @@ use std::path::Path;
 mod player_action;
 mod player_attachment;
 mod player_callbacks;
+mod player_capture;
 mod player_first_person;
 mod player_postbind;
 mod player_refresh;
@@ -1032,8 +1033,8 @@ fn validate_player_components(component: &Value, reached: bool) -> Result<()> {
         ],
     )?;
     ensure!(
-        component["stage"] == "tp_dispatch_pending"
-            && component["pending_dependency"] == "tp_animation_controls"
+        component["stage"] == "tp_selector_pending"
+            && component["pending_dependency"] == "tp_animation_selector"
             && component["native_component_bytes"] == 0x1b8
             && component["constructed_slots"] == 4
             && component["active_slots"] == 1
@@ -1085,6 +1086,23 @@ fn validate_player_components(component: &Value, reached: bool) -> Result<()> {
     player_callbacks::validate(&component["callbacks"])?;
     player_first_person::validate(&component["first_person"])?;
     player_action::validate(&component["initial_action"])?;
+    let capture = &component["initial_action"]["tp_capture"];
+    ensure!(
+        capture["bones_per_control"] == component["skeleton_binding"]["bones"]
+            && capture["auxiliary_words_per_control"]
+                == component["skeleton_binding"]["auxiliary_words"]
+            && count(&capture["refresh"], "refresh_ordinal")?
+                > count(
+                    &component["first_person"]["bind_refresh"],
+                    "refresh_ordinal"
+                )?
+            && count(&capture["refresh"], "allocation_ordinal")?
+                > count(
+                    &component["first_person"]["bind_refresh"],
+                    "allocation_ordinal"
+                )?,
+        "TP capture did not use the actual primary skeleton and later shared refresh"
+    );
     ensure!(
         count(
             &component["first_person"]["bind_refresh"],
@@ -1140,7 +1158,7 @@ fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Valu
             && player["lifetime"] == "controller_arena"
             && (if virtual_reached {
                 player["stage"] == "player_components_pending"
-                    && player["pending_dependency"] == "tp_animation_controls"
+                    && player["pending_dependency"] == "tp_animation_selector"
             } else {
                 player["stage"] == "player_reset_complete"
                     && player["pending_dependency"] == "constructor_source_flag"
@@ -3330,7 +3348,7 @@ mod tests {
         world["actor_definitions"]["rng_draws"] = json!(2);
         world["player_initialization"] = json!({
             "origin":"fresh_constructor_snapshot","lifetime":"controller_arena","stage":"player_components_pending",
-            "pending_dependency":"tp_animation_controls","operation_complete":false,"attempt_bound":true,"catalog_bound":true,
+            "pending_dependency":"tp_animation_selector","operation_complete":false,"attempt_bound":true,"catalog_bound":true,
             "operation_entries":0,"creation_dispatches":1,"catalog_entries":2,"selected_catalog_index":1,"selected_source_ordinal":4,
             "requested_start_point_before":1,"requested_start_point_after":1,"base_constructor_complete":true,
             "handler_rng_reads":1,"base_reset_calls":2,"persistent_base_resets":2,"handler_kind_bound":false,"inventory_records":1,"inventory_capacity":16,
@@ -3380,7 +3398,7 @@ mod tests {
             .extend(links.as_object().unwrap().clone());
         world["player_initialization"]["virtual_initialization"] = virtual_init;
         world["player_initialization"]["component_initialization"] = json!({
-            "stage":"tp_dispatch_pending","pending_dependency":"tp_animation_controls",
+            "stage":"tp_selector_pending","pending_dependency":"tp_animation_selector",
             "native_component_bytes":0x1b8,"constructed_slots":4,"active_slots":1,
             "retained_file_bytes":1024,"retained_section_bytes":256,
             "third_person_constructed":true,"third_person_attached":true,"first_person_constructed":true,
@@ -3395,7 +3413,7 @@ mod tests {
             "callbacks":player_callbacks::tests::fixture(),
             "first_person":player_first_person::tests::fixture(),
             "initial_action":player_action::tests::fixture(),
-            "scope":"Authored initial action selector and remaps; TP controls remain pending"});
+            "scope":"Authored TP control capture; TP mode selector remains pending"});
         probe
     }
 

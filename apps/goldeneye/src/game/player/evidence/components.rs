@@ -8,6 +8,7 @@ use serde::Serialize;
 mod action;
 mod attachment;
 mod callbacks;
+mod control_capture;
 mod first_person;
 mod postbind;
 mod refresh;
@@ -15,6 +16,7 @@ mod skeleton;
 pub use action::InitialAction;
 pub use attachment::AttachmentBinding;
 pub use callbacks::CallbackBinding;
+pub use control_capture::ThirdPersonCapture;
 pub use first_person::FirstPersonBinding;
 pub use postbind::VisualPostbind;
 pub use refresh::BindRefresh;
@@ -107,8 +109,8 @@ pub(super) fn build(
         "TP owner, source or attachment boundary differs"
     );
     Ok(Some(ComponentInitialization {
-        stage: "tp_dispatch_pending",
-        pending_dependency: "tp_animation_controls",
+        stage: "tp_selector_pending",
+        pending_dependency: "tp_animation_selector",
         native_component_bytes: 0x1b8,
         constructed_slots: 4,
         active_slots: usize::from(owner.byte(0x130).context("TP active count unknown")?),
@@ -139,7 +141,7 @@ pub(super) fn build(
         visual_postbind: postbind::build(player, world)?,
         callbacks: callbacks::build(player, world, hook)?,
         first_person: first_person::build(player, world, identities, hook)?,
-        initial_action: action::build(player)?,
-        scope: "TP/FP helper returns and FP masks now precede the initial action caller. The fresh selector stores direction -1, then resolves actual component and inventory owners. Three source-ordered mappings use the retained supplied tables and lazy target availability. TP mode/control dispatch is next, before FP dispatch or the second generic request. Mode history, callback return, pose postprocessing, scheduling, completed player and camera remain incomplete.",
+        initial_action: action::build(player, hook)?,
+        scope: "The initial caller now completes TP's fresh capture helper before mode selection. Its ordinary empty refresh uses the actual shared scratch owner and clears the reached update flag; primary locals and auxiliary words feed four independently owned controls in physical slots. Active count remains one. Shared fallback stores precede and follow capture. TP mode selection/execution, mode history, FP dispatch, callback return, pose postprocessing, scheduling, completed player and camera remain incomplete.",
     }))
 }

@@ -273,12 +273,38 @@ candidate queries only the matching retained component's mode directory. Parent
 cycles, exhausted bounds and provider errors remain errors; generic fallback
 comes from actual unsuccessful resolution. Reached results survive cancellation.
 
-This caller now waits for TP mode/control dispatch. It has created no controls,
-changed no mode-history words and returned no initial action callback. FP
-mode dispatch and the optional second generic request follow TP dispatch and its
-side effects. Diagnostic FP plans or freshly loaded inventories cannot stand in
+The remapping stage creates no controls, changes no mode-history words and
+returns no initial action callback. Its following TP dispatch starts with the
+capture helper described below. FP mode dispatch and the optional second generic
+request follow TP dispatch and its side effects. Diagnostic FP plans or freshly loaded inventories cannot stand in
 for that order. Pose evaluation, player state transition and camera remain later
 work.
+
+
+TP's first dispatch now reaches the physical-slot capture helper. The empty
+slot2 query returns positive zero; the first request's positive-zero parameter
+selects capture mask 0xf and preserve mask 3. The shared fallback receives the
+default mode before capture and the branch fallback after it. Its prior value
+remains unknown until an actual reached store; later attempts reuse the same
+owner rather than a new per-player global.
+
+A control header is retained before its owner refresh. The fresh LOD/linked-child
+and actor-transform links are constructor NULL. Ordinary refresh clears the
+reached LOD byte and update flag bit8, runs empty maintenance and uses the same
+shared scratch/context. There are no sampled child results or 0x4000 commit
+flag, so pose postprocessing is not invoked and the unresolved frame stamp is
+not consumed. The primary runtime's actual translation/quaternion locals and
+auxiliary words then populate the snapshot backing.
+
+The helper visits all four physical headers, independently of active count.
+Each receives a distinct control with independent backing. Clone constructors
+keep their own initial scalars and copy snapshot data. The active count remains
+one; this operation differs from the mode command's active-slot mask loop.
+Header/list ownership and each successful prefix survive allocation failure,
+which cannot publish a returned capture or replay its failed state. The live
+checkpoint now awaits TP mode selection/execution, followed by FP dispatch and
+the remaining initial action callback. Constructor snapshots remain separate
+from evaluated poses, camera output and reference parity.
 
 The controller arena retains actual player, item and physics objects, their
 registry rows and actor memberships across cancellation. Worker teardown leaves

@@ -1,4 +1,4 @@
-use super::{closed, count};
+use super::{closed, count, player_capture};
 use anyhow::{Result, ensure};
 use serde_json::Value;
 
@@ -23,10 +23,11 @@ pub(super) fn validate(state: &Value) -> Result<()> {
             "callback_returned",
             "state_sha256",
             "mapping_state_sha256",
+            "tp_capture",
         ],
     )?;
     ensure!(
-        state["stage"] == "tp_dispatch_pending"
+        state["stage"] == "tp_selector_pending"
             && state["generic_request"] == 0x0900_071eu32
             && state["parameter_bits"] == 0
             && state["direction_raw"] == 255
@@ -40,7 +41,7 @@ pub(super) fn validate(state: &Value) -> Result<()> {
                     .as_u64()
                     .is_some_and(|value| value > 0 && value <= u64::from(u32::MAX)))
             && state["source_tables_reused"] == true
-            && state["mode_controls_created"] == 0
+            && state["mode_controls_created"] == 4
             && state["mode_history_updated"] == false
             && state["callback_returned"] == false
             && ["state_sha256", "mapping_state_sha256"]
@@ -53,6 +54,7 @@ pub(super) fn validate(state: &Value) -> Result<()> {
                 ),
         "initial action evidence is contradictory"
     );
+    player_capture::validate(&state["tp_capture"])?;
     Ok(())
 }
 #[cfg(test)]
@@ -60,11 +62,11 @@ pub(super) mod tests {
     use super::*;
     use serde_json::json;
     pub(in super::super) fn fixture() -> Value {
-        json!({"stage":"tp_dispatch_pending","generic_request":0x0900_071e,"parameter_bits":0,"direction_raw":255,
+        json!({"stage":"tp_selector_pending","generic_request":0x0900_071e,"parameter_bits":0,"direction_raw":255,
             "weapon_key":0x0200_00ab,"variant":0,"remap_calls":3,"map_rows_read":20,"fp_mapped":0x0900_00ab,
             "tp_mapped":0x0900_00ac,"tp_secondary_mapped":0x0900_00ad,"source_tables_reused":true,
-            "mode_controls_created":0,"mode_history_updated":false,"callback_returned":false,
-            "state_sha256":"a".repeat(64),"mapping_state_sha256":"b".repeat(64)})
+            "mode_controls_created":4,"mode_history_updated":false,"callback_returned":false,
+            "state_sha256":"a".repeat(64),"mapping_state_sha256":"b".repeat(64),"tp_capture":player_capture::tests::fixture()})
     }
     #[test]
     fn rejects_partial_mapping_and_early_callback_or_mode_completion() {
@@ -82,7 +84,7 @@ pub(super) mod tests {
             ("tp_mapped", json!(0)),
             ("tp_secondary_mapped", json!(0)),
             ("source_tables_reused", json!(false)),
-            ("mode_controls_created", json!(1)),
+            ("mode_controls_created", json!(0)),
             ("mode_history_updated", json!(true)),
             ("callback_returned", json!(true)),
             ("state_sha256", json!("short")),

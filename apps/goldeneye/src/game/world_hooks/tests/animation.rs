@@ -62,3 +62,20 @@ fn actual_startup_callback_table_owner_is_shared_across_attempts_and_outlives_th
     first.noop(1).unwrap();
     second.noop(2).unwrap();
 }
+
+#[test]
+fn reached_fallback_stores_persist_across_attempts_while_prior_value_stays_unknown() {
+    let shared = Shared::from_constructor();
+    let first = shared.begin(1).unwrap();
+    assert!(first.animation_fallback().is_err());
+    {
+        let mut state = shared.0.state.lock().unwrap();
+        state.animation_fallback.store(0x0900_000b).unwrap();
+        state.animation_fallback.store(0x0900_06c0).unwrap();
+    }
+    assert_eq!(first.animation_fallback().unwrap(), (0x0900_06c0, 2));
+    shared.invalidate();
+    let current = shared.begin(2).unwrap();
+    assert!(first.animation_fallback().is_err());
+    assert_eq!(current.animation_fallback().unwrap(), (0x0900_06c0, 2));
+}

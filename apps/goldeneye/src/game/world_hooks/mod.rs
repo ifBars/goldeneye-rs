@@ -28,6 +28,7 @@ struct State {
     animation_context: ge_core::animation::scratch::Context,
     animation_scratch: ge_core::animation::scratch::Arena,
     animation_callbacks: Arc<ge_core::mission::player::components::callbacks::Table>,
+    animation_fallback: ge_core::animation::dispatch::Fallback,
 }
 
 struct SharedState {
@@ -63,6 +64,7 @@ impl Shared {
                     ge_core::mission::player::components::callbacks::Table::from_constructor(1)
                         .expect("nonzero startup animation callback table identity"),
                 ),
+                animation_fallback: ge_core::animation::dispatch::Fallback::default(),
             }),
             current: AtomicU64::new(0),
         }))

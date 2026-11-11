@@ -29,8 +29,11 @@ from the retained character file, refreshes through the same scratch owner and
 appends after TP. Both helpers return before the real resource-list searches
 configure FP masks. The fresh initial action selector now stores its direction
 and resolves the actual current inventory. Three mappings run in source order
-through retained supplied tables and lazy target availability. TP mode/control
-dispatch is next, before FP dispatch. Pose postprocess targets
+through retained supplied tables and lazy target availability. TP now performs
+its ordinary empty refresh through shared scratch and captures primary locals
+and auxiliary storage into four independent physical-slot controls. Active count
+stays one. The shared fallback stores bracket this capture. TP mode selection
+and execution are next, before FP dispatch. Pose postprocess targets
 are assigned, but their body and frame scheduling remain unavailable.
 Later initialization and gameplay remain
 incomplete. docs/player-creation.md describes the reached boundary.

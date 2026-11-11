@@ -5,6 +5,48 @@ use anyhow::Result;
 use ge_core::mission::player::components::Preparation;
 
 impl Attempt {
+    pub fn capture_initial_tp(
+        &self,
+        action: &mut ge_core::mission::player::actions::Pending,
+        preparation: &mut Preparation,
+    ) -> Result<()> {
+        self.ensure_current()?;
+        let mut state = self
+            .shared
+            .0
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("TP capture shared owner lock is poisoned"))?;
+        self.ensure_current()?;
+        let State {
+            animation_context,
+            animation_scratch,
+            animation_fallback,
+            ..
+        } = &mut *state;
+        action.capture_third_person(
+            preparation,
+            animation_context,
+            animation_scratch,
+            animation_fallback,
+        )?;
+        self.ensure_current()?;
+        Ok(())
+    }
+    pub fn animation_fallback(&self) -> Result<(u32, u64)> {
+        self.ensure_current()?;
+        let state = self
+            .shared
+            .0
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("animation fallback owner lock is poisoned"))?;
+        self.ensure_current()?;
+        Ok((
+            state.animation_fallback.value()?,
+            state.animation_fallback.writes(),
+        ))
+    }
     pub fn finish_fp_bind(&self, preparation: &mut Preparation) -> Result<()> {
         self.ensure_current()?;
         let mut state = self

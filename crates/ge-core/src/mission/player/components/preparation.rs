@@ -118,6 +118,11 @@ impl Preparation {
     pub fn animator(&self) -> Option<&Animator> {
         self.animator.as_ref()
     }
+    pub(super) fn animator_mut_for_capture(&mut self) -> Result<&mut Animator> {
+        self.animator
+            .as_mut()
+            .context("TP capture animator is absent")
+    }
     pub fn textures(&self) -> Option<&TextureEnumeration> {
         self.textures.as_ref()
     }

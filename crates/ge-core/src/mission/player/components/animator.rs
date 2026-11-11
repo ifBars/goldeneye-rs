@@ -5,6 +5,7 @@ use super::{
 };
 use anyhow::{Result, ensure};
 use std::sync::Arc;
+mod control_capture;
 
 pub const SOURCE_BYTES: usize = 0x1b8;
 
@@ -22,6 +23,9 @@ pub struct Animator {
     callbacks: Option<Arc<super::callbacks::Table>>,
     previous: Option<Identity>,
     next: Option<Identity>,
+    controls: crate::animation::controls::Store,
+    layers: Option<crate::animation::layers::State>,
+    capture_refresh: Option<crate::animation::scratch::Refresh>,
 }
 impl Animator {
     pub(super) fn from_constructor(identity: Identity) -> Self {
@@ -35,6 +39,12 @@ impl Animator {
             callbacks: None,
             previous: None,
             next: None,
+            controls: crate::animation::controls::Store::from_constructor(
+                identity,
+                crate::animation::controls::Budget::default(),
+            ),
+            layers: None,
+            capture_refresh: None,
         };
         for offset in [
             0, 4, 8, 0x10, 0x14, 0x1c, 0x20, 0x28, 0x5c, 0x60, 0x94, 0x114, 0x118, 0x11c, 0x120,
@@ -310,7 +320,7 @@ impl Animator {
         (self.flag_8f_known_mask, 0)
     }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(5);
+        emit(6);
         self.identity.visit_state_words(&mut emit);
         emit(u32::from(self.item.is_some()));
         if let Some(item) = self.item {
@@ -348,6 +358,15 @@ impl Animator {
             if let Some(link) = link {
                 link.visit_state_words(&mut emit);
             }
+        }
+        self.controls.visit_state_words(&mut emit);
+        emit(u32::from(self.layers.is_some()));
+        if let Some(layers) = &self.layers {
+            layers.visit_state_words(&mut emit);
+        }
+        emit(u32::from(self.capture_refresh.is_some()));
+        if let Some(refresh) = &self.capture_refresh {
+            refresh.visit_state_words(emit);
         }
     }
 }

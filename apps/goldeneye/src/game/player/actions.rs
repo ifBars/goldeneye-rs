@@ -89,7 +89,8 @@ pub(super) fn initialize(
         owner.state.mapped(request, output, accepted)?;
         hook.ensure_current()?;
     }
-    // TP dispatch must execute before FP or the optional second generic request.
-    // Keep mode histories, callback return and player state untouched here.
+    hook.capture_initial_tp(&mut owner.state, &mut player.components.preparation)?;
+    // Actual captured control lists precede TP mode selection. Mode histories,
+    // callback return, FP dispatch and the second generic request still follow.
     Ok(())
 }

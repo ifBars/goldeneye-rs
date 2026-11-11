@@ -4,6 +4,8 @@ pub mod clip;
 pub mod clock;
 pub mod composition;
 pub mod context;
+pub mod controls;
+pub mod dispatch;
 pub mod frame;
 pub mod layers;
 pub mod mode;

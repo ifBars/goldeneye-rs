@@ -523,6 +523,57 @@ fn actual_basic_return_enters_tp_with_same_inventory_and_preserves_deferred_phys
     for at in [0x70c, 0x710, 0x714, 0x718] {
         assert_eq!(reset.word(at), Some(0));
     }
+    let mut fallback = ge_core::animation::dispatch::Fallback::default();
+    assert!(fallback.value().is_err());
+    action
+        .capture_third_person(&mut preparation, &mut context, &mut arena, &mut fallback)
+        .unwrap();
+    assert_eq!(
+        action.stage(),
+        ge_core::mission::player::actions::Stage::AwaitingThirdPersonSelector
+    );
+    assert_eq!(fallback.value().unwrap(), 0x0900_06c0);
+    assert_eq!(fallback.writes(), 2);
+    let tp = preparation.animator().unwrap();
+    let layers = tp.layers().unwrap();
+    assert_eq!(layers.active_count(), 1);
+    assert_eq!(tp.byte(0x130), Some(1));
+    assert_eq!(tp.byte(0xc), Some(0));
+    assert_eq!(tp.byte(0xd), Some(3));
+    assert_eq!(tp.controls().len(), 4);
+    assert_eq!(tp.capture_refresh().unwrap().ordinal(), 3);
+    assert_eq!(arena.cursor(), 0);
+    assert_eq!(arena.live_reservations(), 0);
+    for (index, at) in [0x138, 0x158, 0x178, 0x198].into_iter().enumerate() {
+        assert_eq!(tp.word(at), None);
+        assert_eq!(tp.word(at + 4), None);
+        let id = layers.slots()[index].nodes_head()[0];
+        let control = tp.controls().get(id).unwrap();
+        assert_eq!(control.component(), tp.identity());
+        assert_eq!(control.locals().unwrap().len(), 1);
+        assert_eq!(control.auxiliary().unwrap(), &[0; 4]);
+        assert_eq!(control.transition_bits(), 1f32.to_bits());
+    }
+    assert!(tp.skeleton().unwrap().frame_stamp_bits().is_err());
+    assert_eq!(
+        preparation.first_person().unwrap().animator().word(0x138),
+        Some(0)
+    );
+    assert_eq!(
+        preparation
+            .first_person()
+            .unwrap()
+            .animator()
+            .controls()
+            .len(),
+        0
+    );
+    assert!(
+        action
+            .capture_third_person(&mut preparation, &mut context, &mut arena, &mut fallback)
+            .is_err()
+    );
+    assert_eq!(fallback.writes(), 2);
 }
 
 #[test]

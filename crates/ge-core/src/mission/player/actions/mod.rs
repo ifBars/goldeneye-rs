@@ -9,6 +9,7 @@ use super::{
     item::Item,
 };
 use anyhow::{Context, Result, ensure};
+mod capture;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stage {
@@ -16,6 +17,8 @@ pub enum Stage {
     AwaitingInventory,
     Remapping,
     AwaitingThirdPersonDispatch,
+    CapturingThirdPerson,
+    AwaitingThirdPersonSelector,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Target {
@@ -46,6 +49,8 @@ pub struct Pending {
     weapon: Option<u32>,
     variant: Option<u32>,
     resolved: Vec<Resolved>,
+    fallback: Option<u32>,
+    fallback_writes: Option<u64>,
 }
 impl Pending {
     pub fn begin(base: &base_handler::Owner, reset: &mut PendingReset) -> Result<Self> {
@@ -58,6 +63,8 @@ impl Pending {
             weapon: None,
             variant: None,
             resolved: Vec::new(),
+            fallback: None,
+            fallback_writes: None,
         })
     }
     pub fn stage(&self) -> Stage {
@@ -77,6 +84,12 @@ impl Pending {
     }
     pub fn resolved(&self) -> &[Resolved] {
         &self.resolved
+    }
+    pub fn fallback(&self) -> Option<u32> {
+        self.fallback
+    }
+    pub fn fallback_writes(&self) -> Option<u64> {
+        self.fallback_writes
     }
     pub fn bind_components(&mut self, preparation: &Preparation, item: &Item) -> Result<()> {
         ensure!(
@@ -198,7 +211,7 @@ impl Pending {
         Ok(())
     }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(1);
+        emit(2);
         emit(self.stage as u32);
         emit((self.player.get() >> 32) as u32);
         emit(self.player.get() as u32);
@@ -221,6 +234,15 @@ impl Pending {
             emit(value.request.target as u32);
             emit(value.output);
             emit(u32::from(value.mapped));
+        }
+        emit(u32::from(self.fallback.is_some()));
+        if let Some(value) = self.fallback {
+            emit(value);
+        }
+        emit(u32::from(self.fallback_writes.is_some()));
+        if let Some(value) = self.fallback_writes {
+            emit((value >> 32) as u32);
+            emit(value as u32);
         }
     }
 }

@@ -23,8 +23,12 @@ pub struct InitialAction {
     pub callback_returned: bool,
     pub state_sha256: String,
     pub mapping_state_sha256: String,
+    pub tp_capture: super::ThirdPersonCapture,
 }
-pub(super) fn build(player: &Owned) -> Result<InitialAction> {
+pub(super) fn build(
+    player: &Owned,
+    hook: &crate::game::world_hooks::Attempt,
+) -> Result<InitialAction> {
     let owner = player
         .action
         .as_ref()
@@ -41,16 +45,14 @@ pub(super) fn build(player: &Owned) -> Result<InitialAction> {
         .first_person()
         .context("initial action FP owner is absent")?
         .animator();
-    for animator in [tp, fp] {
-        ensure!(
-            [0x138, 0x158, 0x178, 0x198]
-                .into_iter()
-                .all(|at| animator.word(at) == Some(0) && animator.word(at + 4) == Some(0)),
-            "initial action mapping boundary unexpectedly owns control heads"
-        );
-    }
     ensure!(
-        state.stage() == Stage::AwaitingThirdPersonDispatch
+        [0x138, 0x158, 0x178, 0x198]
+            .into_iter()
+            .all(|at| fp.word(at) == Some(0) && fp.word(at + 4) == Some(0)),
+        "FP controls were reached before TP selector return"
+    );
+    ensure!(
+        state.stage() == Stage::AwaitingThirdPersonSelector
             && state.player() == player.base.player()
             && state.resolved().len() == 3
             && owner.mappings.len() == 3
@@ -107,7 +109,7 @@ pub(super) fn build(player: &Owned) -> Result<InitialAction> {
         }
     }
     Ok(InitialAction {
-        stage: "tp_dispatch_pending",
+        stage: "tp_selector_pending",
         generic_request: state.generic(),
         parameter_bits: 0,
         direction_raw: 0xff,
@@ -123,12 +125,13 @@ pub(super) fn build(player: &Owned) -> Result<InitialAction> {
         tp_mapped: state.resolved()[1].output,
         tp_secondary_mapped: state.resolved()[2].output,
         source_tables_reused: true,
-        mode_controls_created: 0,
+        mode_controls_created: tp.controls().len(),
         mode_history_updated: false,
         callback_returned: false,
         state_sha256: super::super::words(b"ge_player_initial_action_v1\0", |emit| {
             state.visit_state_words(emit)
         }),
         mapping_state_sha256: format!("{:x}", hash.finalize()),
+        tp_capture: super::control_capture::build(player, hook)?,
     })
 }
