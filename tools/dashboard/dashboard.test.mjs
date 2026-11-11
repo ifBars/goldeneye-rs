@@ -2263,7 +2263,7 @@ test('incomplete loader Wait28 retains its pending phase and legacy zero session
 
 function playerPreludeFixture(catalogEntries=2) {
   return {origin:'fresh_constructor_snapshot',lifetime:'controller_arena',stage:'player_components_pending',
-    pending_dependency:'skin_texture_dependencies',operation_complete:false,attempt_bound:true,catalog_bound:true,
+    pending_dependency:'tp_default_skeleton',operation_complete:false,attempt_bound:true,catalog_bound:true,
     operation_entries:0,creation_dispatches:1,catalog_entries:catalogEntries,selected_catalog_index:1,selected_source_ordinal:4,
     requested_start_point_before:1,requested_start_point_after:1,base_constructor_complete:true,
     handler_rng_reads:1,base_reset_calls:2,persistent_base_resets:2,handler_kind_bound:false,
@@ -2288,10 +2288,12 @@ function playerPreludeFixture(catalogEntries=2) {
     scope:'Authored retained EXItem actor and capsule; basic return with unresolved scalar; PlayerNew remains incomplete'};
 }
 function componentPlayerFixture() {
-  return {stage:'tp_texture_dependencies_pending',pending_dependency:'skin_texture_dependencies',
+  return {stage:'tp_default_skeleton_pending',pending_dependency:'tp_default_skeleton',
     native_component_bytes:0x1b8,constructed_slots:4,active_slots:1,retained_file_bytes:1024,retained_section_bytes:256,
     third_person_constructed:true,third_person_attached:false,first_person_constructed:false,skin_request_resolved:true,
-    texture_dependencies_enumerated:false,component_binding_complete:false,preparation_state_sha256:'d'.repeat(64),
+    texture_dependencies_enumerated:true,component_binding_complete:false,
+    texture_directory_outcome:'enumerated',texture_requests:3,texture_targets_resident:3,
+    texture_residency_complete:true,texture_requests_state_sha256:'f'.repeat(64),preparation_state_sha256:'d'.repeat(64),
     target_state_sha256:'e'.repeat(64),scope:'Authored TP constructor and skin request; texture traversal and attachment pending'};
 }
 function virtualPlayerFixture() {
@@ -2509,11 +2511,13 @@ test('TP constructor and skin evidence keep unresolved textures attachment and F
     const text=d.querySelector('#game-session-summary').textContent;
     assert.match(text,/Third-person constructor retained: 4 animation slots, 1 active/);
     assert.match(text,/skin request retains 1,024 file bytes and 256 logical section bytes/);
-    assert.match(text,/Texture dependencies remain unresolved; TP attachment and FP construction have not run/);
+    assert.match(text,/Texture residency completed: 3 ordered target requests. Default skeleton setup, TP attachment and FP construction remain pending/);
   });
   const changes=[state=>{state.third_person_constructed=false;},state=>{state.third_person_attached=true;},
-    state=>{state.first_person_constructed=true;},state=>{state.texture_dependencies_enumerated=true;},
+    state=>{state.first_person_constructed=true;},state=>{state.texture_dependencies_enumerated=false;},
     state=>{state.component_binding_complete=true;},state=>{state.skin_request_resolved=false;},
+    state=>{state.texture_directory_outcome='unknown';},state=>{state.texture_requests=4097;},
+    state=>{state.texture_targets_resident=2;},state=>{state.texture_residency_complete=false;},state=>{state.texture_requests_state_sha256='short';},
     state=>{state.active_slots=4;},state=>{state.constructed_slots=1;},state=>{state.native_component_bytes=0;},
     state=>{state.retained_section_bytes=2048;},state=>{state.target_state_sha256='short';},state=>{state.source_rows=[1,2,3];}];
   for(const change of changes) {

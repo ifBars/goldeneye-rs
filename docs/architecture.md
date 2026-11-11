@@ -45,7 +45,10 @@ owned animator, performs a direct visual lookup without consuming an actor curso
 or RNG draw, and requests the skin through the existing resource wrapper. Shared
 payload and logical section records outlive cancelled workers when retained by a
 player. The post-trigger report remains scoped to its earlier operation. Texture
-dependencies still block skeleton binding, attachment and the subsequent FP call.
+discovery reads only reached geometry fields and retains directory absence as a
+distinct outcome. First-encounter hashes feed actual target requests through the
+same wrapper, with each successful target owner retained before the next request.
+Default skeleton binding, attachment and the subsequent FP call remain pending.
 The controller arena retains the actual player/item/physics owners and registry
 rows across worker cancellation. Its world/arena mutex is separate from manager
 state, so reached reset/configuration writes can use their original owners.

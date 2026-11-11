@@ -3,7 +3,10 @@
 use super::{Owned, Resolution, Section, resolve};
 use anyhow::{Context, Result};
 use ge_assets::{edb::Edb, resource::GameAssets};
-use ge_core::mission::post_trigger::Request;
+use ge_core::mission::{
+    player::components::{TextureEnumeration, TextureOutcome},
+    post_trigger::Request,
+};
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
 
@@ -60,6 +63,9 @@ impl Owned {
     }
 }
 impl Target {
+    pub(crate) fn same_source(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.source, &other.source)
+    }
     pub(crate) fn file(&self) -> u32 {
         self.source.header.hash
     }
@@ -71,6 +77,29 @@ impl Target {
     }
     pub(crate) fn section_bytes(&self) -> usize {
         self.section.as_ref().map_or(0, |s| s.end - s.start)
+    }
+    /// Traverse the requested skin's geometry through this same retained file
+    /// owner. Directory absence remains its own outcome; errors stay errors.
+    pub(crate) fn skin_texture_dependencies(&self) -> Result<TextureEnumeration> {
+        use ge_assets::skin::{TextureBudget, TextureDependencies};
+        let dependencies = self
+            .source
+            .skin_texture_dependencies(self.target(), TextureBudget::default())?
+            .context("requested player skin reference is absent")?;
+        Ok(match dependencies {
+            TextureDependencies::EntityDirectoryAbsent => TextureEnumeration {
+                outcome: TextureOutcome::EntityDirectoryAbsent,
+                hashes: Vec::new(),
+            },
+            TextureDependencies::TextureDirectoryAbsent => TextureEnumeration {
+                outcome: TextureOutcome::TextureDirectoryAbsent,
+                hashes: Vec::new(),
+            },
+            TextureDependencies::Enumerated(value) => TextureEnumeration {
+                outcome: TextureOutcome::Enumerated,
+                hashes: value.hashes(),
+            },
+        })
     }
     pub(crate) fn fingerprint(&self) -> String {
         let mut hash = Sha256::new();

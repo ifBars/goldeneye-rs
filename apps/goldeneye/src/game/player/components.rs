@@ -1,5 +1,6 @@
 //! Live TP entry uses the existing inventory, definition registry and resource
 //! wrappers. No diagnostic layer initializer or elapsed prewarm runs here.
+mod textures;
 use super::{
     super::{actors::Definitions, world::post_trigger_resources, world_hooks},
     Owned as Player,
@@ -22,12 +23,14 @@ pub(crate) struct Sources<'a> {
 pub(super) struct Owned {
     pub preparation: Preparation,
     pub target: Option<post_trigger_resources::Target>,
+    pub textures: Vec<post_trigger_resources::Target>,
 }
 impl Owned {
     pub fn new() -> Self {
         Self {
             preparation: Preparation::new(),
             target: None,
+            textures: Vec::new(),
         }
     }
 }
@@ -88,8 +91,23 @@ pub(super) fn initialize(
         .components
         .preparation
         .skin_requested(target.file(), target.target())?;
-    // Actual geometry/material dependency traversal is still required before
-    // default skeleton loading, component bind/attachment and the FP call.
+    // The same retained file owner supplies the geometry texture traversal.
+    let textures = target.skin_texture_dependencies()?;
+    hook.ensure_current()?;
+    player
+        .components
+        .preparation
+        .textures_enumerated(target.file(), target.target(), textures)?;
+    textures::resolve(
+        &mut player.components.preparation,
+        target,
+        &mut player.components.textures,
+        sources.resources,
+        sources.assets,
+        hook,
+    )?;
+    // Default skeleton loading, visual postbind, component bind/attachment and
+    // the FP call remain unbound.
     Ok(())
 }
 struct Provider<'a> {

@@ -4,5 +4,8 @@ mod animator;
 mod preparation;
 mod visual;
 pub use animator::Animator;
-pub use preparation::{Bindings, Preparation, Provider, Stage};
+pub use preparation::{
+    Bindings, Preparation, Provider, Stage, TextureEnumeration, TextureOutcome,
+    TextureTargetRequest,
+};
 pub use visual::{TextureRequest, Visual};

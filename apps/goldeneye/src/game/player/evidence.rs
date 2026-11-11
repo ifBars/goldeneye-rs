@@ -166,7 +166,7 @@ pub(super) fn build(
             "player_reset_complete"
         },
         pending_dependency: if virtual_reached {
-            "skin_texture_dependencies"
+            "tp_default_skeleton"
         } else {
             "constructor_source_flag"
         },
@@ -245,7 +245,7 @@ pub(super) fn build(
         virtual_initialization,
         component_initialization,
         state_sha256: String::new(),
-        scope: "The actual reset and PlayerBasic return precede TP entry. The same inventory and sparse PlayerNew fields receive cleanup and slot writes; the TP allocation and direct visual plan precede an actual shared-wrapper skin request. Geometry/material texture dependencies still block skeleton binding, TP attachment and the FP call. Unknown physics operands remain captured and unreadable. Retained owners survive cancellation. PlayerNew completion, selected spawn placement and camera remain pending. Fresh ownership does not establish original history, timing or numeric parity.",
+        scope: "The actual reset and PlayerBasic return precede TP entry. The same inventory and sparse PlayerNew fields receive cleanup and slot writes; the TP allocation and direct visual plan precede an actual shared-wrapper skin request. Skin texture dependencies are enumerated from the retained target; default skeleton binding still blocks TP attachment and the FP call. Unknown physics operands remain captured and unreadable. Retained owners survive cancellation. PlayerNew completion, selected spawn placement and camera remain pending. Fresh ownership does not establish original history, timing or numeric parity.",
     };
     let mut digest = Sha256::new();
     digest.update(b"ge_player_attempt_v5\0");

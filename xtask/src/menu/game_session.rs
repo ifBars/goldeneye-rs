@@ -1006,6 +1006,11 @@ fn validate_player_components(component: &Value, reached: bool) -> Result<()> {
             "first_person_constructed",
             "skin_request_resolved",
             "texture_dependencies_enumerated",
+            "texture_directory_outcome",
+            "texture_requests",
+            "texture_targets_resident",
+            "texture_residency_complete",
+            "texture_requests_state_sha256",
             "component_binding_complete",
             "preparation_state_sha256",
             "target_state_sha256",
@@ -1013,17 +1018,31 @@ fn validate_player_components(component: &Value, reached: bool) -> Result<()> {
         ],
     )?;
     ensure!(
-        component["stage"] == "tp_texture_dependencies_pending"
-            && component["pending_dependency"] == "skin_texture_dependencies"
+        component["stage"] == "tp_default_skeleton_pending"
+            && component["pending_dependency"] == "tp_default_skeleton"
             && component["native_component_bytes"] == 0x1b8
             && component["constructed_slots"] == 4
             && component["active_slots"] == 1
             && component["third_person_constructed"] == true
             && component["skin_request_resolved"] == true
+            && component["texture_residency_complete"] == true
+            && [
+                "enumerated",
+                "entity_directory_absent",
+                "texture_directory_absent"
+            ]
+            .iter()
+            .any(|outcome| component["texture_directory_outcome"] == *outcome)
+            && component["texture_dependencies_enumerated"]
+                == (component["texture_directory_outcome"] == "enumerated")
+            && count(component, "texture_requests")? <= 4096
+            && count(component, "texture_requests")?
+                == count(component, "texture_targets_resident")?
+            && (component["texture_directory_outcome"] == "enumerated"
+                || component["texture_requests"] == 0)
             && [
                 "third_person_attached",
                 "first_person_constructed",
-                "texture_dependencies_enumerated",
                 "component_binding_complete"
             ]
             .into_iter()
@@ -1031,14 +1050,20 @@ fn validate_player_components(component: &Value, reached: bool) -> Result<()> {
             && (0xc8..=64 * 1024 * 1024).contains(&count(component, "retained_file_bytes")?)
             && count(component, "retained_section_bytes")?
                 <= count(component, "retained_file_bytes")?
-            && ["preparation_state_sha256", "target_state_sha256"]
-                .into_iter()
-                .all(|field| component[field]
+            && [
+                "preparation_state_sha256",
+                "target_state_sha256",
+                "texture_requests_state_sha256"
+            ]
+            .into_iter()
+            .all(
+                |field| component[field]
                     .as_str()
                     .is_some_and(|hash| hash.len() == 64
                         && hash
                             .bytes()
-                            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))))
+                            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)))
+            )
             && component["scope"]
                 .as_str()
                 .is_some_and(|scope| !scope.is_empty() && scope.len() <= 4096),
@@ -1084,7 +1109,7 @@ fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Valu
             && player["lifetime"] == "controller_arena"
             && (if virtual_reached {
                 player["stage"] == "player_components_pending"
-                    && player["pending_dependency"] == "skin_texture_dependencies"
+                    && player["pending_dependency"] == "tp_default_skeleton"
             } else {
                 player["stage"] == "player_reset_complete"
                     && player["pending_dependency"] == "constructor_source_flag"
@@ -3274,7 +3299,7 @@ mod tests {
         world["actor_definitions"]["rng_draws"] = json!(2);
         world["player_initialization"] = json!({
             "origin":"fresh_constructor_snapshot","lifetime":"controller_arena","stage":"player_components_pending",
-            "pending_dependency":"skin_texture_dependencies","operation_complete":false,"attempt_bound":true,"catalog_bound":true,
+            "pending_dependency":"tp_default_skeleton","operation_complete":false,"attempt_bound":true,"catalog_bound":true,
             "operation_entries":0,"creation_dispatches":1,"catalog_entries":2,"selected_catalog_index":1,"selected_source_ordinal":4,
             "requested_start_point_before":1,"requested_start_point_after":1,"base_constructor_complete":true,
             "handler_rng_reads":1,"base_reset_calls":2,"persistent_base_resets":2,"handler_kind_bound":false,"inventory_records":1,"inventory_capacity":16,
@@ -3324,11 +3349,13 @@ mod tests {
             .extend(links.as_object().unwrap().clone());
         world["player_initialization"]["virtual_initialization"] = virtual_init;
         world["player_initialization"]["component_initialization"] = json!({
-            "stage":"tp_texture_dependencies_pending","pending_dependency":"skin_texture_dependencies",
+            "stage":"tp_default_skeleton_pending","pending_dependency":"tp_default_skeleton",
             "native_component_bytes":0x1b8,"constructed_slots":4,"active_slots":1,
             "retained_file_bytes":1024,"retained_section_bytes":256,
             "third_person_constructed":true,"third_person_attached":false,"first_person_constructed":false,
-            "skin_request_resolved":true,"texture_dependencies_enumerated":false,"component_binding_complete":false,
+            "skin_request_resolved":true,"texture_dependencies_enumerated":true,"component_binding_complete":false,
+            "texture_directory_outcome":"enumerated","texture_requests":3,"texture_targets_resident":3,
+            "texture_residency_complete":true,"texture_requests_state_sha256":"f".repeat(64),
             "preparation_state_sha256":"d".repeat(64),"target_state_sha256":"e".repeat(64),
             "scope":"Authored TP allocation and retained skin request; textures and attachment remain pending"});
         probe
@@ -3563,7 +3590,12 @@ mod tests {
             ("third_person_attached", json!(true)),
             ("first_person_constructed", json!(true)),
             ("skin_request_resolved", json!(false)),
-            ("texture_dependencies_enumerated", json!(true)),
+            ("texture_dependencies_enumerated", json!(false)),
+            ("texture_directory_outcome", json!("unknown")),
+            ("texture_requests", json!(4097)),
+            ("texture_targets_resident", json!(2)),
+            ("texture_residency_complete", json!(false)),
+            ("texture_requests_state_sha256", json!("short")),
             ("component_binding_complete", json!(true)),
             ("native_component_bytes", json!(0)),
             ("constructed_slots", json!(1)),

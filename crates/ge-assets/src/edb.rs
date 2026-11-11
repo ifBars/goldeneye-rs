@@ -277,6 +277,33 @@ impl Edb {
         crate::skin::find_tag(&self.data, skin, tag, budget)
     }
 
+    /// Read only the reached skin texture traversal, without loading topology.
+    pub fn skin_texture_dependencies(
+        &self,
+        reference: u32,
+        budget: crate::skin::TextureBudget,
+    ) -> Result<Option<crate::skin::TextureDependencies>> {
+        ensure!(
+            self.header.version == 263,
+            "skin textures require supported EDB version"
+        );
+        crate::skin::textures_read(&self.data, &self.tables, reference, budget)
+    }
+    pub(crate) fn skin_texture_dependencies_for_skin(
+        &self,
+        skin: &crate::skin::Skin,
+        budget: crate::skin::TextureBudget,
+    ) -> Result<crate::skin::TextureDependencies> {
+        crate::skin::validate_skin(&self.data, skin)?;
+        crate::skin::textures_enumerate_at(
+            &self.data,
+            self.tables.get(2).context("missing entity directory")?,
+            self.tables.get(15).context("missing texture directory")?,
+            skin.descriptor().address,
+            budget,
+        )
+    }
+
     pub(crate) fn skin_auxiliary_count(&self, skin: &crate::skin::Skin) -> Result<u32> {
         crate::skin::auxiliary_count(&self.data, skin)
     }

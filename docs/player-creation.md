@@ -102,9 +102,24 @@ The visual row comes from direct primary-key lookup in the retained definition
 registry; it does not consume a group cursor or another random draw. Its file and
 skin feed a real target request through the existing resource wrapper. The
 player retains shared payload and logical section owners across cancellation.
-The MAX texture token requires geometry/material dependency enumeration, which
-is still pending. No empty texture list, diagnostic prewarm, TP attachment or FP
-constructor substitutes for that work.
+The skin's texture dependencies are then enumerated from that same retained
+file owner. Skin body parts (+0x68, +0x70 and +0x78 counts, summed as wrapping
+32-bit values) are read in order. Each part's low-24 reference indexes the entity
+directory directly. A 0x601 mesh is one group, an expanding 0x603 split
+contributes its children in order and 0x607/0x608 contribute nothing. Each group's
++0x54 list selects texture-directory records whose first word is the hash. Only
+hashes not yet present are appended, so first-encounter order is preserved. A
+missing entity or texture directory is a distinct outcome, not an empty list;
+absent lists, null children, unknown kinds and out-of-range indices are errors.
+A private source census of the supported Tutorial skin found five unique hashes
+across seven mesh groups and nine indices. The reader has not been verified in a
+fresh native game run. Texture discovery uses only reached geometry fields;
+bone topology, tags and unrelated payloads remain unread. Each hash then feeds
+an ordered same-wrapper target request. Successful targets retain their actual
+payload and logical section owners across cancellation, and a failed request
+preserves the completed prefix. The preparation stage reaches default skeleton
+loading only after all these requests finish. No diagnostic prewarm, TP
+attachment or FP constructor substitutes for that work.
 
 The controller arena retains actual player, item and physics objects, their
 registry rows and actor memberships across cancellation. Worker teardown leaves

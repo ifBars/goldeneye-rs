@@ -14,8 +14,9 @@ per-user flag now permits EXItem/actor registration, physics activation and the
 basic initializer's session suffix. The handler scalar retains captured unknown
 operands; its getter must fail until those inputs are resolved. TP entry now owns
 the fresh cleanup, original inventory slots, animator constructor and actual skin
-request. Geometry/material texture dependencies must finish before skeleton
-binding, TP attachment or FP construction. Later initialization and gameplay remain
+request. Geometry texture discovery now feeds ordered same-wrapper target
+requests; completed target owners survive cancellation. Default skeleton
+binding, TP attachment and FP construction remain pending. Later initialization and gameplay remain
 incomplete. docs/player-creation.md describes the reached boundary.
 
 ## Source and asset boundaries

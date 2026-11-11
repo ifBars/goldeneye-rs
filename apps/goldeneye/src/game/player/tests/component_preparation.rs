@@ -115,6 +115,84 @@ fn actual_basic_return_enters_tp_with_same_inventory_and_preserves_deferred_phys
         .unwrap();
     assert_eq!(preparation.stage(), components::Stage::AwaitingTextures);
     assert!(item.components().is_empty());
+    let enumeration = |outcome, hashes: &[u32]| components::TextureEnumeration {
+        outcome,
+        hashes: hashes.to_vec(),
+    };
+    let enumerated = components::TextureOutcome::Enumerated;
+    for (file, skin, textures) in [
+        // Another target, repeated hashes and hashes on an absent directory.
+        (visual.file(), 0x0d00_0052, enumeration(enumerated, &[1])),
+        (
+            visual.file(),
+            visual.skin(),
+            enumeration(enumerated, &[1, 2, 1]),
+        ),
+        (
+            visual.file(),
+            visual.skin(),
+            enumeration(components::TextureOutcome::TextureDirectoryAbsent, &[1]),
+        ),
+    ] {
+        assert!(
+            preparation
+                .textures_enumerated(file, skin, textures)
+                .is_err()
+        );
+        assert_eq!(preparation.stage(), components::Stage::AwaitingTextures);
+        assert!(preparation.textures().is_none());
+    }
+    preparation
+        .textures_enumerated(
+            visual.file(),
+            visual.skin(),
+            enumeration(enumerated, &[0x8600_0003, 0x0600_0000]),
+        )
+        .unwrap();
+    assert_eq!(
+        preparation.stage(),
+        components::Stage::AwaitingTextureResidency
+    );
+    assert!(preparation.finish_texture_requests().is_err());
+    let first = preparation.next_texture_request().unwrap().unwrap();
+    assert_eq!(
+        (first.file, first.target, first.ordinal),
+        (visual.file(), 0x8600_0003, 0)
+    );
+    assert!(
+        preparation
+            .texture_requested(components::TextureTargetRequest {
+                ordinal: 1,
+                ..first
+            })
+            .is_err()
+    );
+    assert_eq!(preparation.texture_requests(), 0);
+    preparation.texture_requested(first).unwrap();
+    assert!(preparation.finish_texture_requests().is_err());
+    let second = preparation.next_texture_request().unwrap().unwrap();
+    assert_eq!(
+        (second.file, second.target, second.ordinal),
+        (visual.file(), 0x0600_0000, 1)
+    );
+    assert!(preparation.texture_requested(first).is_err());
+    assert_eq!(preparation.texture_requests(), 1);
+    preparation.texture_requested(second).unwrap();
+    assert!(preparation.next_texture_request().unwrap().is_none());
+    preparation.finish_texture_requests().unwrap();
+    assert_eq!(preparation.stage(), components::Stage::AwaitingSkeleton);
+    assert!(preparation.texture_requested(second).is_err());
+    assert_eq!(
+        preparation.textures().unwrap().hashes,
+        [0x8600_0003, 0x0600_0000]
+    );
+    // One traversal per TP entry; the attachment boundary is still unbound.
+    assert!(
+        preparation
+            .textures_enumerated(visual.file(), visual.skin(), enumeration(enumerated, &[]))
+            .is_err()
+    );
+    assert!(item.components().is_empty());
 }
 
 #[test]

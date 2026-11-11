@@ -4,6 +4,9 @@ use crate::{
     edb::{Edb, Table},
 };
 use anyhow::{Context, Result, ensure};
+mod textures;
+pub use textures::{EnumeratedTextures, TextureBudget, TextureDependencies, TextureDependency};
+pub(crate) use textures::{enumerate_at as textures_enumerate_at, read as textures_read};
 
 const STRIDE: usize = 0x24;
 
@@ -89,6 +92,21 @@ impl Skin {
             "skin auxiliary lookup resource identity differs"
         );
         edb.skin_auxiliary_count(self)
+    }
+    /// Enumerate geometry texture dependencies through the same retained EDB.
+    /// Directory absence is a distinct outcome, never an empty enumeration.
+    pub fn texture_dependencies(
+        &self,
+        edb: &Edb,
+        budget: TextureBudget,
+    ) -> Result<TextureDependencies> {
+        ensure!(
+            edb.header.hash == self.resource_hash
+                && edb.header.payload_bytes == self.resource_bytes
+                && edb.header.version == 263,
+            "skin texture lookup resource identity differs"
+        );
+        edb.skin_texture_dependencies_for_skin(self, budget)
     }
     /// Use the same retained EDB owner from which this skin was read. Tags are
     /// addressed only during this lookup; later entries stay unconsumed.
@@ -178,7 +196,7 @@ pub(crate) fn read(
     }))
 }
 
-fn validate_skin(data: &[u8], skin: &Skin) -> Result<()> {
+pub(crate) fn validate_skin(data: &[u8], skin: &Skin) -> Result<()> {
     let b = Bytes(data);
     let descriptor = &skin.descriptor;
     for (i, expected) in descriptor.words_raw.iter().enumerate() {
@@ -300,3 +318,6 @@ pub(crate) fn find_tag(data: &[u8], skin: &Skin, tag: u32, budget: usize) -> Res
 #[cfg(test)]
 #[path = "tests/reader.rs"]
 mod tests;
+#[cfg(test)]
+#[path = "tests/textures.rs"]
+mod texture_tests;
