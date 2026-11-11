@@ -218,7 +218,7 @@ fn retained_actor_list_side_effect_is_not_a_completed_registration_receipt() {
 }
 
 #[test]
-fn canonical_version_two_records_typed_world_and_item_without_native_pointer_words() {
+fn canonical_version_three_records_item_identity_and_unbound_visual_link_without_native_pointers() {
     let mut first = owner();
     let mut second = owner();
     let (a, _registry_a, item_a) = fixture(21, true);
@@ -226,8 +226,9 @@ fn canonical_version_two_records_typed_world_and_item_without_native_pointer_wor
     first.bind_item(a.item(item_a).unwrap()).unwrap();
     second.bind_item(b.item(item_b).unwrap()).unwrap();
     let first_words = state(&first);
-    assert_eq!(first_words[0], 2);
-    assert_eq!(&first_words[first_words.len() - 5..], &[1, 0, 21, 0, 1]);
+    assert_eq!(first_words[0], 3);
+    assert_eq!(&first_words[first_words.len() - 6..], &[1, 0, 21, 0, 1, 0]);
+    assert_eq!(first.visual_skeleton(), None);
     assert_ne!(first_words, state(&second));
     assert_eq!(first.word(4), None);
     assert_eq!(first.word(0x224), None);
