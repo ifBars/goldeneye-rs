@@ -6,9 +6,11 @@ use ge_core::mission::player::{
 };
 use serde::Serialize;
 mod attachment;
+mod postbind;
 mod refresh;
 mod skeleton;
 pub use attachment::AttachmentBinding;
+pub use postbind::VisualPostbind;
 pub use refresh::BindRefresh;
 pub use skeleton::SkeletonBinding;
 
@@ -37,6 +39,7 @@ pub struct ComponentInitialization {
     pub skeleton_binding: SkeletonBinding,
     pub bind_refresh: BindRefresh,
     pub attachment: AttachmentBinding,
+    pub visual_postbind: VisualPostbind,
     pub scope: &'static str,
 }
 pub(super) fn build(
@@ -49,8 +52,8 @@ pub(super) fn build(
     }
     let preparation = &player.components.preparation;
     ensure!(
-        preparation.stage() == Stage::AwaitingVisualPostbind,
-        "component preparation has not reached its actual attachment return"
+        preparation.stage() == Stage::AwaitingCallbacks,
+        "component preparation has not reached its actual visual postbind return"
     );
     let owner = preparation
         .animator()
@@ -94,8 +97,8 @@ pub(super) fn build(
         "TP owner, source or attachment boundary differs"
     );
     Ok(Some(ComponentInitialization {
-        stage: "tp_visual_postbind_pending",
-        pending_dependency: "tp_visual_postbind",
+        stage: "tp_callbacks_pending",
+        pending_dependency: "tp_callback_bindings",
         native_component_bytes: 0x1b8,
         constructed_slots: 4,
         active_slots: usize::from(owner.byte(0x130).context("TP active count unknown")?),
@@ -123,6 +126,7 @@ pub(super) fn build(
         skeleton_binding: skeleton::build(player)?,
         bind_refresh: refresh::build(player)?,
         attachment: attachment::build(player, world, identities)?,
-        scope: "The retained TP animator has a distinct host component identity shared by its skeletal backlink, bind return and actual item membership. Attachment writes its item backlink and clears byte8e before appending the first component to the item list. No activation or callback is inferred from membership. The prior zero-time callback uses the controller's shared scratch and releases its scope before bind success. Visual postbind, FP construction, player completion, sampled pose and camera remain incomplete. Host identities do not establish native allocation/SDK registry history; native timing, streaming and lifetime parity remain unverified.",
+        visual_postbind: postbind::build(player, world)?,
+        scope: "The actual attached TP animator now has the visual secondary skin, repeated same-wrapper skin/texture requests, the base owner's reset override collection and the item's collection link. Empty override branches come from the retained row's MAX fields. Four headers now hold source mode3/flags1 while one slot remains active. Callback-target binding is next, before TP entry can return or FP can be constructed. Player completion, sampled pose, camera, native scheduler/history and lifetime parity remain unverified.",
     }))
 }

@@ -65,7 +65,13 @@ the skeleton backlink, bind return and item membership retain that same handle.
 Attachment writes the real item backlink, clears the source component flag and
 appends the first list node. Membership invokes no activation callback. Host
 identity ordinals establish no native allocator or SDK registry history. Visual
-postbind and the subsequent FP call remain pending.
+postbind reuses that wrapper and a lazy checked skin-body lookup to bind the
+actual visual secondary skin without reading bone topology. It repeats the
+source skin/texture requests and retains their target prefix. The base owner's
+existing override list is reset and linked to the item, whose visual flag is
+set. The retained row's MAX fields skip extra skins and explicit overrides.
+Four constructed headers receive mode3/flags1, while one slot stays active.
+Callback targets remain unbound, before TP entry return and the subsequent FP call.
 The controller arena retains the actual player/item/physics owners and registry
 rows across worker cancellation. Its world/arena mutex is separate from manager
 state, so reached reset/configuration writes can use their original owners.

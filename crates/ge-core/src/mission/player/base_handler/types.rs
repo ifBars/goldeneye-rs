@@ -46,6 +46,7 @@ pub enum Binding {
     EmptyString,
     SelfPlayer,
     LinkedItem,
+    VisualSkeleton,
 }
 impl Binding {
     pub(super) fn raw(self) -> u32 {
@@ -59,6 +60,7 @@ impl Binding {
             Self::EmptyString => 7,
             Self::SelfPlayer => 8,
             Self::LinkedItem => 9,
+            Self::VisualSkeleton => 10,
         }
     }
 }

@@ -154,10 +154,9 @@ impl Animator {
         self.bytes[0x134] = Some(0);
         self.bytes[0x135] = Some(0);
         self.word_store(0x11c, 0);
-        self.skeleton
-            .as_mut()
-            .expect("installed runtime")
-            .bind_secondary();
+        let runtime = self.skeleton.as_mut().expect("installed runtime");
+        let primary = runtime.primary();
+        runtime.bind_secondary(primary);
         self.component = Some(component);
         self.bytes[0x1c..0x20].fill(None);
         self.word_store(0x20, component.reference);
@@ -168,6 +167,24 @@ impl Animator {
     }
     pub fn skeleton(&self) -> Option<&SkeletonRuntime> {
         self.skeleton.as_ref()
+    }
+    pub(super) fn bind_visual_skin(&mut self, binding: ResourceBinding) -> Result<()> {
+        ensure!(
+            self.item.is_some(),
+            "visual skin callback needs actual item attachment"
+        );
+        self.skeleton
+            .as_mut()
+            .ok_or_else(|| anyhow::anyhow!("visual skin callback runtime is absent"))?
+            .bind_secondary(binding);
+        Ok(())
+    }
+    pub(super) fn configure_tp_headers(&mut self) {
+        for start in [0x138, 0x158, 0x178, 0x198] {
+            self.half_store(start + 8, 1);
+            self.bytes[start + 10] = Some(3);
+        }
+        self.bytes[0x8c] = self.bytes[0x8c].map(|bits| bits | 1);
     }
     pub fn component(&self) -> Option<ResourceBinding> {
         self.component

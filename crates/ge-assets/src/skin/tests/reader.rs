@@ -51,6 +51,32 @@ fn budget() -> Budget {
 }
 
 #[test]
+fn visual_body_binding_does_not_read_topology_or_trust_runtime_cache_bits() {
+    let mut data = fixture();
+    word(&mut data, 0x184, u32::MAX);
+    word(&mut data, 0x1c8, 0); // unreadable topology is outside this callback
+    let edb = Edb::parse(data).unwrap();
+    let body = edb.skin_body(0x0d00_00c1, 1).unwrap().unwrap();
+    assert_eq!(body.file(), 0x010a_00c1);
+    assert_eq!(body.reference(), 0x0d00_00c1);
+    assert_eq!(body.address(), 0x180);
+    assert_eq!(body.directory_index(), 0);
+    assert!(edb.skin(0x0d00_00c1, budget()).is_err());
+    assert!(edb.skin_body(0x0d00_00c1, 0).is_err());
+    assert!(edb.skin_body(0x0d00_00c2, 1).unwrap().is_none());
+}
+
+#[test]
+fn visual_body_binding_rejects_bad_body_or_header_instead_of_inventing_a_runtime_pointer() {
+    for value in [0, 0xffff_fffc, 0x100] {
+        let mut data = fixture();
+        word(&mut data, 0x108, value);
+        let edb = Edb::parse(data).unwrap();
+        assert!(edb.skin_body(0x0d00_00c1, 1).is_err());
+    }
+}
+
+#[test]
 fn translation_defaults_are_lazy_preserve_raw_vectors_and_use_signed_relative_fields() {
     let mut data = fixture();
     word(&mut data, 0x1c4, (0x140i32 - 0x1c4) as u32);

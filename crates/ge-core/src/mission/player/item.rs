@@ -89,6 +89,7 @@ pub struct Item {
     word_180: Option<u32>,
     factory_prefix: Option<[u32; 3]>,
     factory: Option<WrapperlessFactory>,
+    visual_overrides: Option<PlayerId>,
 }
 impl Item {
     pub(super) fn from_constructor(world: WorldId, id: ItemId, memberships: usize) -> Result<Self> {
@@ -118,6 +119,7 @@ impl Item {
             word_180: None,
             factory_prefix: None,
             factory: None,
+            visual_overrides: None,
         })
     }
     pub fn id(&self) -> ItemId {
@@ -128,6 +130,19 @@ impl Item {
     }
     pub fn flags(&self) -> u16 {
         self.flags
+    }
+    pub fn visual_overrides(&self) -> Result<PlayerId> {
+        self.visual_overrides
+            .ok_or_else(|| anyhow::anyhow!("item visual collection owner is unbound"))
+    }
+    pub(crate) fn bind_visual_overrides(&mut self, player: PlayerId) -> Result<()> {
+        ensure!(
+            self.handler == Some(player) && self.registration == Registration::Complete,
+            "visual collection requires matching actual registered handler"
+        );
+        self.visual_overrides = Some(player);
+        self.flags |= 0x80;
+        Ok(())
     }
     pub fn handler(&self) -> Option<PlayerId> {
         self.handler
@@ -298,6 +313,7 @@ impl Item {
         wide(&mut emit, self.id.get());
         emit(u32::from(self.flags));
         option(&mut emit, self.handler.map(PlayerId::get));
+        option(&mut emit, self.visual_overrides.map(PlayerId::get));
         option(&mut emit, self.physics.map(PhysicsId::get));
         for word in self
             .position

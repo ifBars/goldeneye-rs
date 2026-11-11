@@ -105,7 +105,7 @@ fn actual_basic_return_enters_tp_with_same_inventory_and_preserves_deferred_phys
     words[1] = u32::MAX;
     words[6] = 0x0100_0029;
     words[7] = 0x0d00_0051;
-    words[10] = u32::MAX;
+    words[8..13].fill(u32::MAX);
     let definitions = ge_core::mission::actor_definitions::Registry::build(
         vec![ge_core::mission::actor_definitions::Primary {
             source_index: 9,
@@ -271,6 +271,82 @@ fn actual_basic_return_enters_tp_with_same_inventory_and_preserves_deferred_phys
     assert_eq!(preparation.animator().unwrap().item(), Some(receipt.item()));
     assert_eq!(preparation.animator().unwrap().word(8), None);
     assert_eq!(preparation.animator().unwrap().byte(0x8e), Some(0));
+    preparation
+        .begin_visual_postbind(&mut base, world.item(receipt.item()).unwrap())
+        .unwrap();
+    preparation
+        .visual_skin_bound(components::ResourceBinding {
+            file: visual.file(),
+            reference: visual.callback_skin(),
+        })
+        .unwrap();
+    let repeated = preparation.textures().unwrap().clone();
+    assert!(
+        preparation
+            .finish_visual_postbind(
+                &mut base,
+                world.item_mut(receipt.item()).unwrap(),
+                components::ResourceBinding {
+                    file: visual.file(),
+                    reference: visual.skin()
+                },
+                &repeated,
+                1
+            )
+            .is_err()
+    );
+    assert_eq!(
+        preparation.stage(),
+        components::Stage::AwaitingPostbindResidency
+    );
+    assert_eq!(base.word(0x464), Some(0));
+    preparation
+        .finish_visual_postbind(
+            &mut base,
+            world.item_mut(receipt.item()).unwrap(),
+            components::ResourceBinding {
+                file: visual.file(),
+                reference: visual.skin(),
+            },
+            &repeated,
+            2,
+        )
+        .unwrap();
+    assert_eq!(preparation.stage(), components::Stage::AwaitingCallbacks);
+    assert_eq!(base.word(0x464), None);
+    assert_eq!(
+        base.visual_skeleton(),
+        Some(preparation.animator().unwrap().identity())
+    );
+    assert_eq!(base.visual_overrides().unwrap().generation, 1);
+    assert_eq!(
+        world
+            .item(receipt.item())
+            .unwrap()
+            .visual_overrides()
+            .unwrap(),
+        base.player()
+    );
+    assert_eq!(world.item(receipt.item()).unwrap().flags(), 0xab);
+    assert_eq!(
+        preparation
+            .animator()
+            .unwrap()
+            .skeleton()
+            .unwrap()
+            .secondary(),
+        Some(components::ResourceBinding {
+            file: visual.file(),
+            reference: visual.skin()
+        })
+    );
+    for start in [0x138, 0x158, 0x178, 0x198] {
+        assert_eq!(preparation.animator().unwrap().byte(start + 8), Some(0));
+        assert_eq!(preparation.animator().unwrap().byte(start + 9), Some(1));
+        assert_eq!(preparation.animator().unwrap().byte(start + 10), Some(3));
+    }
+    assert_eq!(preparation.animator().unwrap().word(0x118), Some(0));
+    assert_eq!(preparation.animator().unwrap().byte(0x8c), Some(0x11));
 }
 
 #[test]

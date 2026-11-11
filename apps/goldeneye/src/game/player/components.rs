@@ -1,5 +1,6 @@
 //! Live TP entry uses the existing inventory, definition registry and resource
 //! wrappers. No diagnostic layer initializer or elapsed prewarm runs here.
+mod postbind;
 mod skeleton;
 mod textures;
 use super::{
@@ -29,6 +30,7 @@ pub(super) struct Owned {
     pub skeleton_source: Option<post_trigger_resources::FileBinding>,
     pub component_source: Option<post_trigger_resources::FileBinding>,
     pub skin: Option<ge_assets::skin::Skin>,
+    pub postbind: postbind::Owned,
 }
 impl Owned {
     pub fn new() -> Self {
@@ -39,6 +41,7 @@ impl Owned {
             skeleton_source: None,
             component_source: None,
             skin: None,
+            postbind: postbind::Owned::new(),
         }
     }
 }
@@ -128,7 +131,16 @@ pub(super) fn initialize(
         .preparation
         .attach_tp(world.item_mut(receipt.item())?, 65_536)?;
     hook.ensure_current()?;
-    // Visual postbind and FP construction remain later source operations.
+    postbind::initialize(
+        &mut player.components,
+        &mut player.base,
+        world.item_mut(receipt.item())?,
+        sources.resources,
+        sources.assets,
+        hook,
+    )?;
+    // The next helper binds callback targets before TP entry can return and
+    // before the FP constructor is allowed to run.
     Ok(())
 }
 struct Provider<'a> {

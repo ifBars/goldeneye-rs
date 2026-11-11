@@ -184,9 +184,31 @@ leaving membership incomplete; a successful append produces an identity-bound
 attachment receipt. Dispatch cannot repeat. This membership operation performs
 no activation callback and does not mark a pose or camera ready.
 
-Visual postbind is next. It still needs the reached player callbacks and visual
-resource bindings before the remaining TP configuration or FP construction can
-run. Current attachment does not supply those missing providers.
+Visual postbind now clears the actual base owner's three visual slots and looks
+up the same retained visual wrapper. A lazy body reader resolves the requested
+skin, checks its body tag and preserves provenance without reading bone
+topology or treating the on-disk runtime-cache word as readiness. The supported
+body belongs to the logically resident base; another section still needs its
+actual provider. The player callback finds the attached animator through its
+item list. It accepts a full class-0x0d reference with nonzero low16, otherwise
+choosing the default reference; this normalization does not change the later
+raw dependency request. The callback changes the secondary skin pair without
+resizing the primary skeleton, sampling a pose or reading the unknown stamp.
+
+The source then repeats the primary skin and ordered texture requests. Their
+actual target owners share the earlier wrapper and retain completed prefixes
+across cancellation or failure. Only after those requests does the base owner's
+primary visual slot link to the actual skeletal runtime. Extra skin and explicit
+override branches are skipped because their retained row fields are MAX, not
+because a provider was absent.
+
+The same base constructor already initialized the override list at +0x474. Its
+empty reset preserves growth16, clears capacity/count/backing and increments the
+32-bit generation. Nonempty or unknown backing requires real cleanup. The list
+owner is then linked to the item and flag0x80 is set, even though the override
+list is empty. The source's four header setters write mode3/flags1 and component
+byte0x8c gains bit0; the active slot count stays one. Callback-target binding is
+the next pending source operation before TP entry can return and FP can begin.
 
 The controller arena retains actual player, item and physics objects, their
 registry rows and actor memberships across cancellation. Worker teardown leaves

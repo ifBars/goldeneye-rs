@@ -8,8 +8,10 @@ use crate::mission::player::{
 use anyhow::{Context, Result, ensure};
 mod attachment;
 mod binding;
+mod postbind;
 pub use attachment::Attachment;
 pub use binding::BindReturn;
+pub use postbind::VisualPostbind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stage {
@@ -26,6 +28,10 @@ pub enum Stage {
     AwaitingAttachment,
     Attaching,
     AwaitingVisualPostbind,
+    AwaitingVisualWrapper,
+    AwaitingPostbindResidency,
+    VisualPostbinding,
+    AwaitingCallbacks,
     Failed,
 }
 /// Directory absence ends the source loop before any part is read. It stays
@@ -71,6 +77,7 @@ pub struct Preparation {
     texture_requests: usize,
     bind_return: Option<BindReturn>,
     attachment: Option<Attachment>,
+    postbind: Option<VisualPostbind>,
 }
 impl Default for Preparation {
     fn default() -> Self {
@@ -90,6 +97,7 @@ impl Preparation {
             texture_requests: 0,
             bind_return: None,
             attachment: None,
+            postbind: None,
         }
     }
     pub fn stage(&self) -> Stage {
@@ -296,7 +304,7 @@ impl Preparation {
         result
     }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(5);
+        emit(6);
         emit(match self.stage {
             Stage::Fresh => 0,
             Stage::Clearing => 1,
@@ -312,6 +320,10 @@ impl Preparation {
             Stage::AwaitingAttachment => 11,
             Stage::Attaching => 12,
             Stage::AwaitingVisualPostbind => 13,
+            Stage::AwaitingVisualWrapper => 14,
+            Stage::AwaitingPostbindResidency => 15,
+            Stage::VisualPostbinding => 16,
+            Stage::AwaitingCallbacks => 17,
         });
         emit(u32::from(self.player.is_some()));
         if let Some(player) = self.player {
@@ -360,7 +372,11 @@ impl Preparation {
         }
         emit(u32::from(self.attachment.is_some()));
         if let Some(attachment) = &self.attachment {
-            attachment.visit_state_words(emit);
+            attachment.visit_state_words(&mut emit);
+        }
+        emit(u32::from(self.postbind.is_some()));
+        if let Some(postbind) = &self.postbind {
+            postbind.visit_state_words(emit);
         }
     }
 }

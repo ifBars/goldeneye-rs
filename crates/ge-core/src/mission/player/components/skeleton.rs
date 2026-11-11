@@ -105,10 +105,10 @@ impl SkeletonRuntime {
     pub(super) fn bind_animator(&mut self, identity: Identity) {
         self.animator = Some(identity);
     }
-    pub(super) fn bind_secondary(&mut self) {
+    pub(super) fn bind_secondary(&mut self, binding: ResourceBinding) {
         // Class0d bypasses animation-to-skin remapping. Slots58/68/78 are
         // constructor NULL, so the source alias walk retains fallback index3.
-        self.secondary = Some(self.primary);
+        self.secondary = Some(binding);
         self.flags_0f |= 8;
     }
     pub fn primary(&self) -> ResourceBinding {

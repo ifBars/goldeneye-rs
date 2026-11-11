@@ -11,7 +11,7 @@ use sha2::{Digest, Sha256};
 use std::sync::Arc;
 
 pub(crate) struct Target {
-    source: Arc<Edb>,
+    pub(super) source: Arc<Edb>,
     section: Option<Arc<Section>>,
     resolution: Resolution,
     request: Request,

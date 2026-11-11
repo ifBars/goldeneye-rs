@@ -43,6 +43,30 @@ impl Owned {
     }
 }
 impl FileBinding {
+    pub(crate) fn same_target(&self, target: &super::Target) -> bool {
+        Arc::ptr_eq(&self.source, &target.source)
+    }
+    pub(crate) fn skin_body(&self, reference: u32) -> Result<skin::Body> {
+        let target = self
+            .source
+            .target_section(reference, target_section::Budget::default())?
+            .context("visual skin descriptor is absent")?;
+        ensure!(
+            target.is_base(),
+            "visual body lookup requires non-base residency provider"
+        );
+        let body = self
+            .source
+            .skin_body(reference, 4096)?
+            .context("visual skin body is absent")?;
+        ensure!(
+            body.address()
+                .checked_add(4)
+                .is_some_and(|end| end <= self.source.header.base_bytes as usize),
+            "visual body header is outside the logically resident base"
+        );
+        Ok(body)
+    }
     pub(crate) fn file(&self) -> u32 {
         self.source.header.hash
     }

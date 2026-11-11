@@ -38,3 +38,17 @@ fn missing_targets_keep_world_hook_receipt_without_creating_a_ready_target() {
     assert!(world.is_complete());
     assert_eq!(world.evidence().resolved_requests, 2);
 }
+
+#[test]
+fn postbind_file_lookup_keeps_the_same_initial_visual_target_wrapper() {
+    let mut world = Owned::build_with(operation(SKIN, TEXTURE), |_| Edb::parse(bytes())).unwrap();
+    let source = super::super::files::retain(&mut world.files, FILE, &mut |_| {
+        panic!("duplicate wrapper load")
+    })
+    .unwrap();
+    let target = world
+        .request_target_with(FILE, SKIN, |_| panic!("duplicate wrapper load"))
+        .unwrap();
+    assert!(source.same_target(&target));
+    assert!(source.skin_body(SKIN).is_err());
+}

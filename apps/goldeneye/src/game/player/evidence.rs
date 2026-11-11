@@ -167,7 +167,7 @@ pub(super) fn build(
             "player_reset_complete"
         },
         pending_dependency: if virtual_reached {
-            "tp_visual_postbind"
+            "tp_callback_bindings"
         } else {
             "constructor_source_flag"
         },

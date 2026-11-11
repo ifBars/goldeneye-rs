@@ -9,10 +9,12 @@ mod runtime_reset;
 mod types;
 mod virtual_init;
 mod virtual_suffix;
+mod visual;
 pub use constructor_flag::{ConstructorFlagProvider, ConstructorFlagReceipt};
 pub use runtime_reset::RuntimeResetProvider;
 pub use types::{BasicReceipt, Binding, Failure, Provider, ResetReceipt, Stage};
 pub use virtual_suffix::{VirtualBasicReceipt, VirtualSessionProvider};
+pub use visual::VisualOverrides;
 
 use super::identity::{ItemId, PlayerId};
 use anyhow::{Result, ensure};
@@ -32,6 +34,7 @@ pub struct Owner {
     nested_initialized: bool,
     reset_string: Option<String>,
     item: Option<ItemId>,
+    visual_skeleton: Option<super::components::Identity>,
 }
 impl Owner {
     pub fn new(player: PlayerId) -> Self {
@@ -48,6 +51,7 @@ impl Owner {
             nested_initialized: false,
             reset_string: None,
             item: None,
+            visual_skeleton: None,
         }
     }
     fn require(&self, stage: Stage) -> Result<()> {
@@ -124,7 +128,7 @@ impl Owner {
     /// Versioned canonical scalar visitation, not a serialized native image.
     /// Width-specific maps preserve unknown padding and semantic bindings.
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(2);
+        emit(3);
         emit((self.player.get() >> 32) as u32);
         emit(self.player.get() as u32);
         emit(match self.stage {
@@ -193,6 +197,10 @@ impl Owner {
                 emit((id >> 32) as u32);
                 emit(id as u32);
             }
+        }
+        emit(u32::from(self.visual_skeleton.is_some()));
+        if let Some(identity) = self.visual_skeleton {
+            identity.visit_state_words(emit);
         }
     }
 }

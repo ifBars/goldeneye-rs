@@ -62,10 +62,21 @@ fn base_skin_lookup_owns_checked_topology_and_reads_auxiliary_count_lazily() {
     let mut files = BTreeMap::new();
     let source = retain(&mut files, FILE, &mut |_| Edb::parse(data.clone())).unwrap();
     let skin = source.skin(SKIN).unwrap();
+    let body = source.skin_body(SKIN).unwrap();
+    assert_eq!(body.file(), FILE);
+    assert_eq!(body.reference(), SKIN);
     assert_eq!(skin.bone_count(), 1);
     assert_eq!(skin.bones()[0].parent_raw, u16::MAX);
     assert_eq!(skin.bones()[0].word_6_raw, 9);
     assert_eq!(source.auxiliary_words(&skin).unwrap(), 16);
     assert!(source.skin(SKIN + 1).is_err());
     assert!(files[&FILE].sections.is_empty());
+    let mut nonresident = data.clone();
+    word(&mut nonresident, 0x18, 0x200);
+    let mut other_files = BTreeMap::new();
+    let other = retain(&mut other_files, FILE, &mut |_| {
+        Edb::parse(nonresident.clone())
+    })
+    .unwrap();
+    assert!(other.skin_body(SKIN).is_err());
 }

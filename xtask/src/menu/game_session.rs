@@ -4,6 +4,7 @@ use anyhow::{Context, Result, ensure};
 use serde_json::{Value, json};
 use std::path::Path;
 mod player_attachment;
+mod player_postbind;
 mod player_refresh;
 mod player_skeleton;
 
@@ -967,7 +968,7 @@ fn validate_player_virtual_owners(player: &Value) -> Result<bool> {
             && count(virtual_init, "origin_zone_nodes")? >= 1
             && virtual_init["desired_membership"] == 0x2d
             && virtual_init["item_membership"] == 0x3d
-            && virtual_init["item_flags"] == 0x2b
+            && virtual_init["item_flags"] == 0xab
             && virtual_init["item_priority"] == 255
             && count(player, "actor_registrations")? >= 1
             && VIRTUAL_HASHES
@@ -1020,12 +1021,13 @@ fn validate_player_components(component: &Value, reached: bool) -> Result<()> {
             "skeleton_binding",
             "bind_refresh",
             "attachment",
+            "visual_postbind",
             "scope",
         ],
     )?;
     ensure!(
-        component["stage"] == "tp_visual_postbind_pending"
-            && component["pending_dependency"] == "tp_visual_postbind"
+        component["stage"] == "tp_callbacks_pending"
+            && component["pending_dependency"] == "tp_callback_bindings"
             && component["native_component_bytes"] == 0x1b8
             && component["constructed_slots"] == 4
             && component["active_slots"] == 1
@@ -1074,6 +1076,10 @@ fn validate_player_components(component: &Value, reached: bool) -> Result<()> {
     player_skeleton::validate(&component["skeleton_binding"])?;
     player_refresh::validate(&component["bind_refresh"])?;
     player_attachment::validate(&component["attachment"])?;
+    player_postbind::validate(
+        &component["visual_postbind"],
+        count(component, "texture_requests")?,
+    )?;
     Ok(())
 }
 
@@ -1114,7 +1120,7 @@ fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Valu
             && player["lifetime"] == "controller_arena"
             && (if virtual_reached {
                 player["stage"] == "player_components_pending"
-                    && player["pending_dependency"] == "tp_visual_postbind"
+                    && player["pending_dependency"] == "tp_callback_bindings"
             } else {
                 player["stage"] == "player_reset_complete"
                     && player["pending_dependency"] == "constructor_source_flag"
@@ -3304,7 +3310,7 @@ mod tests {
         world["actor_definitions"]["rng_draws"] = json!(2);
         world["player_initialization"] = json!({
             "origin":"fresh_constructor_snapshot","lifetime":"controller_arena","stage":"player_components_pending",
-            "pending_dependency":"tp_visual_postbind","operation_complete":false,"attempt_bound":true,"catalog_bound":true,
+            "pending_dependency":"tp_callback_bindings","operation_complete":false,"attempt_bound":true,"catalog_bound":true,
             "operation_entries":0,"creation_dispatches":1,"catalog_entries":2,"selected_catalog_index":1,"selected_source_ordinal":4,
             "requested_start_point_before":1,"requested_start_point_after":1,"base_constructor_complete":true,
             "handler_rng_reads":1,"base_reset_calls":2,"persistent_base_resets":2,"handler_kind_bound":false,"inventory_records":1,"inventory_capacity":16,
@@ -3342,7 +3348,7 @@ mod tests {
             "item_registry_records":1,"item_registry_capacity":16,"item_registry_growth":16,"item_registry_counter":1,
             "item_registry_native_bytes":128,"item_registry_host_capacity_bytes":512,
             "origin_zone_queries":1,"origin_zone_nodes":2,"desired_membership":0x2d,"item_membership":0x3d,
-            "item_flags":0x2b,"item_priority":255});
+            "item_flags":0xab,"item_priority":255});
         let links = json!({"factory_complete":true,"item_registry_bound":true,"actor_registered":true,
             "handler_bound":true,"origin_zone_queried":true,"physics_constructed":true,"physics_backlink_bound":true,
             "physics_activated":true,"initializer_complete":true,"scalar_pending":true,"scalar_value_known":false,"item_state_sha256":"a".repeat(64),
@@ -3354,7 +3360,7 @@ mod tests {
             .extend(links.as_object().unwrap().clone());
         world["player_initialization"]["virtual_initialization"] = virtual_init;
         world["player_initialization"]["component_initialization"] = json!({
-            "stage":"tp_visual_postbind_pending","pending_dependency":"tp_visual_postbind",
+            "stage":"tp_callbacks_pending","pending_dependency":"tp_callback_bindings",
             "native_component_bytes":0x1b8,"constructed_slots":4,"active_slots":1,
             "retained_file_bytes":1024,"retained_section_bytes":256,
             "third_person_constructed":true,"third_person_attached":true,"first_person_constructed":false,
@@ -3365,7 +3371,8 @@ mod tests {
             "skeleton_binding":player_skeleton::tests::fixture(),
             "bind_refresh":player_refresh::tests::fixture(),
             "attachment":player_attachment::tests::fixture(),
-            "scope":"Authored TP attachment; visual postbind remains pending"});
+            "visual_postbind":player_postbind::tests::fixture(),
+            "scope":"Authored TP visual postbind; callbacks remain pending"});
         probe
     }
 

@@ -52,7 +52,12 @@ pub(super) fn build(player: &Owned) -> Result<SkeletonBinding> {
         source.file() == 0x010a_0056
             && component.file() == 0x0102_0017
             && runtime.primary() == primary
-            && runtime.secondary() == Some(primary)
+            && runtime.secondary()
+                == player
+                    .components
+                    .preparation
+                    .visual_postbind()
+                    .map(|postbind| postbind.secondary())
             && runtime.animator() == Some(animator.identity())
             && animator.player() == player.base.player()
             && animator.component()

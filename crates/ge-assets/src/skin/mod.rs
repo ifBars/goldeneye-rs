@@ -4,7 +4,10 @@ use crate::{
     edb::{Edb, Table},
 };
 use anyhow::{Context, Result, ensure};
+mod body;
 mod textures;
+pub use body::Body;
+pub(crate) use body::read as body_read;
 pub use textures::{EnumeratedTextures, TextureBudget, TextureDependencies, TextureDependency};
 pub(crate) use textures::{enumerate_at as textures_enumerate_at, read as textures_read};
 

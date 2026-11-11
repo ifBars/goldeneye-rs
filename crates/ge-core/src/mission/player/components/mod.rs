@@ -6,7 +6,7 @@ mod registry;
 mod skeleton;
 mod visual;
 pub use animator::Animator;
-pub use preparation::{Attachment, BindReturn};
+pub use preparation::{Attachment, BindReturn, VisualPostbind};
 pub use preparation::{
     Bindings, Preparation, Provider, Stage, TextureEnumeration, TextureOutcome,
     TextureTargetRequest,

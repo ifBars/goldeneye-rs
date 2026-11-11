@@ -228,6 +228,25 @@ impl Edb {
         crate::animation_modes::read(&self.data, &self.tables)
     }
 
+    /// Bind a checked visual body without reading topology or runtime caches.
+    pub fn skin_body(
+        &self,
+        reference: u32,
+        maximum_skins: usize,
+    ) -> Result<Option<crate::skin::Body>> {
+        ensure!(
+            self.header.version == 263,
+            "visual skin requires supported EDB version"
+        );
+        crate::skin::body_read(
+            &self.data,
+            self.tables.get(4).context("missing skin directory")?,
+            self.header.hash,
+            reference,
+            maximum_skins,
+        )
+    }
+
     /// Read skin topology from table four using the native coded/hash resolver.
     pub fn skin(
         &self,

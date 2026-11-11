@@ -20,8 +20,11 @@ now owns bones, auxiliary storage, animator backlinks and primary/secondary skin
 bindings. The zero-time callback now uses the controller-lived aligned animation
 arena/context and releases its reservation before the typed TP bind return.
 TP now has a persistent host component identity and is attached to its actual
-item, with matching skeletal and item backlinks. Visual postbind and FP
-construction remain pending. Later initialization and gameplay remain
+item, with matching skeletal and item backlinks. Visual postbind now reuses the
+wrapper, binds the visual secondary skin, repeats ordered dependency requests,
+resets the base owner's override list and links it to the item. Four TP headers
+are configured; callback binding is next, before TP return or FP construction.
+Later initialization and gameplay remain
 incomplete. docs/player-creation.md describes the reached boundary.
 
 ## Source and asset boundaries
