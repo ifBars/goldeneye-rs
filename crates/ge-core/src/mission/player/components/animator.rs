@@ -4,6 +4,7 @@ use super::{
     skeleton::TP_COMPONENT,
 };
 use anyhow::{Result, ensure};
+use std::sync::Arc;
 
 pub const SOURCE_BYTES: usize = 0x1b8;
 
@@ -18,6 +19,7 @@ pub struct Animator {
     flag_8f_known_mask: u8,
     skeleton: Option<SkeletonRuntime>,
     component: Option<ResourceBinding>,
+    callbacks: Option<Arc<super::callbacks::Table>>,
 }
 impl Animator {
     pub(super) fn from_constructor(identity: Identity) -> Self {
@@ -28,6 +30,7 @@ impl Animator {
             flag_8f_known_mask: 0xfe,
             skeleton: None,
             component: None,
+            callbacks: None,
         };
         for offset in [
             0, 4, 8, 0x10, 0x14, 0x1c, 0x20, 0x28, 0x5c, 0x60, 0x94, 0x114, 0x118, 0x11c, 0x120,
@@ -189,6 +192,27 @@ impl Animator {
     pub fn component(&self) -> Option<ResourceBinding> {
         self.component
     }
+    pub fn callback_table(&self) -> Option<&Arc<super::callbacks::Table>> {
+        self.callbacks.as_ref()
+    }
+    pub(super) fn bind_callback_table(
+        &mut self,
+        table: Arc<super::callbacks::Table>,
+    ) -> Result<()> {
+        ensure!(
+            self.callbacks.is_none() && self.word(0x118) == Some(0),
+            "TP callback table is already bound or unknown"
+        );
+        self.callbacks = Some(table);
+        self.bytes[0x118..0x11c].fill(None);
+        Ok(())
+    }
+    pub(super) fn assign_player_pose_callback(&mut self) -> Result<()> {
+        self.skeleton
+            .as_mut()
+            .ok_or_else(|| anyhow::anyhow!("pose callback skeleton is absent"))?
+            .assign_player_pose_callback()
+    }
     pub(super) fn refresh_empty_bind(
         &self,
         context: &mut crate::animation::scratch::Context,
@@ -229,7 +253,7 @@ impl Animator {
         (self.flag_8f_known_mask, 0)
     }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(3);
+        emit(4);
         self.identity.visit_state_words(&mut emit);
         emit(u32::from(self.item.is_some()));
         if let Some(item) = self.item {
@@ -257,6 +281,10 @@ impl Animator {
         if let Some(component) = self.component {
             emit(component.file);
             emit(component.reference);
+        }
+        emit(u32::from(self.callbacks.is_some()));
+        if let Some(table) = &self.callbacks {
+            table.visit_state_words(emit);
         }
     }
 }

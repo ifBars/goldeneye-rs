@@ -69,7 +69,9 @@ pub(super) fn build(player: &Owned, world: &World) -> Result<VisualPostbind> {
             && owner.postbind.textures.len() == enumeration.hashes.len()
             && returned.texture_requests() == enumeration.hashes.len()
             && animator.byte(0x8c) == Some(0x11)
-            && animator.word(0x118) == Some(0),
+            && animator.callback_table().is_some()
+            && animator.word(0x118).is_none()
+            && owner.preparation.third_person_return().is_some(),
         "visual postbind source or owner state differs"
     );
     for start in [0x138, 0x158, 0x178, 0x198] {
@@ -110,7 +112,7 @@ pub(super) fn build(player: &Owned, world: &World) -> Result<VisualPostbind> {
         override_count: overrides.count,
         item_collection_bound: true,
         configured_headers: 4,
-        callback_bindings_complete: false,
+        callback_bindings_complete: true,
         state_sha256: format!("{:x}", hash.finalize()),
     })
 }

@@ -139,8 +139,14 @@ pub(super) fn initialize(
         sources.assets,
         hook,
     )?;
-    // The next helper binds callback targets before TP entry can return and
-    // before the FP constructor is allowed to run.
+    player.components.preparation.finish_third_person(
+        &player.base,
+        world.item_mut(receipt.item())?,
+        hook.animation_callbacks()?,
+    )?;
+    hook.ensure_current()?;
+    // Actual TP helper return precedes the separate FP construction call. No
+    // animation event or pose postprocessor is invoked by the source tail.
     Ok(())
 }
 struct Provider<'a> {

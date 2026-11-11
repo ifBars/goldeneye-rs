@@ -1,7 +1,9 @@
 //! Sparse source constructor/reset state. Unwritten fields remain unknown.
 //! Shared RNG, global and resource mutations execute through retained providers;
 //! no independent stream/store or completed player is manufactured here.
+mod animation;
 mod basic;
+pub use animation::AnimationInterface;
 mod constructor_flag;
 mod generic;
 mod reset;
@@ -208,3 +210,7 @@ impl Owner {
 #[cfg(test)]
 #[path = "tests/mod.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "tests/callback_fixture.rs"]
+pub(crate) mod callback_fixture;

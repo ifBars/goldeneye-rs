@@ -23,7 +23,9 @@ TP now has a persistent host component identity and is attached to its actual
 item, with matching skeletal and item backlinks. Visual postbind now reuses the
 wrapper, binds the visual secondary skin, repeats ordered dependency requests,
 resets the base owner's override list and links it to the item. Four TP headers
-are configured; callback binding is next, before TP return or FP construction.
+are configured. The actual embedded receiver and shared callback table now bind
+before the typed TP helper return; FP construction is next. The pose postprocess
+target is assigned, but its body and frame scheduling remain unavailable.
 Later initialization and gameplay remain
 incomplete. docs/player-creation.md describes the reached boundary.
 

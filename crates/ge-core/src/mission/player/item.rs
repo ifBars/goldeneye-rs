@@ -90,6 +90,7 @@ pub struct Item {
     factory_prefix: Option<[u32; 3]>,
     factory: Option<WrapperlessFactory>,
     visual_overrides: Option<PlayerId>,
+    animation_interface: Option<super::base_handler::AnimationInterface>,
 }
 impl Item {
     pub(super) fn from_constructor(world: WorldId, id: ItemId, memberships: usize) -> Result<Self> {
@@ -120,6 +121,8 @@ impl Item {
             factory_prefix: None,
             factory: None,
             visual_overrides: None,
+            // The actual EXItem constructor explicitly writes NULL at +16c.
+            animation_interface: None,
         })
     }
     pub fn id(&self) -> ItemId {
@@ -130,6 +133,20 @@ impl Item {
     }
     pub fn flags(&self) -> u16 {
         self.flags
+    }
+    pub fn animation_interface(&self) -> Option<super::base_handler::AnimationInterface> {
+        self.animation_interface
+    }
+    pub(crate) fn bind_animation_interface(
+        &mut self,
+        interface: super::base_handler::AnimationInterface,
+    ) -> Result<()> {
+        ensure!(
+            self.handler == Some(interface.player()) && self.registration == Registration::Complete,
+            "animation receiver requires matching actual registered handler"
+        );
+        self.animation_interface = Some(interface);
+        Ok(())
     }
     pub fn visual_overrides(&self) -> Result<PlayerId> {
         self.visual_overrides
@@ -314,6 +331,10 @@ impl Item {
         emit(u32::from(self.flags));
         option(&mut emit, self.handler.map(PlayerId::get));
         option(&mut emit, self.visual_overrides.map(PlayerId::get));
+        emit(u32::from(self.animation_interface.is_some()));
+        if let Some(interface) = self.animation_interface {
+            interface.visit_state_words(&mut emit);
+        }
         option(&mut emit, self.physics.map(PhysicsId::get));
         for word in self
             .position

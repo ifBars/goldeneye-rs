@@ -42,3 +42,21 @@ fn animation_arena_and_context_persist_after_cancellation_without_stale_callback
         ge_core::mission::player::components::Stage::Fresh
     );
 }
+
+#[test]
+fn actual_startup_callback_table_owner_is_shared_across_attempts_and_outlives_them() {
+    let shared = Shared::from_constructor();
+    let old = shared.begin(1).unwrap();
+    let first = old.animation_callbacks().unwrap();
+    shared.invalidate();
+    let current = shared.begin(2).unwrap();
+    assert!(old.animation_callbacks().is_err());
+    let second = current.animation_callbacks().unwrap();
+    assert!(std::sync::Arc::ptr_eq(&first, &second));
+    assert_eq!(first.handlers().len(), 4);
+    drop(shared);
+    drop(current);
+    drop(old);
+    first.noop(1).unwrap();
+    second.noop(2).unwrap();
+}

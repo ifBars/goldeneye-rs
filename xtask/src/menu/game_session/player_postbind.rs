@@ -37,7 +37,7 @@ pub(super) fn validate(state: &Value, expected_textures: u64) -> Result<()> {
             && state["override_growth"] == 16
             && state["override_count"] == 0
             && state["configured_headers"] == 4
-            && state["callback_bindings_complete"] == false
+            && state["callback_bindings_complete"] == true
             && state["state_sha256"]
                 .as_str()
                 .is_some_and(|hash| hash.len() == 64
@@ -55,10 +55,10 @@ pub(super) mod tests {
     pub(in super::super) fn fixture() -> Value {
         json!({"wrapper_reused":true,"secondary_skin_bound":true,"skin_requests":1,"texture_requests":3,"texture_targets_resident":3,
             "override_generation":1,"override_capacity":0,"override_growth":16,"override_count":0,"item_collection_bound":true,
-            "configured_headers":4,"callback_bindings_complete":false,"state_sha256":"d".repeat(64)})
+            "configured_headers":4,"callback_bindings_complete":true,"state_sha256":"d".repeat(64)})
     }
     #[test]
-    fn rejects_missing_bindings_partial_requests_or_early_callbacks() {
+    fn rejects_missing_bindings_partial_requests_or_missing_callbacks() {
         validate(&fixture(), 3).unwrap();
         for (key, value) in [
             ("wrapper_reused", json!(false)),
@@ -72,7 +72,7 @@ pub(super) mod tests {
             ("override_count", json!(1)),
             ("item_collection_bound", json!(false)),
             ("configured_headers", json!(1)),
-            ("callback_bindings_complete", json!(true)),
+            ("callback_bindings_complete", json!(false)),
             ("state_sha256", json!("short")),
             ("raw_bones", json!([1, 2, 3])),
         ] {

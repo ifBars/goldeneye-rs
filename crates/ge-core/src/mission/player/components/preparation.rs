@@ -8,9 +8,11 @@ use crate::mission::player::{
 use anyhow::{Context, Result, ensure};
 mod attachment;
 mod binding;
+mod callbacks;
 mod postbind;
 pub use attachment::Attachment;
 pub use binding::BindReturn;
+pub use callbacks::ThirdPersonReturn;
 pub use postbind::VisualPostbind;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -32,6 +34,8 @@ pub enum Stage {
     AwaitingPostbindResidency,
     VisualPostbinding,
     AwaitingCallbacks,
+    BindingCallbacks,
+    AwaitingFirstPerson,
     Failed,
 }
 /// Directory absence ends the source loop before any part is read. It stays
@@ -78,6 +82,7 @@ pub struct Preparation {
     bind_return: Option<BindReturn>,
     attachment: Option<Attachment>,
     postbind: Option<VisualPostbind>,
+    third_person_return: Option<ThirdPersonReturn>,
 }
 impl Default for Preparation {
     fn default() -> Self {
@@ -98,6 +103,7 @@ impl Preparation {
             bind_return: None,
             attachment: None,
             postbind: None,
+            third_person_return: None,
         }
     }
     pub fn stage(&self) -> Stage {
@@ -304,7 +310,7 @@ impl Preparation {
         result
     }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(6);
+        emit(7);
         emit(match self.stage {
             Stage::Fresh => 0,
             Stage::Clearing => 1,
@@ -324,6 +330,8 @@ impl Preparation {
             Stage::AwaitingPostbindResidency => 15,
             Stage::VisualPostbinding => 16,
             Stage::AwaitingCallbacks => 17,
+            Stage::BindingCallbacks => 18,
+            Stage::AwaitingFirstPerson => 19,
         });
         emit(u32::from(self.player.is_some()));
         if let Some(player) = self.player {
@@ -376,7 +384,11 @@ impl Preparation {
         }
         emit(u32::from(self.postbind.is_some()));
         if let Some(postbind) = &self.postbind {
-            postbind.visit_state_words(emit);
+            postbind.visit_state_words(&mut emit);
+        }
+        emit(u32::from(self.third_person_return.is_some()));
+        if let Some(returned) = &self.third_person_return {
+            returned.visit_state_words(emit);
         }
     }
 }

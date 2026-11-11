@@ -207,8 +207,28 @@ empty reset preserves growth16, clears capacity/count/backing and increments the
 32-bit generation. Nonempty or unknown backing requires real cleanup. The list
 owner is then linked to the item and flag0x80 is set, even though the override
 list is empty. The source's four header setters write mode3/flags1 and component
-byte0x8c gains bit0; the active slot count stays one. Callback-target binding is
-the next pending source operation before TP entry can return and FP can begin.
+byte0x8c gains bit0; the active slot count stays one.
+
+The TP helper tail now stores the actual embedded player animation receiver in
+the item, then binds the animator to the shared startup callback table. The
+controller owns that table once; retained animators share the same Arc across
+cancellation and reentry. The four slots route events, two source no-ops and
+acknowledgement. Matching numeric IDs do not substitute for the same table owner.
+The skeletal runtime then records the PlayerNew pose postprocess target. This is
+only a routing assignment: its postprocess body remains unavailable and no pose
+or event is executed by this constructor tail. Only successful ordered stores
+produce the TP helper return receipt and advance to AwaitingFirstPerson.
+
+For the supported PlayerNew receiver and TP/FP animator class, event kinds 3 and
+4 return zero; kind 5 reads the existing shared base-reset byte and sign-extends
+it. A sentinel file resolves through the actual component binding before kind
+dispatch, including ignored kinds. Recognized kinds require the control channel.
+Acknowledgement invalidates its token only after a nonzero shared-byte return;
+the zero-byte branch returns false for this class, whose ancestry excludes the
+separate Sound class. Missing owner/global providers remain errors, distinct from
+known NULL receiver links. Dispatch takes the actual shared-byte provider when
+invoked; it does not capture a new constant or execute during binding. Live frame
+scheduling and Sound-class callback behavior remain outside this reached path.
 
 The controller arena retains actual player, item and physics objects, their
 registry rows and actor memberships across cancellation. Worker teardown leaves

@@ -156,7 +156,7 @@ pub(super) fn build(
     );
     let constructor_flag = owners::flag(owned)?;
     let virtual_initialization = owners::virtual_init(owned, world, registry)?;
-    let component_initialization = components::build(owned, world, identities)?;
+    let component_initialization = components::build(owned, world, identities, hook)?;
     let virtual_reached = virtual_initialization.is_some();
     let mut result = Evidence {
         origin: "fresh_constructor_snapshot",
@@ -167,7 +167,7 @@ pub(super) fn build(
             "player_reset_complete"
         },
         pending_dependency: if virtual_reached {
-            "tp_callback_bindings"
+            "fp_component"
         } else {
             "constructor_source_flag"
         },

@@ -4,6 +4,13 @@ use super::Identity;
 use crate::animation::skeleton::{self, BoneInput, Skeleton};
 use anyhow::{Context, Result, ensure};
 
+/// Known code target assigned by the TP helper. It is a routing identity, not
+/// an evaluated pose or proof that the later postprocess call has its inputs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PoseCallback {
+    PlayerNewPostprocess,
+}
+
 pub const DEFAULT_SKIN: ResourceBinding = ResourceBinding {
     file: 0x010a_0056,
     reference: 0x0d00_0001,
@@ -54,6 +61,7 @@ pub struct SkeletonRuntime {
     flags_0f: u8,
     aliases: [u8; 4],
     native_storage_bytes: usize,
+    pose_callback: Option<PoseCallback>,
 }
 impl SkeletonRuntime {
     pub(super) fn initialize(input: SkeletonInput<'_>, budget: SkeletonBudget) -> Result<Self> {
@@ -100,6 +108,7 @@ impl SkeletonRuntime {
             flags_0f: 0x0f,
             aliases: [3; 4],
             native_storage_bytes,
+            pose_callback: None,
         })
     }
     pub(super) fn bind_animator(&mut self, identity: Identity) {
@@ -133,8 +142,19 @@ impl SkeletonRuntime {
     pub fn native_storage_bytes(&self) -> usize {
         self.native_storage_bytes
     }
+    pub fn pose_callback(&self) -> Option<PoseCallback> {
+        self.pose_callback
+    }
+    pub(super) fn assign_player_pose_callback(&mut self) -> Result<()> {
+        ensure!(
+            self.animator.is_some() && self.pose_callback.is_none(),
+            "pose callback requires the actual fresh animator backlink"
+        );
+        self.pose_callback = Some(PoseCallback::PlayerNewPostprocess);
+        Ok(())
+    }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(2);
+        emit(3);
         for binding in [Some(self.primary), self.secondary] {
             emit(u32::from(binding.is_some()));
             if let Some(binding) = binding {
@@ -188,5 +208,9 @@ impl SkeletonRuntime {
         for word in &self.auxiliary {
             emit(*word);
         }
+        emit(match self.pose_callback {
+            None => 0,
+            Some(PoseCallback::PlayerNewPostprocess) => 1,
+        });
     }
 }

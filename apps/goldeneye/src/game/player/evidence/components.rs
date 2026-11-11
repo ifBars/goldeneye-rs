@@ -6,10 +6,12 @@ use ge_core::mission::player::{
 };
 use serde::Serialize;
 mod attachment;
+mod callbacks;
 mod postbind;
 mod refresh;
 mod skeleton;
 pub use attachment::AttachmentBinding;
+pub use callbacks::CallbackBinding;
 pub use postbind::VisualPostbind;
 pub use refresh::BindRefresh;
 pub use skeleton::SkeletonBinding;
@@ -40,20 +42,22 @@ pub struct ComponentInitialization {
     pub bind_refresh: BindRefresh,
     pub attachment: AttachmentBinding,
     pub visual_postbind: VisualPostbind,
+    pub callbacks: CallbackBinding,
     pub scope: &'static str,
 }
 pub(super) fn build(
     player: &Owned,
     world: &World,
     identities: &ge_core::mission::player::components::Registry,
+    hook: &crate::game::world_hooks::Attempt,
 ) -> Result<Option<ComponentInitialization>> {
     if player.flag.is_none() {
         return Ok(None);
     }
     let preparation = &player.components.preparation;
     ensure!(
-        preparation.stage() == Stage::AwaitingCallbacks,
-        "component preparation has not reached its actual visual postbind return"
+        preparation.stage() == Stage::AwaitingFirstPerson,
+        "component preparation has not reached its actual TP helper return"
     );
     let owner = preparation
         .animator()
@@ -97,8 +101,8 @@ pub(super) fn build(
         "TP owner, source or attachment boundary differs"
     );
     Ok(Some(ComponentInitialization {
-        stage: "tp_callbacks_pending",
-        pending_dependency: "tp_callback_bindings",
+        stage: "fp_component_pending",
+        pending_dependency: "fp_component",
         native_component_bytes: 0x1b8,
         constructed_slots: 4,
         active_slots: usize::from(owner.byte(0x130).context("TP active count unknown")?),
@@ -127,6 +131,7 @@ pub(super) fn build(
         bind_refresh: refresh::build(player)?,
         attachment: attachment::build(player, world, identities)?,
         visual_postbind: postbind::build(player, world)?,
-        scope: "The actual attached TP animator now has the visual secondary skin, repeated same-wrapper skin/texture requests, the base owner's reset override collection and the item's collection link. Empty override branches come from the retained row's MAX fields. Four headers now hold source mode3/flags1 while one slot remains active. Callback-target binding is next, before TP entry can return or FP can be constructed. Player completion, sampled pose, camera, native scheduler/history and lifetime parity remain unverified.",
+        callbacks: callbacks::build(player, world, hook)?,
+        scope: "The TP helper returned after binding the actual embedded player receiver, shared four-slot callback table and pose postprocess routing target. No event or pose callback executes on this constructor tail. FP construction is next. Pose postprocessing, frame scheduling, player completion, camera and native history remain incomplete or unverified.",
     }))
 }

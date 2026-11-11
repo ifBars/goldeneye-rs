@@ -347,6 +347,43 @@ fn actual_basic_return_enters_tp_with_same_inventory_and_preserves_deferred_phys
     }
     assert_eq!(preparation.animator().unwrap().word(0x118), Some(0));
     assert_eq!(preparation.animator().unwrap().byte(0x8c), Some(0x11));
+    let table = std::sync::Arc::new(components::callbacks::Table::from_constructor(1).unwrap());
+    preparation
+        .finish_third_person(
+            &base,
+            world.item_mut(receipt.item()).unwrap(),
+            std::sync::Arc::clone(&table),
+        )
+        .unwrap();
+    assert_eq!(preparation.stage(), components::Stage::AwaitingFirstPerson);
+    let returned = preparation.third_person_return().unwrap();
+    assert_eq!(
+        returned.component(),
+        preparation.animator().unwrap().identity()
+    );
+    assert_eq!(
+        world.item(receipt.item()).unwrap().animation_interface(),
+        Some(base.animation_interface().unwrap())
+    );
+    assert!(std::sync::Arc::ptr_eq(
+        preparation.animator().unwrap().callback_table().unwrap(),
+        &table
+    ));
+    assert_eq!(preparation.animator().unwrap().word(0x118), None);
+    assert_eq!(
+        preparation
+            .animator()
+            .unwrap()
+            .skeleton()
+            .unwrap()
+            .pose_callback(),
+        Some(components::PoseCallback::PlayerNewPostprocess)
+    );
+    assert!(
+        preparation
+            .finish_third_person(&base, world.item_mut(receipt.item()).unwrap(), table)
+            .is_err()
+    );
 }
 
 #[test]

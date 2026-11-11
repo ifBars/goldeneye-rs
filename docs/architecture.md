@@ -71,7 +71,14 @@ source skin/texture requests and retains their target prefix. The base owner's
 existing override list is reset and linked to the item, whose visual flag is
 set. The retained row's MAX fields skip extra skins and explicit overrides.
 Four constructed headers receive mode3/flags1, while one slot stays active.
-Callback targets remain unbound, before TP entry return and the subsequent FP call.
+The actual embedded player animation receiver now links to the item. The TP
+animator retains the same constructor-owned four-slot callback table across
+attempts, and its skeletal runtime records the PlayerNew postprocess target.
+These assignments invoke no event or pose work. Supported PlayerNew event routes
+preserve file fallback, signed reset-byte returns and acknowledgement token
+updates; required owner/global inputs remain fallible. A typed TP helper return
+now precedes FP construction. Pose postprocessing and frame dispatch remain
+unavailable; this return does not establish player or gameplay readiness.
 The controller arena retains the actual player/item/physics owners and registry
 rows across worker cancellation. Its world/arena mutex is separate from manager
 state, so reached reset/configuration writes can use their original owners.

@@ -5,6 +5,19 @@ use anyhow::Result;
 use ge_core::mission::player::components::Preparation;
 
 impl Attempt {
+    pub fn animation_callbacks(
+        &self,
+    ) -> Result<std::sync::Arc<ge_core::mission::player::components::callbacks::Table>> {
+        self.ensure_current()?;
+        let state = self
+            .shared
+            .0
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("animation callback owner lock is poisoned"))?;
+        self.ensure_current()?;
+        Ok(std::sync::Arc::clone(&state.animation_callbacks))
+    }
     pub fn finish_tp_bind(&self, preparation: &mut Preparation) -> Result<()> {
         self.ensure_current()?;
         let mut state = self
