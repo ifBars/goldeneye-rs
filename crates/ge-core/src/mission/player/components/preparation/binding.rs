@@ -1,4 +1,4 @@
-use super::{PlayerId, Preparation, Stage};
+use super::{Identity, PlayerId, Preparation, Stage};
 use crate::animation::scratch::{Arena, Context as RefreshContext, Refresh};
 use anyhow::{Context, Result, ensure};
 
@@ -6,7 +6,7 @@ use anyhow::{Context, Result, ensure};
 /// This receipt does not attach a component or complete PlayerNew.
 #[derive(Debug)]
 pub struct BindReturn {
-    player: PlayerId,
+    component: Identity,
     refresh: Refresh,
 }
 impl Preparation {
@@ -34,7 +34,7 @@ impl Preparation {
         match animator.refresh_empty_bind(context, arena) {
             Ok(refresh) => {
                 self.bind_return = Some(BindReturn {
-                    player: animator.player(),
+                    component: animator.identity(),
                     refresh,
                 });
                 self.stage = Stage::AwaitingAttachment;
@@ -49,15 +49,17 @@ impl Preparation {
 }
 impl BindReturn {
     pub fn player(&self) -> PlayerId {
-        self.player
+        self.component.player()
+    }
+    pub fn component(&self) -> Identity {
+        self.component
     }
     pub fn refresh(&self) -> &Refresh {
         &self.refresh
     }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(1);
-        emit((self.player.get() >> 32) as u32);
-        emit(self.player.get() as u32);
+        emit(2);
+        self.component.visit_state_words(&mut emit);
         self.refresh.visit_state_words(emit);
     }
 }

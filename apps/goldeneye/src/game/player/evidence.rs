@@ -97,6 +97,7 @@ pub(super) fn build(
     owned: &Owned,
     world: &World,
     registry: &ge_core::mission::player::item_registry::Registry,
+    identities: &ge_core::mission::player::components::Registry,
     hook: &Attempt,
 ) -> Result<Evidence> {
     ensure!(
@@ -155,7 +156,7 @@ pub(super) fn build(
     );
     let constructor_flag = owners::flag(owned)?;
     let virtual_initialization = owners::virtual_init(owned, world, registry)?;
-    let component_initialization = components::build(owned, world)?;
+    let component_initialization = components::build(owned, world, identities)?;
     let virtual_reached = virtual_initialization.is_some();
     let mut result = Evidence {
         origin: "fresh_constructor_snapshot",
@@ -166,7 +167,7 @@ pub(super) fn build(
             "player_reset_complete"
         },
         pending_dependency: if virtual_reached {
-            "tp_attachment"
+            "tp_visual_postbind"
         } else {
             "constructor_source_flag"
         },

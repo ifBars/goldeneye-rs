@@ -20,6 +20,7 @@ pub(crate) struct Sources<'a> {
     pub definitions: &'a Definitions,
     pub resources: &'a mut post_trigger_resources::Owned,
     pub assets: &'a mut ge_assets::resource::GameAssets,
+    pub identities: &'a mut components::Registry,
 }
 pub(super) struct Owned {
     pub preparation: Preparation,
@@ -44,7 +45,7 @@ impl Owned {
 pub(super) fn initialize(
     player: &mut Player,
     sources: Sources<'_>,
-    world: &World,
+    world: &mut World,
     hook: &world_hooks::Attempt,
 ) -> Result<()> {
     hook.ensure_current()?;
@@ -67,6 +68,7 @@ pub(super) fn initialize(
         &mut Provider {
             session: sources.session,
             hook,
+            identities: sources.identities,
         },
     )?;
     hook.ensure_current()?;
@@ -120,15 +122,28 @@ pub(super) fn initialize(
         hook,
     )?;
     hook.finish_tp_bind(&mut player.components.preparation)?;
-    // The successful bind return permits attachment next. Visual postbind and
-    // FP construction remain later operations.
+    hook.ensure_current()?;
+    player
+        .components
+        .preparation
+        .attach_tp(world.item_mut(receipt.item())?, 65_536)?;
+    hook.ensure_current()?;
+    // Visual postbind and FP construction remain later source operations.
     Ok(())
 }
 struct Provider<'a> {
     session: &'a Session,
     hook: &'a world_hooks::Attempt,
+    identities: &'a mut components::Registry,
 }
 impl components::Provider for Provider<'_> {
+    fn allocate_animator(
+        &mut self,
+        player: ge_core::mission::player::identity::PlayerId,
+    ) -> Result<components::Identity> {
+        self.hook.ensure_current()?;
+        self.identities.allocate(player)
+    }
     fn session_manager_present(&mut self) -> Result<bool> {
         self.hook.ensure_current()?;
         ensure!(

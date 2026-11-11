@@ -53,7 +53,7 @@ pub(super) fn build(player: &Owned) -> Result<SkeletonBinding> {
             && component.file() == 0x0102_0017
             && runtime.primary() == primary
             && runtime.secondary() == Some(primary)
-            && runtime.animator() == Some(animator.player())
+            && runtime.animator() == Some(animator.identity())
             && animator.player() == player.base.player()
             && animator.component()
                 == Some(ResourceBinding {

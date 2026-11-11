@@ -5,8 +5,10 @@ use ge_core::mission::player::{
     world::World,
 };
 use serde::Serialize;
+mod attachment;
 mod refresh;
 mod skeleton;
+pub use attachment::AttachmentBinding;
 pub use refresh::BindRefresh;
 pub use skeleton::SkeletonBinding;
 
@@ -34,16 +36,21 @@ pub struct ComponentInitialization {
     pub target_state_sha256: String,
     pub skeleton_binding: SkeletonBinding,
     pub bind_refresh: BindRefresh,
+    pub attachment: AttachmentBinding,
     pub scope: &'static str,
 }
-pub(super) fn build(player: &Owned, world: &World) -> Result<Option<ComponentInitialization>> {
+pub(super) fn build(
+    player: &Owned,
+    world: &World,
+    identities: &ge_core::mission::player::components::Registry,
+) -> Result<Option<ComponentInitialization>> {
     if player.flag.is_none() {
         return Ok(None);
     }
     let preparation = &player.components.preparation;
     ensure!(
-        preparation.stage() == Stage::AwaitingAttachment,
-        "component preparation has not returned from its actual bind callback"
+        preparation.stage() == Stage::AwaitingVisualPostbind,
+        "component preparation has not reached its actual attachment return"
     );
     let owner = preparation
         .animator()
@@ -82,20 +89,20 @@ pub(super) fn build(player: &Owned, world: &World) -> Result<Option<ComponentIni
         owner.player() == player.base.player()
             && target.file() == visual.file()
             && target.target() == visual.skin()
-            && world.item(receipt.item())?.components().is_empty()
+            && world.item(receipt.item())?.components() == [owner.identity().id()]
             && preparation.textures().is_some(),
         "TP owner, source or attachment boundary differs"
     );
     Ok(Some(ComponentInitialization {
-        stage: "tp_attachment_pending",
-        pending_dependency: "tp_attachment",
+        stage: "tp_visual_postbind_pending",
+        pending_dependency: "tp_visual_postbind",
         native_component_bytes: 0x1b8,
         constructed_slots: 4,
         active_slots: usize::from(owner.byte(0x130).context("TP active count unknown")?),
         retained_file_bytes: target.file_bytes(),
         retained_section_bytes: target.section_bytes(),
         third_person_constructed: true,
-        third_person_attached: false,
+        third_person_attached: true,
         first_person_constructed: false,
         skin_request_resolved: true,
         texture_dependencies_enumerated: textures.outcome == TextureOutcome::Enumerated,
@@ -115,6 +122,7 @@ pub(super) fn build(player: &Owned, world: &World) -> Result<Option<ComponentIni
         target_state_sha256: target.fingerprint(),
         skeleton_binding: skeleton::build(player)?,
         bind_refresh: refresh::build(player)?,
-        scope: "The TP constructor, skin and ordered texture requests use retained owners. Primary/secondary skeleton and component references are bound. The empty zero-time callback uses the controller's shared aligned scratch arena, binds four context regions, clears shared flags and releases its reservation before the actual bind return. It samples no pose and resolves no captured frame-counter input. TP attachment, visual postbind, FP construction, player completion and camera remain incomplete. Native streaming/history, timing and lifetime parity remain unverified.",
+        attachment: attachment::build(player, world, identities)?,
+        scope: "The retained TP animator has a distinct host component identity shared by its skeletal backlink, bind return and actual item membership. Attachment writes its item backlink and clears byte8e before appending the first component to the item list. No activation or callback is inferred from membership. The prior zero-time callback uses the controller's shared scratch and releases its scope before bind success. Visual postbind, FP construction, player completion, sampled pose and camera remain incomplete. Host identities do not establish native allocation/SDK registry history; native timing, streaming and lifetime parity remain unverified.",
     }))
 }

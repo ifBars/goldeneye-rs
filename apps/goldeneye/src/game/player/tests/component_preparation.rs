@@ -1,12 +1,28 @@
 use super::*;
 use ge_core::mission::player::components::{self, Preparation};
 
-#[derive(Default)]
 struct EntryProvider {
     fail: bool,
     calls: Vec<&'static str>,
+    identities: components::Registry,
+}
+impl Default for EntryProvider {
+    fn default() -> Self {
+        Self {
+            fail: false,
+            calls: Vec::new(),
+            identities: components::Registry::from_constructor(8),
+        }
+    }
 }
 impl components::Provider for EntryProvider {
+    fn allocate_animator(
+        &mut self,
+        player: ge_core::mission::player::identity::PlayerId,
+    ) -> Result<components::Identity> {
+        self.calls.push("allocate");
+        self.identities.allocate(player)
+    }
     fn session_manager_present(&mut self) -> Result<bool> {
         self.calls.push("manager");
         ensure!(!self.fail, "authored missing provider");
@@ -50,7 +66,7 @@ fn actual_basic_return_enters_tp_with_same_inventory_and_preserves_deferred_phys
         )
         .unwrap();
     assert_eq!(preparation.stage(), components::Stage::AwaitingVisual);
-    assert_eq!(provider.calls, ["manager"]);
+    assert_eq!(provider.calls, ["manager", "allocate"]);
     assert_eq!(prelude.inventory().records(), inventory_before);
     assert_eq!(prelude.inventory().selection(), selection_before);
     assert_eq!(prelude.inventory().slots().c55, Some(0xff));
@@ -77,7 +93,7 @@ fn actual_basic_return_enters_tp_with_same_inventory_and_preserves_deferred_phys
             )
             .is_err()
     );
-    assert_eq!(provider.calls, ["manager"]);
+    assert_eq!(provider.calls, ["manager", "allocate"]);
     assert!(
         preparation
             .skin_requested(0x0100_0001, 0x0d00_0001)
@@ -220,7 +236,10 @@ fn actual_basic_return_enters_tp_with_same_inventory_and_preserves_deferred_phys
         components::Stage::AwaitingAnimationRefresh
     );
     let runtime = preparation.animator().unwrap().skeleton().unwrap();
-    assert_eq!(runtime.animator(), Some(base.player()));
+    assert_eq!(
+        runtime.animator(),
+        Some(preparation.animator().unwrap().identity())
+    );
     assert_eq!(runtime.auxiliary(), &[0; 4]);
     assert!(item.components().is_empty());
     let mut arena = ge_core::animation::scratch::Arena::from_constructor(1).unwrap();
@@ -232,6 +251,26 @@ fn actual_basic_return_enters_tp_with_same_inventory_and_preserves_deferred_phys
     assert_eq!(preparation.bind_return().unwrap().player(), base.player());
     assert_eq!(arena.cursor(), 0);
     assert!(item.components().is_empty());
+    preparation
+        .attach_tp(world.item_mut(receipt.item()).unwrap(), 8)
+        .unwrap();
+    assert_eq!(
+        preparation.stage(),
+        components::Stage::AwaitingVisualPostbind
+    );
+    let attachment = preparation.attachment().unwrap();
+    assert_eq!(attachment.item(), receipt.item());
+    assert_eq!(
+        provider.identities.resolve(attachment.component().id()),
+        Some(attachment.component())
+    );
+    assert_eq!(
+        world.item(receipt.item()).unwrap().components(),
+        &[attachment.component().id()]
+    );
+    assert_eq!(preparation.animator().unwrap().item(), Some(receipt.item()));
+    assert_eq!(preparation.animator().unwrap().word(8), None);
+    assert_eq!(preparation.animator().unwrap().byte(0x8e), Some(0));
 }
 
 #[test]

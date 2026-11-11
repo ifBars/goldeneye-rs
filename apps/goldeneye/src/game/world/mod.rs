@@ -348,11 +348,17 @@ impl OwnedWorld {
                                 .as_mut()
                                 .context("player resource owner is absent")?,
                             assets,
+                            identities: &mut actors.components,
                         },
-                        &actors.world,
+                        &mut actors.world,
                         hook,
                     )?;
-                    let evidence = player.evidence(&actors.world, &actors.registry, hook)?;
+                    let evidence = player.evidence(
+                        &actors.world,
+                        &actors.registry,
+                        &actors.components,
+                        hook,
+                    )?;
                     Ok((id, evidence, player.dependency()))
                 })?;
                 self.evidence.player_initialization = Some(evidence);

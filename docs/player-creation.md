@@ -165,9 +165,28 @@ cannot publish a bind receipt or replay its callback.
 
 Only that successful refresh permits the typed TP bind return. Its receipt
 includes the actual reservation prefix, release cursor and shared operation
-ordinals. It does not complete TP entry: attachment, visual postbind, FP
-construction and later player work remain pending. No diagnostic prewarm
-substitutes for those operations.
+ordinals. It does not complete TP entry. No diagnostic prewarm substitutes for
+the following attachment, visual postbind, FP construction or later player work.
+
+The TP constructor now receives a distinct identity from the controller's
+persistent component registry. This is a checked host handle for the retained
+animator, not a native address or a reconstruction of SDK allocation history.
+Multiple components can belong to one player without sharing a handle. The
+skeletal runtime and typed bind return carry the exact component identity.
+Canceled attempts retain existing registry rows and cannot reuse those handles.
+
+After successful binding, attachment checks the actual registered item, player
+and component identities. It writes the item backlink, clears component byte
+0x8e and writes the first node's NULL previous/next links before appending to
+the item's component list. The semantic item link replaces constructor NULL in
+the sparse numeric view. A checked list failure retains earlier writes while
+leaving membership incomplete; a successful append produces an identity-bound
+attachment receipt. Dispatch cannot repeat. This membership operation performs
+no activation callback and does not mark a pose or camera ready.
+
+Visual postbind is next. It still needs the reached player callbacks and visual
+resource bindings before the remaining TP configuration or FP construction can
+run. Current attachment does not supply those missing providers.
 
 The controller arena retains actual player, item and physics objects, their
 registry rows and actor memberships across cancellation. Worker teardown leaves

@@ -65,3 +65,32 @@ fn cancelled_factory_references_keep_actual_world_owners_and_monotonic_registry(
         })
         .unwrap();
 }
+
+#[test]
+fn component_identity_ledger_survives_cancel_and_never_reuses_a_retained_handle() {
+    let shared = Shared::from_constructor();
+    let old = shared.begin(1).unwrap();
+    let first = old
+        .with_player_actors(|actors| {
+            actors
+                .components
+                .allocate(ge_core::mission::player::identity::PlayerId::new(7)?)
+        })
+        .unwrap();
+    shared.invalidate();
+    let current = shared.begin(2).unwrap();
+    assert!(
+        old.with_player_actors::<()>(|_| panic!("stale component allocation"))
+            .is_err()
+    );
+    current
+        .with_player_actors(|actors| {
+            assert_eq!(actors.components.resolve(first.id()), Some(first));
+            let second = actors.components.allocate(first.player())?;
+            assert_ne!(first.id(), second.id());
+            assert_eq!(actors.components.len(), 2);
+            assert_eq!(actors.components.resolve(second.id()), Some(second));
+            Ok(())
+        })
+        .unwrap();
+}

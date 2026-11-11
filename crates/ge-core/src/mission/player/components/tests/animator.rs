@@ -1,8 +1,15 @@
 use super::*;
+fn animator(player: PlayerId) -> Animator {
+    Animator::from_constructor(
+        super::super::Registry::from_constructor(1)
+            .allocate(player)
+            .unwrap(),
+    )
+}
 
 #[test]
 fn actual_constructor_retains_null_links_four_headers_one_active_slot_and_unknown_padding() {
-    let owner = Animator::from_constructor(PlayerId::new(37).unwrap());
+    let owner = animator(PlayerId::new(37).unwrap());
     assert_eq!(owner.player().get(), 37);
     for at in [0, 4, 8, 0x114, 0x118, 0x124, 0x12c] {
         assert_eq!(owner.word(at), Some(0));
@@ -26,7 +33,7 @@ fn actual_constructor_retains_null_links_four_headers_one_active_slot_and_unknow
 
 #[test]
 fn base_flag_keeps_unwritten_bit_and_constructor_transforms_are_not_sampled_poses() {
-    let owner = Animator::from_constructor(PlayerId::new(1).unwrap());
+    let owner = animator(PlayerId::new(1).unwrap());
     assert_eq!(owner.byte(0x8f), None);
     assert_eq!(owner.flag_8f_known_bits(), (0xfe, 0));
     assert_eq!(owner.word(0x108), Some(1f32.to_bits()));
@@ -44,7 +51,7 @@ fn base_flag_keeps_unwritten_bit_and_constructor_transforms_are_not_sampled_pose
     assert_eq!(owner.word(usize::MAX), None);
     let mut first = Vec::new();
     owner.visit_state_words(|word| first.push(word));
-    let other = Animator::from_constructor(PlayerId::new(2).unwrap());
+    let other = animator(PlayerId::new(2).unwrap());
     let mut second = Vec::new();
     other.visit_state_words(|word| second.push(word));
     assert_ne!(first, second);
@@ -55,7 +62,7 @@ fn reached_nonempty_or_updated_control_headers_require_their_actual_callbacks() 
     use super::super::skeleton::DEFAULT_SKIN;
     use crate::animation::scratch::{Arena, Context};
     for at in [0x138, 0x13c, 0x140, 0x144] {
-        let mut owner = Animator::from_constructor(PlayerId::new(7).unwrap());
+        let mut owner = animator(PlayerId::new(7).unwrap());
         owner
             .bind_skeleton(
                 SkeletonInput {

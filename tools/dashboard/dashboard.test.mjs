@@ -2263,7 +2263,7 @@ test('incomplete loader Wait28 retains its pending phase and legacy zero session
 
 function playerPreludeFixture(catalogEntries=2) {
   return {origin:'fresh_constructor_snapshot',lifetime:'controller_arena',stage:'player_components_pending',
-    pending_dependency:'tp_attachment',operation_complete:false,attempt_bound:true,catalog_bound:true,
+    pending_dependency:'tp_visual_postbind',operation_complete:false,attempt_bound:true,catalog_bound:true,
     operation_entries:0,creation_dispatches:1,catalog_entries:catalogEntries,selected_catalog_index:1,selected_source_ordinal:4,
     requested_start_point_before:1,requested_start_point_after:1,base_constructor_complete:true,
     handler_rng_reads:1,base_reset_calls:2,persistent_base_resets:2,handler_kind_bound:false,
@@ -2287,6 +2287,10 @@ function playerPreludeFixture(catalogEntries=2) {
     component_initialization:componentPlayerFixture(),
     scope:'Authored retained EXItem actor and capsule; basic return with unresolved scalar; PlayerNew remains incomplete'};
 }
+function attachmentPlayerFixture() {
+  return {identity_registered:true,item_backlink_bound:true,item_list_member:true,item_list_ordinal:0,
+    item_components:1,registry_identities:1,component_flag_8e:0,first_node_links_null:true,state_sha256:'c'.repeat(64)};
+}
 function refreshPlayerFixture() {
   return {arena_bytes:0x4000,reserved_bytes:0x2200,reservation_start:0,cursor_after:0,
     live_reservations_after:0,refresh_ordinal:1,allocation_ordinal:1,regions_bound:4,
@@ -2299,13 +2303,13 @@ function skeletonPlayerFixture() {
     retained_component_file_bytes:2048,state_sha256:'a'.repeat(64)};
 }
 function componentPlayerFixture() {
-  return {stage:'tp_attachment_pending',pending_dependency:'tp_attachment',
+  return {stage:'tp_visual_postbind_pending',pending_dependency:'tp_visual_postbind',
     native_component_bytes:0x1b8,constructed_slots:4,active_slots:1,retained_file_bytes:1024,retained_section_bytes:256,
-    third_person_constructed:true,third_person_attached:false,first_person_constructed:false,skin_request_resolved:true,
+    third_person_constructed:true,third_person_attached:true,first_person_constructed:false,skin_request_resolved:true,
     texture_dependencies_enumerated:true,component_binding_complete:true,
     texture_directory_outcome:'enumerated',texture_requests:3,texture_targets_resident:3,
     texture_residency_complete:true,texture_requests_state_sha256:'f'.repeat(64),preparation_state_sha256:'d'.repeat(64),
-    target_state_sha256:'e'.repeat(64),skeleton_binding:skeletonPlayerFixture(),bind_refresh:refreshPlayerFixture(),scope:'Authored TP bind return; attachment pending'};
+    target_state_sha256:'e'.repeat(64),skeleton_binding:skeletonPlayerFixture(),bind_refresh:refreshPlayerFixture(),attachment:attachmentPlayerFixture(),scope:'Authored TP attachment; visual postbind pending'};
 }
 function virtualPlayerFixture() {
   return {stage:'player_basic_complete',pending_dependency:'tp_fp_components',
@@ -2522,9 +2526,9 @@ test('TP skeleton binding keeps shared refresh attachment and FP explicit',async
     const text=d.querySelector('#game-session-summary').textContent;
     assert.match(text,/Third-person constructor retained: 4 animation slots, 1 active/);
     assert.match(text,/skin request retains 1,024 file bytes and 256 logical section bytes/);
-    assert.match(text,/Texture residency completed: 3 ordered target requests. Default skeleton initialized: 2 bones and 4 auxiliary words. Its animator backlink and secondary skin are bound. Shared zero-time refresh completed and released its scratch reservation. TP attachment and FP construction remain pending/);
+    assert.match(text,/Texture residency completed: 3 ordered target requests. Default skeleton initialized: 2 bones and 4 auxiliary words. Its animator backlink and secondary skin are bound. Shared zero-time refresh completed and released its scratch reservation. TP is attached to its item. Visual postbind and FP construction remain pending/);
   });
-  const changes=[state=>{state.third_person_constructed=false;},state=>{state.third_person_attached=true;},
+  const changes=[state=>{state.third_person_constructed=false;},state=>{state.third_person_attached=false;},
     state=>{state.first_person_constructed=true;},state=>{state.texture_dependencies_enumerated=false;},
     state=>{state.component_binding_complete=false;},state=>{state.skin_request_resolved=false;},
     state=>{state.texture_directory_outcome='unknown';},state=>{state.texture_requests=4097;},
@@ -2543,6 +2547,11 @@ test('TP skeleton binding keeps shared refresh attachment and FP explicit',async
     scope_released:false,state_sha256:'short',payload:[1,2,3]}))
     changes.push(state=>{state.bind_refresh[key]=value;});
   changes.push(state=>{delete state.bind_refresh;});
+  for (const [key,value] of Object.entries({identity_registered:false,item_backlink_bound:false,item_list_member:false,
+    item_list_ordinal:1,item_components:0,registry_identities:0,component_flag_8e:1,first_node_links_null:false,
+    state_sha256:'short',source_pointer:123}))
+    changes.push(state=>{state.attachment[key]=value;});
+  changes.push(state=>{delete state.attachment;});
   for(const change of changes) {
     const invalid=withPlayerPrelude(gameSessionFixture());
     change(invalid.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization);

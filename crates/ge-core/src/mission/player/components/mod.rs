@@ -2,13 +2,15 @@
 //! separate source operations. An owned constructor is not a bound component.
 mod animator;
 mod preparation;
+mod registry;
 mod skeleton;
 mod visual;
 pub use animator::Animator;
-pub use preparation::BindReturn;
+pub use preparation::{Attachment, BindReturn};
 pub use preparation::{
     Bindings, Preparation, Provider, Stage, TextureEnumeration, TextureOutcome,
     TextureTargetRequest,
 };
+pub use registry::{Identity, Registry};
 pub use skeleton::{ResourceBinding, SkeletonBudget, SkeletonInput, SkeletonRuntime};
 pub use visual::{TextureRequest, Visual};

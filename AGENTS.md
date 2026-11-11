@@ -19,7 +19,9 @@ requests; completed target owners survive cancellation. The default TP skeleton
 now owns bones, auxiliary storage, animator backlinks and primary/secondary skin
 bindings. The zero-time callback now uses the controller-lived aligned animation
 arena/context and releases its reservation before the typed TP bind return.
-TP attachment and FP construction remain pending. Later initialization and gameplay remain
+TP now has a persistent host component identity and is attached to its actual
+item, with matching skeletal and item backlinks. Visual postbind and FP
+construction remain pending. Later initialization and gameplay remain
 incomplete. docs/player-creation.md describes the reached boundary.
 
 ## Source and asset boundaries

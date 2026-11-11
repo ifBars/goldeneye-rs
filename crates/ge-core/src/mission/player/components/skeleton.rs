@@ -1,9 +1,7 @@
 //! Fresh skeletal runtime ownership reached by the TP bind. Constructor locals
 //! and matrices are retained separately from sampling and hierarchy refresh.
-use crate::{
-    animation::skeleton::{self, BoneInput, Skeleton},
-    mission::player::identity::PlayerId,
-};
+use super::Identity;
+use crate::animation::skeleton::{self, BoneInput, Skeleton};
 use anyhow::{Context, Result, ensure};
 
 pub const DEFAULT_SKIN: ResourceBinding = ResourceBinding {
@@ -49,7 +47,7 @@ impl Default for SkeletonBudget {
 pub struct SkeletonRuntime {
     primary: ResourceBinding,
     secondary: Option<ResourceBinding>,
-    animator: Option<PlayerId>,
+    animator: Option<Identity>,
     skeleton: Skeleton,
     auxiliary: Vec<u32>,
     frame_stamp: Option<u32>,
@@ -104,8 +102,8 @@ impl SkeletonRuntime {
             native_storage_bytes,
         })
     }
-    pub(super) fn bind_animator(&mut self, player: PlayerId) {
-        self.animator = Some(player);
+    pub(super) fn bind_animator(&mut self, identity: Identity) {
+        self.animator = Some(identity);
     }
     pub(super) fn bind_secondary(&mut self) {
         // Class0d bypasses animation-to-skin remapping. Slots58/68/78 are
@@ -119,7 +117,7 @@ impl SkeletonRuntime {
     pub fn secondary(&self) -> Option<ResourceBinding> {
         self.secondary
     }
-    pub fn animator(&self) -> Option<PlayerId> {
+    pub fn animator(&self) -> Option<Identity> {
         self.animator
     }
     pub fn skeleton(&self) -> &Skeleton {
@@ -136,7 +134,7 @@ impl SkeletonRuntime {
         self.native_storage_bytes
     }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(1);
+        emit(2);
         for binding in [Some(self.primary), self.secondary] {
             emit(u32::from(binding.is_some()));
             if let Some(binding) = binding {
@@ -145,9 +143,8 @@ impl SkeletonRuntime {
             }
         }
         emit(u32::from(self.animator.is_some()));
-        if let Some(player) = self.animator {
-            emit((player.get() >> 32) as u32);
-            emit(player.get() as u32);
+        if let Some(identity) = self.animator {
+            identity.visit_state_words(&mut emit);
         }
         emit(u32::from(self.frame_stamp.is_some()));
         if let Some(stamp) = self.frame_stamp {

@@ -59,7 +59,13 @@ arena/context. It reserves aligned backing, binds four context regions, clears
 the reached shared flags and releases its scope before returning a typed bind
 receipt. Empty controls trigger no sample or pose commit. Context locators stay
 recorded after release, while checked access rejects their expired reservation.
-Attachment and the subsequent FP call remain pending.
+The actual TP attachment now follows that bind return. A controller-lived host
+identity registry assigns the animator a distinct handle before construction;
+the skeleton backlink, bind return and item membership retain that same handle.
+Attachment writes the real item backlink, clears the source component flag and
+appends the first list node. Membership invokes no activation callback. Host
+identity ordinals establish no native allocator or SDK registry history. Visual
+postbind and the subsequent FP call remain pending.
 The controller arena retains the actual player/item/physics owners and registry
 rows across worker cancellation. Its world/arena mutex is separate from manager
 state, so reached reset/configuration writes can use their original owners.

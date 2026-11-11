@@ -1,4 +1,4 @@
-use super::{Animator, ResourceBinding, SkeletonBudget, SkeletonInput, Visual};
+use super::{Animator, Identity, ResourceBinding, SkeletonBudget, SkeletonInput, Visual};
 use crate::mission::player::{
     base_handler,
     constructor::{PendingPrelude, PendingReset},
@@ -6,7 +6,9 @@ use crate::mission::player::{
     item::{Item, Registration},
 };
 use anyhow::{Context, Result, ensure};
+mod attachment;
 mod binding;
+pub use attachment::Attachment;
 pub use binding::BindReturn;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -22,6 +24,8 @@ pub enum Stage {
     AwaitingAnimationRefresh,
     Refreshing,
     AwaitingAttachment,
+    Attaching,
+    AwaitingVisualPostbind,
     Failed,
 }
 /// Directory absence ends the source loop before any part is read. It stays
@@ -47,6 +51,7 @@ pub struct TextureTargetRequest {
 pub trait Provider {
     fn session_manager_present(&mut self) -> Result<bool>;
     fn mark_interface_dirty(&mut self, channel: u32) -> Result<()>;
+    fn allocate_animator(&mut self, player: PlayerId) -> Result<Identity>;
 }
 pub struct Bindings<'a> {
     pub base: &'a base_handler::Owner,
@@ -65,6 +70,7 @@ pub struct Preparation {
     textures: Option<TextureEnumeration>,
     texture_requests: usize,
     bind_return: Option<BindReturn>,
+    attachment: Option<Attachment>,
 }
 impl Default for Preparation {
     fn default() -> Self {
@@ -83,6 +89,7 @@ impl Preparation {
             textures: None,
             texture_requests: 0,
             bind_return: None,
+            attachment: None,
         }
     }
     pub fn stage(&self) -> Stage {
@@ -151,7 +158,12 @@ impl Preparation {
                 provider.mark_interface_dirty(0x40)?;
             }
             // Source allocates and constructs TP before its visual lookup.
-            self.animator = Some(Animator::from_constructor(base.player()));
+            let identity = provider.allocate_animator(base.player())?;
+            ensure!(
+                identity.player() == base.player(),
+                "TP allocation player differs"
+            );
+            self.animator = Some(Animator::from_constructor(identity));
             Ok(())
         })();
         self.stage = if result.is_ok() {
@@ -284,7 +296,7 @@ impl Preparation {
         result
     }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(4);
+        emit(5);
         emit(match self.stage {
             Stage::Fresh => 0,
             Stage::Clearing => 1,
@@ -298,6 +310,8 @@ impl Preparation {
             Stage::AwaitingAnimationRefresh => 9,
             Stage::Refreshing => 10,
             Stage::AwaitingAttachment => 11,
+            Stage::Attaching => 12,
+            Stage::AwaitingVisualPostbind => 13,
         });
         emit(u32::from(self.player.is_some()));
         if let Some(player) = self.player {
@@ -344,9 +358,17 @@ impl Preparation {
         if let Some(receipt) = &self.bind_return {
             receipt.visit_state_words(&mut emit);
         }
+        emit(u32::from(self.attachment.is_some()));
+        if let Some(attachment) = &self.attachment {
+            attachment.visit_state_words(emit);
+        }
     }
 }
 
 #[cfg(test)]
 #[path = "tests/skeleton.rs"]
 mod skeleton_tests;
+
+#[cfg(test)]
+#[path = "tests/attachment.rs"]
+mod attachment_tests;

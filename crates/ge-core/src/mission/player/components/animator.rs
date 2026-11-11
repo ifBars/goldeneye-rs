@@ -1,6 +1,7 @@
-use super::super::identity::PlayerId;
+use super::super::identity::{ItemId, PlayerId};
 use super::{
-    ResourceBinding, SkeletonBudget, SkeletonInput, SkeletonRuntime, skeleton::TP_COMPONENT,
+    Identity, ResourceBinding, SkeletonBudget, SkeletonInput, SkeletonRuntime,
+    skeleton::TP_COMPONENT,
 };
 use anyhow::{Result, ensure};
 
@@ -10,7 +11,8 @@ pub const SOURCE_BYTES: usize = 0x1b8;
 /// Item/resource/skeleton backlinks are NULL until their real bind operations.
 #[derive(Debug)]
 pub struct Animator {
-    player: PlayerId,
+    identity: Identity,
+    item: Option<ItemId>,
     bytes: [Option<u8>; SOURCE_BYTES],
     // Base ctor clears bits1..7 but preserves allocation bit0 at +8f.
     flag_8f_known_mask: u8,
@@ -18,9 +20,10 @@ pub struct Animator {
     component: Option<ResourceBinding>,
 }
 impl Animator {
-    pub(super) fn from_constructor(player: PlayerId) -> Self {
+    pub(super) fn from_constructor(identity: Identity) -> Self {
         let mut owner = Self {
-            player,
+            identity,
+            item: None,
             bytes: [None; SOURCE_BYTES],
             flag_8f_known_mask: 0xfe,
             skeleton: None,
@@ -93,7 +96,27 @@ impl Animator {
         }
     }
     pub fn player(&self) -> PlayerId {
-        self.player
+        self.identity.player()
+    }
+    pub fn identity(&self) -> Identity {
+        self.identity
+    }
+    pub fn item(&self) -> Option<ItemId> {
+        self.item
+    }
+    pub(super) fn prepare_first_item_append(&mut self, item: ItemId) -> Result<()> {
+        ensure!(
+            self.item.is_none() && self.word(8) == Some(0),
+            "TP item backlink is already bound"
+        );
+        self.item = Some(item);
+        self.bytes[8..12].fill(None);
+        self.bytes[0x8e] = Some(0);
+        // The reached list is empty: append stores NULL previous/next before
+        // publishing the new head/tail, even though construction wrote NULL.
+        self.word_store(0, 0);
+        self.word_store(4, 0);
+        Ok(())
     }
     /// Fresh bind prefix. The caller must execute the actual shared zero-time
     /// refresh before treating the native bind as returned or attaching TP.
@@ -123,7 +146,7 @@ impl Animator {
         self.word_store(0x20, 0);
         self.word_store(0x24, u32::MAX);
         let mut runtime = SkeletonRuntime::initialize(input, budget)?;
-        runtime.bind_animator(self.player);
+        runtime.bind_animator(self.identity);
         self.skeleton = Some(runtime);
         // A semantic owner link replaces constructor NULL; do not keep stale
         // zero in the sparse numeric view or manufacture a source pointer.
@@ -157,7 +180,7 @@ impl Animator {
         ensure!(
             self.skeleton
                 .as_ref()
-                .is_some_and(|runtime| runtime.animator() == Some(self.player))
+                .is_some_and(|runtime| runtime.animator() == Some(self.identity))
                 && self.component == Some(TP_COMPONENT),
             "TP refresh requires bound skeletal owners"
         );
@@ -189,9 +212,15 @@ impl Animator {
         (self.flag_8f_known_mask, 0)
     }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(2);
-        emit((self.player.get() >> 32) as u32);
-        emit(self.player.get() as u32);
+        emit(3);
+        self.identity.visit_state_words(&mut emit);
+        emit(u32::from(self.item.is_some()));
+        if let Some(item) = self.item {
+            for id in [item.world().get(), item.get()] {
+                emit((id >> 32) as u32);
+                emit(id as u32);
+            }
+        }
         // Semantic Animator class instead of the original vtable pointer.
         emit(1);
         emit(u32::from(self.flag_8f_known_mask));

@@ -14,6 +14,7 @@ pub(in crate::game) struct Actors {
     pub world: World,
     pub registry: Registry,
     pub players: BTreeMap<PlayerId, crate::game::player::Owned>,
+    pub components: ge_core::mission::player::components::Registry,
 }
 impl Actors {
     pub fn from_constructor() -> Self {
@@ -30,6 +31,7 @@ impl Actors {
             .expect("bounded global world constructor"),
             registry: Registry::from_constructor(),
             players: BTreeMap::new(),
+            components: ge_core::mission::player::components::Registry::from_constructor(65_536),
         }
     }
 }

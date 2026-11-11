@@ -8,7 +8,11 @@ fn pending() -> Preparation {
     let mut owner = Preparation::new();
     owner.stage = Stage::AwaitingSkeleton;
     owner.player = Some(PlayerId::new(7).unwrap());
-    owner.animator = Some(Animator::from_constructor(PlayerId::new(7).unwrap()));
+    owner.animator = Some(Animator::from_constructor(
+        crate::mission::player::components::Registry::from_constructor(1)
+            .allocate(PlayerId::new(7).unwrap())
+            .unwrap(),
+    ));
     owner
 }
 fn bones() -> [BoneInput; 2] {
@@ -56,7 +60,7 @@ fn primary_secondary_and_backlink_are_real_owned_state_before_refresh() {
     assert_eq!(owner.stage(), Stage::AwaitingAnimationRefresh);
     let animator = owner.animator().unwrap();
     let runtime = animator.skeleton().unwrap();
-    assert_eq!(runtime.animator(), Some(animator.player()));
+    assert_eq!(runtime.animator(), Some(animator.identity()));
     assert_eq!(runtime.primary(), DEFAULT_SKIN);
     assert_eq!(runtime.secondary(), Some(DEFAULT_SKIN));
     assert_eq!(animator.component(), Some(TP_COMPONENT));

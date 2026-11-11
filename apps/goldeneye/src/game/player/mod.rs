@@ -193,15 +193,16 @@ impl Owned {
         &self,
         world: &World,
         registry: &ge_core::mission::player::item_registry::Registry,
+        components: &ge_core::mission::player::components::Registry,
         hook: &world_hooks::Attempt,
     ) -> Result<Evidence> {
         hook.ensure_current()?;
-        evidence::build(self, world, registry, hook)
+        evidence::build(self, world, registry, components, hook)
     }
     pub fn initialize_components(
         &mut self,
         sources: components::Sources<'_>,
-        world: &World,
+        world: &mut World,
         hook: &world_hooks::Attempt,
     ) -> Result<()> {
         components::initialize(self, sources, world, hook)

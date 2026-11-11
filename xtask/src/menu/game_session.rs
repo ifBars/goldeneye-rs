@@ -3,6 +3,7 @@
 use anyhow::{Context, Result, ensure};
 use serde_json::{Value, json};
 use std::path::Path;
+mod player_attachment;
 mod player_refresh;
 mod player_skeleton;
 
@@ -1018,16 +1019,18 @@ fn validate_player_components(component: &Value, reached: bool) -> Result<()> {
             "target_state_sha256",
             "skeleton_binding",
             "bind_refresh",
+            "attachment",
             "scope",
         ],
     )?;
     ensure!(
-        component["stage"] == "tp_attachment_pending"
-            && component["pending_dependency"] == "tp_attachment"
+        component["stage"] == "tp_visual_postbind_pending"
+            && component["pending_dependency"] == "tp_visual_postbind"
             && component["native_component_bytes"] == 0x1b8
             && component["constructed_slots"] == 4
             && component["active_slots"] == 1
             && component["third_person_constructed"] == true
+            && component["third_person_attached"] == true
             && component["skin_request_resolved"] == true
             && component["texture_residency_complete"] == true
             && component["component_binding_complete"] == true
@@ -1045,9 +1048,7 @@ fn validate_player_components(component: &Value, reached: bool) -> Result<()> {
                 == count(component, "texture_targets_resident")?
             && (component["texture_directory_outcome"] == "enumerated"
                 || component["texture_requests"] == 0)
-            && ["third_person_attached", "first_person_constructed"]
-                .into_iter()
-                .all(|field| component[field] == false)
+            && component["first_person_constructed"] == false
             && (0xc8..=64 * 1024 * 1024).contains(&count(component, "retained_file_bytes")?)
             && count(component, "retained_section_bytes")?
                 <= count(component, "retained_file_bytes")?
@@ -1072,6 +1073,7 @@ fn validate_player_components(component: &Value, reached: bool) -> Result<()> {
     );
     player_skeleton::validate(&component["skeleton_binding"])?;
     player_refresh::validate(&component["bind_refresh"])?;
+    player_attachment::validate(&component["attachment"])?;
     Ok(())
 }
 
@@ -1112,7 +1114,7 @@ fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Valu
             && player["lifetime"] == "controller_arena"
             && (if virtual_reached {
                 player["stage"] == "player_components_pending"
-                    && player["pending_dependency"] == "tp_attachment"
+                    && player["pending_dependency"] == "tp_visual_postbind"
             } else {
                 player["stage"] == "player_reset_complete"
                     && player["pending_dependency"] == "constructor_source_flag"
@@ -3302,7 +3304,7 @@ mod tests {
         world["actor_definitions"]["rng_draws"] = json!(2);
         world["player_initialization"] = json!({
             "origin":"fresh_constructor_snapshot","lifetime":"controller_arena","stage":"player_components_pending",
-            "pending_dependency":"tp_attachment","operation_complete":false,"attempt_bound":true,"catalog_bound":true,
+            "pending_dependency":"tp_visual_postbind","operation_complete":false,"attempt_bound":true,"catalog_bound":true,
             "operation_entries":0,"creation_dispatches":1,"catalog_entries":2,"selected_catalog_index":1,"selected_source_ordinal":4,
             "requested_start_point_before":1,"requested_start_point_after":1,"base_constructor_complete":true,
             "handler_rng_reads":1,"base_reset_calls":2,"persistent_base_resets":2,"handler_kind_bound":false,"inventory_records":1,"inventory_capacity":16,
@@ -3352,17 +3354,18 @@ mod tests {
             .extend(links.as_object().unwrap().clone());
         world["player_initialization"]["virtual_initialization"] = virtual_init;
         world["player_initialization"]["component_initialization"] = json!({
-            "stage":"tp_attachment_pending","pending_dependency":"tp_attachment",
+            "stage":"tp_visual_postbind_pending","pending_dependency":"tp_visual_postbind",
             "native_component_bytes":0x1b8,"constructed_slots":4,"active_slots":1,
             "retained_file_bytes":1024,"retained_section_bytes":256,
-            "third_person_constructed":true,"third_person_attached":false,"first_person_constructed":false,
+            "third_person_constructed":true,"third_person_attached":true,"first_person_constructed":false,
             "skin_request_resolved":true,"texture_dependencies_enumerated":true,"component_binding_complete":true,
             "texture_directory_outcome":"enumerated","texture_requests":3,"texture_targets_resident":3,
             "texture_residency_complete":true,"texture_requests_state_sha256":"f".repeat(64),
             "preparation_state_sha256":"d".repeat(64),"target_state_sha256":"e".repeat(64),
             "skeleton_binding":player_skeleton::tests::fixture(),
             "bind_refresh":player_refresh::tests::fixture(),
-            "scope":"Authored TP bind return; attachment remains pending"});
+            "attachment":player_attachment::tests::fixture(),
+            "scope":"Authored TP attachment; visual postbind remains pending"});
         probe
     }
 
@@ -3592,7 +3595,7 @@ mod tests {
     fn tp_component_evidence_rejects_attachment_texture_and_private_payload_shortcuts() {
         for (field, value) in [
             ("third_person_constructed", json!(false)),
-            ("third_person_attached", json!(true)),
+            ("third_person_attached", json!(false)),
             ("first_person_constructed", json!(true)),
             ("skin_request_resolved", json!(false)),
             ("texture_dependencies_enumerated", json!(false)),
