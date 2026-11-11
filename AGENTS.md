@@ -27,7 +27,10 @@ are configured. The actual embedded receiver and shared callback table now bind
 before the typed TP helper return. FP now constructs its own animator/skeleton
 from the retained character file, refreshes through the same scratch owner and
 appends after TP. Both helpers return before the real resource-list searches
-configure FP masks. Initial animation modes are next. Pose postprocess targets
+configure FP masks. The fresh initial action selector now stores its direction
+and resolves the actual current inventory. Three mappings run in source order
+through retained supplied tables and lazy target availability. TP mode/control
+dispatch is next, before FP dispatch. Pose postprocess targets
 are assigned, but their body and frame scheduling remain unavailable.
 Later initialization and gameplay remain
 incomplete. docs/player-creation.md describes the reached boundary.

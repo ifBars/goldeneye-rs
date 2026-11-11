@@ -2263,7 +2263,7 @@ test('incomplete loader Wait28 retains its pending phase and legacy zero session
 
 function playerPreludeFixture(catalogEntries=2) {
   return {origin:'fresh_constructor_snapshot',lifetime:'controller_arena',stage:'player_components_pending',
-    pending_dependency:'initial_animation_modes',operation_complete:false,attempt_bound:true,catalog_bound:true,
+    pending_dependency:'tp_animation_controls',operation_complete:false,attempt_bound:true,catalog_bound:true,
     operation_entries:0,creation_dispatches:1,catalog_entries:catalogEntries,selected_catalog_index:1,selected_source_ordinal:4,
     requested_start_point_before:1,requested_start_point_after:1,base_constructor_complete:true,
     handler_rng_reads:1,base_reset_calls:2,persistent_base_resets:2,handler_kind_bound:false,
@@ -2286,6 +2286,12 @@ function playerPreludeFixture(catalogEntries=2) {
     virtual_initialization:virtualPlayerFixture(),
     component_initialization:componentPlayerFixture(),
     scope:'Authored retained EXItem actor and capsule; basic return with unresolved scalar; PlayerNew remains incomplete'};
+}
+function initialActionPlayerFixture() {
+  return {stage:'tp_dispatch_pending',generic_request:0x0900071e,parameter_bits:0,direction_raw:255,
+    weapon_key:0x020000ab,variant:0,remap_calls:3,map_rows_read:20,fp_mapped:0x090000ab,tp_mapped:0x090000ac,
+    tp_secondary_mapped:0x090000ad,source_tables_reused:true,mode_controls_created:0,mode_history_updated:false,
+    callback_returned:false,state_sha256:'a'.repeat(64),mapping_state_sha256:'b'.repeat(64)};
 }
 function firstPersonPlayerFixture() {
   return {helper_returned:true,identity_registered:true,item_list_ordinal:1,ordered_links_bound:true,
@@ -2319,13 +2325,13 @@ function skeletonPlayerFixture() {
     retained_component_file_bytes:2048,state_sha256:'a'.repeat(64)};
 }
 function componentPlayerFixture() {
-  return {stage:'initial_modes_pending',pending_dependency:'initial_animation_modes',
+  return {stage:'tp_dispatch_pending',pending_dependency:'tp_animation_controls',
     native_component_bytes:0x1b8,constructed_slots:4,active_slots:1,retained_file_bytes:1024,retained_section_bytes:256,
     third_person_constructed:true,third_person_attached:true,first_person_constructed:true,skin_request_resolved:true,
     texture_dependencies_enumerated:true,component_binding_complete:true,
     texture_directory_outcome:'enumerated',texture_requests:3,texture_targets_resident:3,
     texture_residency_complete:true,texture_requests_state_sha256:'f'.repeat(64),preparation_state_sha256:'d'.repeat(64),
-    target_state_sha256:'e'.repeat(64),skeleton_binding:skeletonPlayerFixture(),bind_refresh:refreshPlayerFixture(),attachment:attachmentPlayerFixture(),visual_postbind:postbindPlayerFixture(),callbacks:callbacksPlayerFixture(),first_person:firstPersonPlayerFixture(),scope:'Authored TP/FP helper returns; initial modes pending'};
+    target_state_sha256:'e'.repeat(64),skeleton_binding:skeletonPlayerFixture(),bind_refresh:refreshPlayerFixture(),attachment:attachmentPlayerFixture(),visual_postbind:postbindPlayerFixture(),callbacks:callbacksPlayerFixture(),first_person:firstPersonPlayerFixture(),initial_action:initialActionPlayerFixture(),scope:'Authored initial action; TP control dispatch pending'};
 }
 function virtualPlayerFixture() {
   return {stage:'player_basic_complete',pending_dependency:'tp_fp_components',
@@ -2542,7 +2548,7 @@ test('TP skeleton binding keeps shared refresh attachment and FP explicit',async
     const text=d.querySelector('#game-session-summary').textContent;
     assert.match(text,/Third-person constructor retained: 4 animation slots, 1 active/);
     assert.match(text,/skin request retains 1,024 file bytes and 256 logical section bytes/);
-    assert.match(text,/Texture residency completed: 3 ordered target requests. Default skeleton initialized: 2 bones and 4 auxiliary words. Its animator backlink and secondary skin are bound. Shared zero-time refresh completed and released its scratch reservation. TP is attached to its item. Visual postbind completed: the visual skin and empty override collection are bound; all four animation headers are configured. TP and FP helpers returned: both animators share the callback table and scratch owner. FP is attached after TP with its own skeleton and configured masks. Initial animation modes, pose postprocessing and frame scheduling remain incomplete/);
+    assert.match(text,/Texture residency completed: 3 ordered target requests. Default skeleton initialized: 2 bones and 4 auxiliary words. Its animator backlink and secondary skin are bound. Shared zero-time refresh completed and released its scratch reservation. TP is attached to its item. Visual postbind completed: the visual skin and empty override collection are bound; all four animation headers are configured. TP and FP helpers returned: both animators share the callback table and scratch owner. FP is attached after TP with its own skeleton and configured masks. Initial action selected and all three mappings resolved through the retained inventory and supplied tables. TP control dispatch is next. Pose postprocessing and frame scheduling remain incomplete/);
   });
   const changes=[state=>{state.third_person_constructed=false;},state=>{state.third_person_attached=false;},
     state=>{state.first_person_constructed=false;},state=>{state.texture_dependencies_enumerated=false;},
@@ -2587,6 +2593,12 @@ test('TP skeleton binding keeps shared refresh attachment and FP explicit',async
   changes.push(state=>{state.first_person.bind_refresh.refresh_ordinal=1;});
   changes.push(state=>{state.first_person.bind_refresh.allocation_ordinal=1;});
   changes.push(state=>{state.first_person.skeleton.frame_stamp_known=true;});
+  for (const [key,value] of Object.entries({stage:'complete',generic_request:0,parameter_bits:1,direction_raw:1,
+    weapon_key:-1,variant:2,remap_calls:2,map_rows_read:12289,fp_mapped:0,tp_mapped:0,tp_secondary_mapped:0,
+    source_tables_reused:false,mode_controls_created:1,mode_history_updated:true,callback_returned:true,
+    state_sha256:'short',mapping_state_sha256:'short',source_table:[1,2,3]})) changes.push(state=>{state.initial_action[key]=value;});
+  for (const key of Object.keys(initialActionPlayerFixture())) changes.push(state=>{delete state.initial_action[key];});
+  changes.push(state=>{delete state.initial_action;});
   for(const change of changes) {
     const invalid=withPlayerPrelude(gameSessionFixture());
     change(invalid.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization);

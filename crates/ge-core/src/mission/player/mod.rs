@@ -1,4 +1,5 @@
 //! Explicit source-backed player subsystems; construction is not live readiness.
+pub mod actions;
 pub mod base_handler;
 pub mod components;
 pub mod config;

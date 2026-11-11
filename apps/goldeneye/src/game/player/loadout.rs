@@ -52,6 +52,30 @@ pub(super) struct Sources {
 }
 
 impl Sources {
+    pub fn map_initial_action(
+        &self,
+        request: ge_core::mission::player::actions::Request,
+        available: impl FnMut(u32) -> Result<bool>,
+    ) -> Result<ge_assets::weapon_static::Remap> {
+        use ge_assets::weapon_static::{MappingKind, QueryBudget};
+        use ge_core::mission::player::actions::Target;
+        let kind = match request.target {
+            Target::FirstPerson => MappingKind::FirstPerson,
+            Target::ThirdPerson => MappingKind::ThirdPerson,
+            Target::ThirdPersonSecondary => MappingKind::ThirdPersonSecondary,
+        };
+        self.tables.map_action(
+            request.weapon,
+            request.generic,
+            request.variant,
+            kind,
+            QueryBudget {
+                map_rows: 4096,
+                remap_steps: 64,
+            },
+            available,
+        )
+    }
     pub fn load(
         assets: &mut GameAssets,
         context: &MissionContext,

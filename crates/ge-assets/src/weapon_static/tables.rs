@@ -198,7 +198,7 @@ impl WeaponTables {
         self.lookup(map, generic, variant, maximum_rows, &mut 0)
     }
 
-    fn lookup(
+    pub(super) fn lookup(
         &self,
         map: Option<MapRef>,
         generic: u32,
@@ -254,64 +254,15 @@ impl WeaponTables {
         generic: u32,
         variant: u32,
         budget: QueryBudget,
-        mut available: impl FnMut(u32) -> Result<bool>,
+        available: impl FnMut(u32) -> Result<bool>,
     ) -> Result<Remap> {
-        let mut result = Remap {
-            source_weapon: weapon,
+        self.map_action(
+            weapon,
             generic,
             variant,
-            output: generic,
-            mapped: false,
-            steps: Vec::new(),
-            map_rows_read: 0,
-        };
-        let mut current = weapon;
-        let mut seen = BTreeSet::new();
-        loop {
-            ensure!(
-                result.steps.len() < budget.remap_steps,
-                "static weapon remap-step budget exhausted"
-            );
-            ensure!(seen.insert(current), "static weapon parent cycle");
-            let Some(record) = self.record(current) else {
-                result.steps.push(RemapStep {
-                    weapon: current,
-                    record_source_index: None,
-                    matched_source_ordinal: None,
-                    candidate_raw: 0,
-                    available: None,
-                });
-                return Ok(result);
-            };
-            let parent = record.fp_parent_key()?;
-            let lookup = self.lookup(
-                record.normal_map()?,
-                generic,
-                variant,
-                budget.map_rows,
-                &mut result.map_rows_read,
-            )?;
-            let accepted = if lookup.mapped_raw != 0 {
-                Some(available(lookup.mapped_raw)?)
-            } else {
-                None
-            };
-            result.steps.push(RemapStep {
-                weapon: current,
-                record_source_index: Some(record.source_index()),
-                matched_source_ordinal: lookup.matched_source_ordinal,
-                candidate_raw: lookup.mapped_raw,
-                available: accepted,
-            });
-            if accepted == Some(true) {
-                result.output = lookup.mapped_raw;
-                result.mapped = true;
-                return Ok(result);
-            }
-            if parent == 0 {
-                return Ok(result);
-            }
-            current = parent;
-        }
+            super::MappingKind::FirstPerson,
+            budget,
+            available,
+        )
     }
 }

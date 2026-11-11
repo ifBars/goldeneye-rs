@@ -497,6 +497,32 @@ fn actual_basic_return_enters_tp_with_same_inventory_and_preserves_deferred_phys
             .configure_first_person_masks(world.item(receipt.item()).unwrap())
             .is_err()
     );
+    let mut action = ge_core::mission::player::actions::Pending::begin(&base, &mut reset).unwrap();
+    assert_eq!(reset.byte(0xc7c), Some(0xff));
+    assert_eq!(action.generic(), 0x0900_071e);
+    action
+        .bind_components(&preparation, world.item(receipt.item()).unwrap())
+        .unwrap();
+    action.bind_inventory(&base, prelude.inventory()).unwrap();
+    let slot = prelude.inventory().slots().c96.unwrap() as usize;
+    assert_eq!(
+        action.weapon(),
+        Some(prelude.inventory().records()[slot].key)
+    );
+    assert_eq!(action.variant(), Some(0));
+    for expected in [fp_identity, tp, tp] {
+        let request = action.next_remap().unwrap().unwrap();
+        assert_eq!(request.component, expected);
+        action.mapped(request, request.generic, false).unwrap();
+    }
+    assert_eq!(
+        action.stage(),
+        ge_core::mission::player::actions::Stage::AwaitingThirdPersonDispatch
+    );
+    assert_eq!(base.word(0x704), Some(0));
+    for at in [0x70c, 0x710, 0x714, 0x718] {
+        assert_eq!(reset.word(at), Some(0));
+    }
 }
 
 #[test]

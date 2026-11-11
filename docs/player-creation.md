@@ -255,6 +255,31 @@ Actual mode controls, postprocessed poses, scheduling, completed player and
 camera remain required. Constructor state and both helper returns establish no
 reference parity or native frame behavior.
 
+
+The fresh initial action caller now reads the retained reset and base-handler
+fields. Positive-zero heading and the fresh default branch select the first
+generic request and store direction -1 before component searches. The zero c54
+branch does not read d00/d01. FP then TP are resolved from the actual item list;
+the current signed inventory slot yields its real record or the source NULL
+result. The supported normal variant reads the actual record flags, retaining
+an explicit missing-provider boundary for alternate metadata.
+
+Three remaps execute in source order through the loadout's existing supplied
+weapon tables: FP normal, TP normal and TP secondary. TP-specific maps override
+the normal map when present. Secondary lookup takes priority; after a miss with
+a nonzero parent, the source skips that record's normal map and follows the TP
+parent. Without a parent it tries the same record's normal map. Each nonzero
+candidate queries only the matching retained component's mode directory. Parent
+cycles, exhausted bounds and provider errors remain errors; generic fallback
+comes from actual unsuccessful resolution. Reached results survive cancellation.
+
+This caller now waits for TP mode/control dispatch. It has created no controls,
+changed no mode-history words and returned no initial action callback. FP
+mode dispatch and the optional second generic request follow TP dispatch and its
+side effects. Diagnostic FP plans or freshly loaded inventories cannot stand in
+for that order. Pose evaluation, player state transition and camera remain later
+work.
+
 The controller arena retains actual player, item and physics objects, their
 registry rows and actor memberships across cancellation. Worker teardown leaves
 no item reference pointing at a dropped player. The global world is constructed

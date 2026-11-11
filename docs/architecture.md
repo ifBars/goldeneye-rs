@@ -83,9 +83,15 @@ it skips TP visual residency/postbind. Its own skeletal runtime binds before a
 second zero-time callback through the same retained scratch/context. Attachment
 writes FP's previous link and TP's next link before publishing the item tail.
 Both animators retain the same callback table. After FP helper return, two actual
-resource-header searches configure the FP masks. Initial modes, pose
-postprocessing and frame dispatch remain unavailable; these helper returns do
-not establish player or gameplay readiness.
+resource-header searches configure the FP masks. The initial action caller now
+reads the actual fresh reset fields, stores direction -1, finds both components
+by their resource headers and resolves the current signed inventory slot. The
+same retained supplied tables map FP, TP and TP-secondary inputs in that order;
+mode availability stays a lazy query on the matching component wrapper. No mode
+body or control node is created by these queries. TP mode/control dispatch must
+execute before FP dispatch and the optional second generic request. Pose
+postprocessing and frame dispatch remain unavailable; these constructor and
+mapping operations do not establish player or gameplay readiness.
 The controller arena retains the actual player/item/physics owners and registry
 rows across worker cancellation. Its world/arena mutex is separate from manager
 state, so reached reset/configuration writes can use their original owners.

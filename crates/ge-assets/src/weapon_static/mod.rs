@@ -6,7 +6,9 @@
 //! animation allocation, sampled pose or camera readiness.
 mod data;
 mod loader;
+mod remap;
 mod tables;
+pub use remap::MappingKind;
 
 pub use tables::{MapLookup, MapRef, Remap, RemapStep, WeaponOrder, WeaponRecord, WeaponTables};
 

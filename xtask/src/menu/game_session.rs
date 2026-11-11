@@ -3,6 +3,7 @@
 use anyhow::{Context, Result, ensure};
 use serde_json::{Value, json};
 use std::path::Path;
+mod player_action;
 mod player_attachment;
 mod player_callbacks;
 mod player_first_person;
@@ -1026,12 +1027,13 @@ fn validate_player_components(component: &Value, reached: bool) -> Result<()> {
             "visual_postbind",
             "callbacks",
             "first_person",
+            "initial_action",
             "scope",
         ],
     )?;
     ensure!(
-        component["stage"] == "initial_modes_pending"
-            && component["pending_dependency"] == "initial_animation_modes"
+        component["stage"] == "tp_dispatch_pending"
+            && component["pending_dependency"] == "tp_animation_controls"
             && component["native_component_bytes"] == 0x1b8
             && component["constructed_slots"] == 4
             && component["active_slots"] == 1
@@ -1082,6 +1084,7 @@ fn validate_player_components(component: &Value, reached: bool) -> Result<()> {
     player_attachment::validate(&component["attachment"])?;
     player_callbacks::validate(&component["callbacks"])?;
     player_first_person::validate(&component["first_person"])?;
+    player_action::validate(&component["initial_action"])?;
     ensure!(
         count(
             &component["first_person"]["bind_refresh"],
@@ -1137,7 +1140,7 @@ fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Valu
             && player["lifetime"] == "controller_arena"
             && (if virtual_reached {
                 player["stage"] == "player_components_pending"
-                    && player["pending_dependency"] == "initial_animation_modes"
+                    && player["pending_dependency"] == "tp_animation_controls"
             } else {
                 player["stage"] == "player_reset_complete"
                     && player["pending_dependency"] == "constructor_source_flag"
@@ -3327,7 +3330,7 @@ mod tests {
         world["actor_definitions"]["rng_draws"] = json!(2);
         world["player_initialization"] = json!({
             "origin":"fresh_constructor_snapshot","lifetime":"controller_arena","stage":"player_components_pending",
-            "pending_dependency":"initial_animation_modes","operation_complete":false,"attempt_bound":true,"catalog_bound":true,
+            "pending_dependency":"tp_animation_controls","operation_complete":false,"attempt_bound":true,"catalog_bound":true,
             "operation_entries":0,"creation_dispatches":1,"catalog_entries":2,"selected_catalog_index":1,"selected_source_ordinal":4,
             "requested_start_point_before":1,"requested_start_point_after":1,"base_constructor_complete":true,
             "handler_rng_reads":1,"base_reset_calls":2,"persistent_base_resets":2,"handler_kind_bound":false,"inventory_records":1,"inventory_capacity":16,
@@ -3377,7 +3380,7 @@ mod tests {
             .extend(links.as_object().unwrap().clone());
         world["player_initialization"]["virtual_initialization"] = virtual_init;
         world["player_initialization"]["component_initialization"] = json!({
-            "stage":"initial_modes_pending","pending_dependency":"initial_animation_modes",
+            "stage":"tp_dispatch_pending","pending_dependency":"tp_animation_controls",
             "native_component_bytes":0x1b8,"constructed_slots":4,"active_slots":1,
             "retained_file_bytes":1024,"retained_section_bytes":256,
             "third_person_constructed":true,"third_person_attached":true,"first_person_constructed":true,
@@ -3391,7 +3394,8 @@ mod tests {
             "visual_postbind":player_postbind::tests::fixture(),
             "callbacks":player_callbacks::tests::fixture(),
             "first_person":player_first_person::tests::fixture(),
-            "scope":"Authored TP/FP helper returns; initial modes remain pending"});
+            "initial_action":player_action::tests::fixture(),
+            "scope":"Authored initial action selector and remaps; TP controls remain pending"});
         probe
     }
 

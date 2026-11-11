@@ -5,12 +5,14 @@ use ge_core::mission::player::{
     world::World,
 };
 use serde::Serialize;
+mod action;
 mod attachment;
 mod callbacks;
 mod first_person;
 mod postbind;
 mod refresh;
 mod skeleton;
+pub use action::InitialAction;
 pub use attachment::AttachmentBinding;
 pub use callbacks::CallbackBinding;
 pub use first_person::FirstPersonBinding;
@@ -46,6 +48,7 @@ pub struct ComponentInitialization {
     pub visual_postbind: VisualPostbind,
     pub callbacks: CallbackBinding,
     pub first_person: FirstPersonBinding,
+    pub initial_action: InitialAction,
     pub scope: &'static str,
 }
 pub(super) fn build(
@@ -104,8 +107,8 @@ pub(super) fn build(
         "TP owner, source or attachment boundary differs"
     );
     Ok(Some(ComponentInitialization {
-        stage: "initial_modes_pending",
-        pending_dependency: "initial_animation_modes",
+        stage: "tp_dispatch_pending",
+        pending_dependency: "tp_animation_controls",
         native_component_bytes: 0x1b8,
         constructed_slots: 4,
         active_slots: usize::from(owner.byte(0x130).context("TP active count unknown")?),
@@ -136,6 +139,7 @@ pub(super) fn build(
         visual_postbind: postbind::build(player, world)?,
         callbacks: callbacks::build(player, world, hook)?,
         first_person: first_person::build(player, world, identities, hook)?,
-        scope: "The actual TP and FP helper returns now precede FP mask configuration. Each animator owns its own skeleton and both share the controller's scratch/context and callback table. FP uses the retained character skin file and skips TP visual postbind. Initial animation modes, pose postprocessing, frame scheduling, player completion and camera remain incomplete; native history is unverified.",
+        initial_action: action::build(player)?,
+        scope: "TP/FP helper returns and FP masks now precede the initial action caller. The fresh selector stores direction -1, then resolves actual component and inventory owners. Three source-ordered mappings use the retained supplied tables and lazy target availability. TP mode/control dispatch is next, before FP dispatch or the second generic request. Mode history, callback return, pose postprocessing, scheduling, completed player and camera remain incomplete.",
     }))
 }

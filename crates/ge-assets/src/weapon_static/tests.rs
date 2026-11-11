@@ -7,6 +7,8 @@ use crate::disc::DiscIdentity;
 use anyhow::Result;
 use sha2::{Digest, Sha256};
 use std::io::{self, Cursor, Read, Seek, SeekFrom};
+#[path = "tests/action_remap.rs"]
+mod action_remap;
 #[path = "tests/secondary.rs"]
 mod secondary;
 

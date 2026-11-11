@@ -1,5 +1,6 @@
 //! The actual one-shot player constructor prefix on the retained CPU worker.
 //! The reset precedes still-required constructor flags and virtual initialization.
+mod actions;
 pub(super) mod components;
 mod evidence;
 mod loadout;
@@ -35,6 +36,7 @@ pub(super) struct Owned {
     flag: Option<base_handler::ConstructorFlagReceipt>,
     virtual_init: virtual_init::Owned,
     components: components::Owned,
+    action: Option<actions::Owned>,
     operations: usize,
     catalog_entries: usize,
     rng_reads: usize,
@@ -136,6 +138,7 @@ impl Owned {
             flag,
             virtual_init: virtual_init::Owned::new(),
             components: components::Owned::new(),
+            action: None,
             operations,
             catalog_entries,
             rng_reads: provider.rng_reads,
@@ -205,6 +208,7 @@ impl Owned {
         world: &mut World,
         hook: &world_hooks::Attempt,
     ) -> Result<()> {
-        components::initialize(self, sources, world, hook)
+        components::initialize(self, sources, world, hook)?;
+        actions::initialize(self, world, hook)
     }
 }
