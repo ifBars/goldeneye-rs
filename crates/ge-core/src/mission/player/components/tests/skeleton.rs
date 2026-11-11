@@ -7,6 +7,7 @@ fn pending() -> Preparation {
     // reset/resource providers. Public entry still requires their stage chain.
     let mut owner = Preparation::new();
     owner.stage = Stage::AwaitingSkeleton;
+    owner.player = Some(PlayerId::new(7).unwrap());
     owner.animator = Some(Animator::from_constructor(PlayerId::new(7).unwrap()));
     owner
 }
@@ -182,4 +183,67 @@ fn budget_or_reference_failures_never_install_a_ready_skeleton() {
         assert!(owner.animator().unwrap().skeleton().is_none());
         assert_eq!(owner.stage(), Stage::Failed);
     }
+}
+
+#[test]
+fn actual_zero_time_refresh_returns_bind_once_without_resolving_stamp_or_sampling_pose() {
+    use crate::animation::scratch::{Arena, Context as RefreshContext};
+    let mut owner = pending();
+    let mut arena = Arena::from_constructor(1).unwrap();
+    let mut context = RefreshContext::default();
+    assert!(
+        owner
+            .finish_bind_zero_time(&mut context, &mut arena)
+            .is_err()
+    );
+    assert_eq!(arena.cursor(), 0);
+    bind(&mut owner, &bones(), 16, None, SkeletonBudget::default()).unwrap();
+    owner
+        .finish_bind_zero_time(&mut context, &mut arena)
+        .unwrap();
+    assert_eq!(owner.stage(), Stage::AwaitingAttachment);
+    let receipt = owner.bind_return().unwrap();
+    assert_eq!(receipt.player(), PlayerId::new(7).unwrap());
+    assert_eq!(receipt.refresh().ordinal(), 1);
+    assert_eq!(receipt.refresh().cursor_after(), 0);
+    assert_eq!(receipt.refresh().live_after(), 0);
+    let runtime = owner.animator().unwrap().skeleton().unwrap();
+    assert!(runtime.frame_stamp_bits().is_err());
+    assert_eq!(
+        runtime.skeleton().bones()[1].local_translation_bits(),
+        [0, 0, 0, 1f32.to_bits()]
+    );
+    let reached = state(&owner);
+    assert!(
+        owner
+            .finish_bind_zero_time(&mut context, &mut arena)
+            .is_err()
+    );
+    assert_eq!(state(&owner), reached);
+}
+
+#[test]
+fn unavailable_shared_scratch_does_not_publish_bind_return_or_replay_callback() {
+    use crate::animation::scratch::{Arena, Context as RefreshContext};
+    let mut owner = pending();
+    bind(&mut owner, &bones(), 16, None, SkeletonBudget::default()).unwrap();
+    let mut arena = Arena::from_constructor(1).unwrap();
+    let mut prefix = arena.reserve(0x1e00).unwrap().unwrap();
+    let mut context = RefreshContext::default();
+    assert!(
+        owner
+            .finish_bind_zero_time(&mut context, &mut arena)
+            .is_err()
+    );
+    assert_eq!(owner.stage(), Stage::Failed);
+    assert!(owner.bind_return().is_none());
+    assert!(owner.animator().unwrap().skeleton().is_some());
+    assert_eq!(context.flags(), None);
+    arena.release(&mut prefix).unwrap();
+    assert!(
+        owner
+            .finish_bind_zero_time(&mut context, &mut arena)
+            .is_err()
+    );
+    assert_eq!(context.flags(), None);
 }

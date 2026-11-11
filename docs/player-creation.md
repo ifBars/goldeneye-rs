@@ -145,10 +145,29 @@ the reached field retains a captured unknown and its getter fails. No later
 counter value can repair that historical read. The reached bind prefix does
 not read that field.
 
-The source bind has not returned successfully. Its next zero-time refresh needs
-a shared 0x2200-byte scratch allocation and changes shared animation-context
-regions and flags even with empty controls. That provider is still pending.
-No diagnostic prewarm, TP attachment or FP constructor substitutes for it.
+The bind's zero-time refresh now runs through a controller-lived animation
+scratch arena and context, separate from the player reset scratch. Its explicit
+startup-initializer snapshot starts a 0x4000-byte aligned arena at offset zero.
+Requests round up to 16 bytes. The source uses a strict capacity comparison, so
+an exactly full request fails; checked host overflow and exhaustion leave the
+cursor unchanged. Reservations must release in reverse order through their
+actual owner. The backing exists, but the empty path reads no payload bytes, so
+safe Rust allocation contents establish no source payload or history parity.
+
+Fresh slot-zero controls have NULL head/tail, clear maintenance flags and
+weight one. Forward tick, maintenance and reverse callbacks therefore reach no
+child. The refresh still reserves 0x2200 bytes, binds four context regions,
+clears shared flags, clears bit 0x8000 for the empty active slot and releases the
+reservation. Flag 0x4000 remains absent, so no pose commit runs. Shared context
+locators remain recorded after release; reservation identity prevents a later
+allocation at the same offset from reviving them. Failed or stale attempts
+cannot publish a bind receipt or replay its callback.
+
+Only that successful refresh permits the typed TP bind return. Its receipt
+includes the actual reservation prefix, release cursor and shared operation
+ordinals. It does not complete TP entry: attachment, visual postbind, FP
+construction and later player work remain pending. No diagnostic prewarm
+substitutes for those operations.
 
 The controller arena retains actual player, item and physics objects, their
 registry rows and actor memberships across cancellation. Worker teardown leaves

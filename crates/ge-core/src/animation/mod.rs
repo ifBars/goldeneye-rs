@@ -7,5 +7,6 @@ pub mod context;
 pub mod frame;
 pub mod layers;
 pub mod mode;
+pub mod scratch;
 pub mod skeleton;
 pub mod transform;

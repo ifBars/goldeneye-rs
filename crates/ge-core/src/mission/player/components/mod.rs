@@ -5,6 +5,7 @@ mod preparation;
 mod skeleton;
 mod visual;
 pub use animator::Animator;
+pub use preparation::BindReturn;
 pub use preparation::{
     Bindings, Preparation, Provider, Stage, TextureEnumeration, TextureOutcome,
     TextureTargetRequest,

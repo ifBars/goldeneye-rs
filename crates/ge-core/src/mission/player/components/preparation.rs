@@ -6,6 +6,8 @@ use crate::mission::player::{
     item::{Item, Registration},
 };
 use anyhow::{Context, Result, ensure};
+mod binding;
+pub use binding::BindReturn;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stage {
@@ -18,6 +20,8 @@ pub enum Stage {
     AwaitingSkeleton,
     BindingSkeleton,
     AwaitingAnimationRefresh,
+    Refreshing,
+    AwaitingAttachment,
     Failed,
 }
 /// Directory absence ends the source loop before any part is read. It stays
@@ -60,6 +64,7 @@ pub struct Preparation {
     character: Option<crate::mission::player::constructor::CharacterBinding>,
     textures: Option<TextureEnumeration>,
     texture_requests: usize,
+    bind_return: Option<BindReturn>,
 }
 impl Default for Preparation {
     fn default() -> Self {
@@ -77,6 +82,7 @@ impl Preparation {
             character: None,
             textures: None,
             texture_requests: 0,
+            bind_return: None,
         }
     }
     pub fn stage(&self) -> Stage {
@@ -278,7 +284,7 @@ impl Preparation {
         result
     }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(3);
+        emit(4);
         emit(match self.stage {
             Stage::Fresh => 0,
             Stage::Clearing => 1,
@@ -290,6 +296,8 @@ impl Preparation {
             Stage::AwaitingTextureResidency => 7,
             Stage::BindingSkeleton => 8,
             Stage::AwaitingAnimationRefresh => 9,
+            Stage::Refreshing => 10,
+            Stage::AwaitingAttachment => 11,
         });
         emit(u32::from(self.player.is_some()));
         if let Some(player) = self.player {
@@ -332,6 +340,10 @@ impl Preparation {
         }
         emit((self.texture_requests as u64 >> 32) as u32);
         emit(self.texture_requests as u32);
+        emit(u32::from(self.bind_return.is_some()));
+        if let Some(receipt) = &self.bind_return {
+            receipt.visit_state_words(&mut emit);
+        }
     }
 }
 

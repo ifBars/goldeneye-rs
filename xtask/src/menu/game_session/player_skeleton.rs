@@ -39,7 +39,7 @@ pub(super) fn validate(state: &Value) -> Result<()> {
             .into_iter()
             .all(|key| state[key] == true)
             && state["frame_stamp_known"] == false
-            && state["empty_refresh_complete"] == false
+            && state["empty_refresh_complete"] == true
             && [
                 "retained_skeleton_file_bytes",
                 "retained_component_file_bytes"
@@ -66,7 +66,7 @@ pub(super) mod tests {
     pub(in super::super) fn fixture() -> Value {
         json!({"native_runtime_bytes":0x164,"native_storage_bytes":288,"bones":2,"roots":1,"auxiliary_words":4,
             "primary_bound":true,"secondary_bound":true,"animator_backlink_bound":true,"component_resource_bound":true,
-            "frame_stamp_known":false,"empty_refresh_complete":false,"retained_skeleton_file_bytes":1024,
+            "frame_stamp_known":false,"empty_refresh_complete":true,"retained_skeleton_file_bytes":1024,
             "retained_component_file_bytes":2048,"state_sha256":"a".repeat(64)})
     }
     #[test]
@@ -77,7 +77,7 @@ pub(super) mod tests {
             ("secondary_bound", json!(false)),
             ("animator_backlink_bound", json!(false)),
             ("component_resource_bound", json!(false)),
-            ("empty_refresh_complete", json!(true)),
+            ("empty_refresh_complete", json!(false)),
             ("frame_stamp_known", json!(true)),
             ("bones", json!(129)),
             ("roots", json!(3)),

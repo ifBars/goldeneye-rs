@@ -149,6 +149,31 @@ impl Animator {
     pub fn component(&self) -> Option<ResourceBinding> {
         self.component
     }
+    pub(super) fn refresh_empty_bind(
+        &self,
+        context: &mut crate::animation::scratch::Context,
+        arena: &mut crate::animation::scratch::Arena,
+    ) -> Result<crate::animation::scratch::Refresh> {
+        ensure!(
+            self.skeleton
+                .as_ref()
+                .is_some_and(|runtime| runtime.animator() == Some(self.player))
+                && self.component == Some(TP_COMPONENT),
+            "TP refresh requires bound skeletal owners"
+        );
+        ensure!(
+            self.byte(0x130) == Some(1)
+                && self.word(0x138) == Some(0)
+                && self.word(0x13c) == Some(0)
+                && self.byte(0x140) == Some(0)
+                && self.byte(0x141) == Some(0)
+                && self.word(0x144) == Some(1f32.to_bits()),
+            "TP bind refresh requires actual fresh empty controls"
+        );
+        // Forward tick/reverse child lists are empty. Slot flags bit0 is clear,
+        // so list maintenance also returns before any mode or scalar read.
+        context.refresh_empty(arena)
+    }
     pub fn byte(&self, at: usize) -> Option<u8> {
         self.bytes.get(at).copied().flatten()
     }

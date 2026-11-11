@@ -223,6 +223,15 @@ fn actual_basic_return_enters_tp_with_same_inventory_and_preserves_deferred_phys
     assert_eq!(runtime.animator(), Some(base.player()));
     assert_eq!(runtime.auxiliary(), &[0; 4]);
     assert!(item.components().is_empty());
+    let mut arena = ge_core::animation::scratch::Arena::from_constructor(1).unwrap();
+    let mut context = ge_core::animation::scratch::Context::default();
+    preparation
+        .finish_bind_zero_time(&mut context, &mut arena)
+        .unwrap();
+    assert_eq!(preparation.stage(), components::Stage::AwaitingAttachment);
+    assert_eq!(preparation.bind_return().unwrap().player(), base.player());
+    assert_eq!(arena.cursor(), 0);
+    assert!(item.components().is_empty());
 }
 
 #[test]

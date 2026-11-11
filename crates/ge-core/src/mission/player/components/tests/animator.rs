@@ -49,3 +49,30 @@ fn base_flag_keeps_unwritten_bit_and_constructor_transforms_are_not_sampled_pose
     other.visit_state_words(|word| second.push(word));
     assert_ne!(first, second);
 }
+
+#[test]
+fn reached_nonempty_or_updated_control_headers_require_their_actual_callbacks() {
+    use super::super::skeleton::DEFAULT_SKIN;
+    use crate::animation::scratch::{Arena, Context};
+    for at in [0x138, 0x13c, 0x140, 0x144] {
+        let mut owner = Animator::from_constructor(PlayerId::new(7).unwrap());
+        owner
+            .bind_skeleton(
+                SkeletonInput {
+                    primary: DEFAULT_SKIN,
+                    bones: &[],
+                    auxiliary_words: 0,
+                    captured_frame_counter: None,
+                },
+                TP_COMPONENT,
+                SkeletonBudget::default(),
+            )
+            .unwrap();
+        owner.word_store(at, if at == 0x140 { 0x0001_0000 } else { 1 });
+        let mut context = Context::default();
+        let mut arena = Arena::from_constructor(1).unwrap();
+        assert!(owner.refresh_empty_bind(&mut context, &mut arena).is_err());
+        assert_eq!(context.flags(), None);
+        assert_eq!(arena.cursor(), 0);
+    }
+}

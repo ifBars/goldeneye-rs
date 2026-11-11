@@ -5,7 +5,9 @@ use ge_core::mission::player::{
     world::World,
 };
 use serde::Serialize;
+mod refresh;
 mod skeleton;
+pub use refresh::BindRefresh;
 pub use skeleton::SkeletonBinding;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -31,6 +33,7 @@ pub struct ComponentInitialization {
     pub preparation_state_sha256: String,
     pub target_state_sha256: String,
     pub skeleton_binding: SkeletonBinding,
+    pub bind_refresh: BindRefresh,
     pub scope: &'static str,
 }
 pub(super) fn build(player: &Owned, world: &World) -> Result<Option<ComponentInitialization>> {
@@ -39,8 +42,8 @@ pub(super) fn build(player: &Owned, world: &World) -> Result<Option<ComponentIni
     }
     let preparation = &player.components.preparation;
     ensure!(
-        preparation.stage() == Stage::AwaitingAnimationRefresh,
-        "component preparation has not reached its actual skeleton binding"
+        preparation.stage() == Stage::AwaitingAttachment,
+        "component preparation has not returned from its actual bind callback"
     );
     let owner = preparation
         .animator()
@@ -84,8 +87,8 @@ pub(super) fn build(player: &Owned, world: &World) -> Result<Option<ComponentIni
         "TP owner, source or attachment boundary differs"
     );
     Ok(Some(ComponentInitialization {
-        stage: "tp_animation_refresh_pending",
-        pending_dependency: "animation_refresh_scratch",
+        stage: "tp_attachment_pending",
+        pending_dependency: "tp_attachment",
         native_component_bytes: 0x1b8,
         constructed_slots: 4,
         active_slots: usize::from(owner.byte(0x130).context("TP active count unknown")?),
@@ -105,12 +108,13 @@ pub(super) fn build(player: &Owned, world: &World) -> Result<Option<ComponentIni
         texture_targets_resident: player.components.textures.len(),
         texture_residency_complete: true,
         texture_requests_state_sha256: format!("{:x}", texture_hash.finalize()),
-        component_binding_complete: false,
+        component_binding_complete: true,
         preparation_state_sha256: super::words(b"ge_player_component_preparation_v1\0", |emit| {
             preparation.visit_state_words(emit)
         }),
         target_state_sha256: target.fingerprint(),
         skeleton_binding: skeleton::build(player)?,
-        scope: "The TP constructor, skin and ordered texture requests use retained owners. The default skeleton and component files share the existing resource registry. Primary initialization owns bone hierarchy, constructor locals/matrices and zeroed auxiliary words. Real animator/runtime backlinks, secondary skin and component references are bound; raw reference zero creates no mode. The captured source frame counter remains unresolved. The bind has not returned: its shared zero-time animation refresh is next. TP attachment, visual postbind, FP construction, player completion, sampled pose and camera remain incomplete. Native streaming/history, timing and lifetime parity remain unverified.",
+        bind_refresh: refresh::build(player)?,
+        scope: "The TP constructor, skin and ordered texture requests use retained owners. Primary/secondary skeleton and component references are bound. The empty zero-time callback uses the controller's shared aligned scratch arena, binds four context regions, clears shared flags and releases its reservation before the actual bind return. It samples no pose and resolves no captured frame-counter input. TP attachment, visual postbind, FP construction, player completion and camera remain incomplete. Native streaming/history, timing and lifetime parity remain unverified.",
     }))
 }

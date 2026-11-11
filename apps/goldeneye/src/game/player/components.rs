@@ -119,8 +119,9 @@ pub(super) fn initialize(
         sources.assets,
         hook,
     )?;
-    // The shared zero-time refresh precedes a successful bind return. Visual
-    // postbind, TP attachment and FP construction remain later operations.
+    hook.finish_tp_bind(&mut player.components.preparation)?;
+    // The successful bind return permits attachment next. Visual postbind and
+    // FP construction remain later operations.
     Ok(())
 }
 struct Provider<'a> {

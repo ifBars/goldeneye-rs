@@ -54,9 +54,12 @@ hierarchy, constructor locals/matrices and zeroed auxiliary words. Semantic
 animator backlinks replace constructor NULL; primary/secondary skin and component
 references remain tied to retained files. Raw reference zero creates no mode.
 The captured source frame-counter read remains unresolved and its getter fails.
-The bind stops before its shared zero-time animation refresh, which requires a
-real shared scratch/context owner even with empty controls. Attachment and the
-subsequent FP call remain pending.
+The bind's zero-time callback now uses a controller-lived shared animation
+arena/context. It reserves aligned backing, binds four context regions, clears
+the reached shared flags and releases its scope before returning a typed bind
+receipt. Empty controls trigger no sample or pose commit. Context locators stay
+recorded after release, while checked access rejects their expired reservation.
+Attachment and the subsequent FP call remain pending.
 The controller arena retains the actual player/item/physics owners and registry
 rows across worker cancellation. Its world/arena mutex is separate from manager
 state, so reached reset/configuration writes can use their original owners.

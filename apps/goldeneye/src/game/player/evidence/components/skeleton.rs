@@ -77,7 +77,7 @@ pub(super) fn build(player: &Owned) -> Result<SkeletonBinding> {
         animator_backlink_bound: true,
         component_resource_bound: true,
         frame_stamp_known: false,
-        empty_refresh_complete: false,
+        empty_refresh_complete: player.components.preparation.bind_return().is_some(),
         retained_skeleton_file_bytes: source.file_bytes(),
         retained_component_file_bytes: component.file_bytes(),
         state_sha256: super::super::words(b"ge_player_tp_skeleton_binding_v1\0", |emit| {

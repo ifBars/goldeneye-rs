@@ -17,7 +17,8 @@ the fresh cleanup, original inventory slots, animator constructor and actual ski
 request. Geometry texture discovery now feeds ordered same-wrapper target
 requests; completed target owners survive cancellation. The default TP skeleton
 now owns bones, auxiliary storage, animator backlinks and primary/secondary skin
-bindings. The source bind still awaits its shared zero-time refresh scratch;
+bindings. The zero-time callback now uses the controller-lived aligned animation
+arena/context and releases its reservation before the typed TP bind return.
 TP attachment and FP construction remain pending. Later initialization and gameplay remain
 incomplete. docs/player-creation.md describes the reached boundary.
 

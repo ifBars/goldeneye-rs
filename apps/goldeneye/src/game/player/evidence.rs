@@ -166,7 +166,7 @@ pub(super) fn build(
             "player_reset_complete"
         },
         pending_dependency: if virtual_reached {
-            "animation_refresh_scratch"
+            "tp_attachment"
         } else {
             "constructor_source_flag"
         },

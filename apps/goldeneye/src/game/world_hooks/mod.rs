@@ -1,5 +1,6 @@
 //! Persistent manager ownership shared by the native controller and its CPU
 //! worker. Cancellation invalidates an attempt without recreating manager state.
+mod animation;
 mod clock;
 mod evidence;
 pub(super) mod loader;
@@ -24,6 +25,8 @@ struct State {
     constructor_clock_reads: usize,
     loader: loader::Persistent,
     player: player::Persistent,
+    animation_context: ge_core::animation::scratch::Context,
+    animation_scratch: ge_core::animation::scratch::Arena,
 }
 
 struct SharedState {
@@ -52,6 +55,9 @@ impl Shared {
                 constructor_clock_reads,
                 loader: loader::Persistent::new(),
                 player: player::Persistent::from_constructor(),
+                animation_context: ge_core::animation::scratch::Context::default(),
+                animation_scratch: ge_core::animation::scratch::Arena::from_constructor(1)
+                    .expect("nonzero shared animation scratch identity"),
             }),
             current: AtomicU64::new(0),
         }))
