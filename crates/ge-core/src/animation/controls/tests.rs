@@ -1,11 +1,8 @@
 use super::*;
 use crate::animation::layers::{Snapshot, State};
-use crate::mission::player::{components::Registry, identity::PlayerId};
 
 fn store(nodes: usize) -> Store {
-    let identity = Registry::from_constructor(1)
-        .allocate(PlayerId::new(4).unwrap())
-        .unwrap();
+    let identity = OwnerId::new(4).unwrap();
     Store::from_constructor(
         identity,
         Budget {

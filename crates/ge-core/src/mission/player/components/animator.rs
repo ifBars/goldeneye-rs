@@ -40,7 +40,8 @@ impl Animator {
             previous: None,
             next: None,
             controls: crate::animation::controls::Store::from_constructor(
-                identity,
+                crate::animation::controls::OwnerId::new(identity.id().get())
+                    .expect("registered nonzero component identity"),
                 crate::animation::controls::Budget::default(),
             ),
             layers: None,

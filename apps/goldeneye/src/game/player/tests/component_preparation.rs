@@ -549,7 +549,7 @@ fn actual_basic_return_enters_tp_with_same_inventory_and_preserves_deferred_phys
         assert_eq!(tp.word(at + 4), None);
         let id = layers.slots()[index].nodes_head()[0];
         let control = tp.controls().get(id).unwrap();
-        assert_eq!(control.component(), tp.identity());
+        assert_eq!(control.component().get(), tp.identity().id().get());
         assert_eq!(control.locals().unwrap().len(), 1);
         assert_eq!(control.auxiliary().unwrap(), &[0; 4]);
         assert_eq!(control.transition_bits(), 1f32.to_bits());

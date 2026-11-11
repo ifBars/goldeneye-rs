@@ -77,7 +77,7 @@ pub(super) fn build(player: &Owned, hook: &world_hooks::Attempt) -> Result<Third
             .get(id)
             .context("TP captured payload owner is absent")?;
         ensure!(
-            control.component() == owner.identity()
+            control.component().get() == owner.identity().id().get()
                 && control.transition_bits() == 1f32.to_bits()
                 && control.rate_bits() == 0
                 && control.flags() == 0

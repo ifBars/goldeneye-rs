@@ -1,12 +1,27 @@
 //! Owned class-control snapshots. Captured locals and auxiliary words are kept
 //! separate from sampled poses, node-list membership and native addresses.
 //! IDs are per-component host handles, not native allocator or SDK history.
-use crate::{
-    animation::{layers::NodeId, skeleton::LocalPose},
-    mission::player::components::Identity,
-};
+use crate::animation::{layers::NodeId, skeleton::LocalPose};
 use anyhow::{Context, Result, ensure};
 use std::collections::BTreeMap;
+
+/// Nonzero host identity of the animator owning these snapshots.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OwnerId(u64);
+impl OwnerId {
+    pub fn new(value: u64) -> Result<Self> {
+        ensure!(value != 0, "control owner identity is zero");
+        Ok(Self(value))
+    }
+    pub fn get(self) -> u64 {
+        self.0
+    }
+    fn visit_state_words(self, mut emit: impl FnMut(u32)) {
+        emit(1);
+        emit((self.0 >> 32) as u32);
+        emit(self.0 as u32);
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct Budget {
@@ -25,7 +40,7 @@ impl Default for Budget {
 }
 #[derive(Debug)]
 pub struct Control {
-    component: Identity,
+    component: OwnerId,
     locals: Option<Vec<LocalPose>>,
     auxiliary: Option<Vec<u32>>,
     transition_bits: u32,
@@ -34,13 +49,13 @@ pub struct Control {
 }
 #[derive(Debug)]
 pub struct Store {
-    component: Identity,
+    component: OwnerId,
     next: u64,
     controls: BTreeMap<NodeId, Control>,
     budget: Budget,
 }
 impl Store {
-    pub fn from_constructor(component: Identity, budget: Budget) -> Self {
+    pub fn from_constructor(component: OwnerId, budget: Budget) -> Self {
         Self {
             component,
             next: 0,
@@ -145,7 +160,7 @@ impl Store {
     }
 }
 impl Control {
-    pub fn component(&self) -> Identity {
+    pub fn component(&self) -> OwnerId {
         self.component
     }
     pub fn locals(&self) -> Result<&[LocalPose]> {
