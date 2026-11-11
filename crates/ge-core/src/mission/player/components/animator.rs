@@ -1,4 +1,8 @@
 use super::super::identity::PlayerId;
+use super::{
+    ResourceBinding, SkeletonBudget, SkeletonInput, SkeletonRuntime, skeleton::TP_COMPONENT,
+};
+use anyhow::{Result, ensure};
 
 pub const SOURCE_BYTES: usize = 0x1b8;
 
@@ -10,6 +14,8 @@ pub struct Animator {
     bytes: [Option<u8>; SOURCE_BYTES],
     // Base ctor clears bits1..7 but preserves allocation bit0 at +8f.
     flag_8f_known_mask: u8,
+    skeleton: Option<SkeletonRuntime>,
+    component: Option<ResourceBinding>,
 }
 impl Animator {
     pub(super) fn from_constructor(player: PlayerId) -> Self {
@@ -17,6 +23,8 @@ impl Animator {
             player,
             bytes: [None; SOURCE_BYTES],
             flag_8f_known_mask: 0xfe,
+            skeleton: None,
+            component: None,
         };
         for offset in [
             0, 4, 8, 0x10, 0x14, 0x1c, 0x20, 0x28, 0x5c, 0x60, 0x94, 0x114, 0x118, 0x11c, 0x120,
@@ -87,6 +95,60 @@ impl Animator {
     pub fn player(&self) -> PlayerId {
         self.player
     }
+    /// Fresh bind prefix. The caller must execute the actual shared zero-time
+    /// refresh before treating the native bind as returned or attaching TP.
+    pub(super) fn bind_skeleton(
+        &mut self,
+        input: SkeletonInput<'_>,
+        component: ResourceBinding,
+        budget: SkeletonBudget,
+    ) -> Result<()> {
+        ensure!(
+            component == TP_COMPONENT,
+            "TP component file/reference differs"
+        );
+        ensure!(
+            self.skeleton.is_none() && self.word(0x114) == Some(0),
+            "skeleton rebind requires actual destruction"
+        );
+        ensure!(
+            self.byte(0x130) == Some(1)
+                && self.word(0x138) == Some(0)
+                && self.word(0x13c) == Some(0),
+            "fresh bind requires empty active controls"
+        );
+        // Empty slot cleanup has no child callback. These source stores precede
+        // primary initialization and remain reached when checked input fails.
+        self.word_store(0x1c, 0);
+        self.word_store(0x20, 0);
+        self.word_store(0x24, u32::MAX);
+        let mut runtime = SkeletonRuntime::initialize(input, budget)?;
+        runtime.bind_animator(self.player);
+        self.skeleton = Some(runtime);
+        // A semantic owner link replaces constructor NULL; do not keep stale
+        // zero in the sparse numeric view or manufacture a source pointer.
+        self.bytes[0x114..0x118].fill(None);
+        self.bytes[0x134] = Some(0);
+        self.bytes[0x135] = Some(0);
+        self.word_store(0x11c, 0);
+        self.skeleton
+            .as_mut()
+            .expect("installed runtime")
+            .bind_secondary();
+        self.component = Some(component);
+        self.bytes[0x1c..0x20].fill(None);
+        self.word_store(0x20, component.reference);
+        self.word_store(0x24, u32::MAX);
+        // Raw reference0 has neither class03 nor class04. The mode dispatch
+        // returns NULL without reading an animation directory or adding a node.
+        Ok(())
+    }
+    pub fn skeleton(&self) -> Option<&SkeletonRuntime> {
+        self.skeleton.as_ref()
+    }
+    pub fn component(&self) -> Option<ResourceBinding> {
+        self.component
+    }
     pub fn byte(&self, at: usize) -> Option<u8> {
         self.bytes.get(at).copied().flatten()
     }
@@ -102,7 +164,7 @@ impl Animator {
         (self.flag_8f_known_mask, 0)
     }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(1);
+        emit(2);
         emit((self.player.get() >> 32) as u32);
         emit(self.player.get() as u32);
         // Semantic Animator class instead of the original vtable pointer.
@@ -115,6 +177,15 @@ impl Animator {
             if let Some(byte) = byte {
                 emit(u32::from(*byte));
             }
+        }
+        emit(u32::from(self.skeleton.is_some()));
+        if let Some(skeleton) = &self.skeleton {
+            skeleton.visit_state_words(&mut emit);
+        }
+        emit(u32::from(self.component.is_some()));
+        if let Some(component) = self.component {
+            emit(component.file);
+            emit(component.reference);
         }
     }
 }

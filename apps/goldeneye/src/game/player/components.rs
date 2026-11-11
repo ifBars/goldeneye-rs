@@ -1,5 +1,6 @@
 //! Live TP entry uses the existing inventory, definition registry and resource
 //! wrappers. No diagnostic layer initializer or elapsed prewarm runs here.
+mod skeleton;
 mod textures;
 use super::{
     super::{actors::Definitions, world::post_trigger_resources, world_hooks},
@@ -24,6 +25,9 @@ pub(super) struct Owned {
     pub preparation: Preparation,
     pub target: Option<post_trigger_resources::Target>,
     pub textures: Vec<post_trigger_resources::Target>,
+    pub skeleton_source: Option<post_trigger_resources::FileBinding>,
+    pub component_source: Option<post_trigger_resources::FileBinding>,
+    pub skin: Option<ge_assets::skin::Skin>,
 }
 impl Owned {
     pub fn new() -> Self {
@@ -31,6 +35,9 @@ impl Owned {
             preparation: Preparation::new(),
             target: None,
             textures: Vec::new(),
+            skeleton_source: None,
+            component_source: None,
+            skin: None,
         }
     }
 }
@@ -106,8 +113,14 @@ pub(super) fn initialize(
         sources.assets,
         hook,
     )?;
-    // Default skeleton loading, visual postbind, component bind/attachment and
-    // the FP call remain unbound.
+    skeleton::bind(
+        &mut player.components,
+        sources.resources,
+        sources.assets,
+        hook,
+    )?;
+    // The shared zero-time refresh precedes a successful bind return. Visual
+    // postbind, TP attachment and FP construction remain later operations.
     Ok(())
 }
 struct Provider<'a> {

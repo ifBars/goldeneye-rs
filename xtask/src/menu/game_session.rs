@@ -3,6 +3,7 @@
 use anyhow::{Context, Result, ensure};
 use serde_json::{Value, json};
 use std::path::Path;
+mod player_skeleton;
 
 const CONTROLLER_FIELDS: &[&str] = &[
     "requested",
@@ -1014,12 +1015,13 @@ fn validate_player_components(component: &Value, reached: bool) -> Result<()> {
             "component_binding_complete",
             "preparation_state_sha256",
             "target_state_sha256",
+            "skeleton_binding",
             "scope",
         ],
     )?;
     ensure!(
-        component["stage"] == "tp_default_skeleton_pending"
-            && component["pending_dependency"] == "tp_default_skeleton"
+        component["stage"] == "tp_animation_refresh_pending"
+            && component["pending_dependency"] == "animation_refresh_scratch"
             && component["native_component_bytes"] == 0x1b8
             && component["constructed_slots"] == 4
             && component["active_slots"] == 1
@@ -1069,6 +1071,7 @@ fn validate_player_components(component: &Value, reached: bool) -> Result<()> {
                 .is_some_and(|scope| !scope.is_empty() && scope.len() <= 4096),
         "component constructor/residency evidence is contradictory"
     );
+    player_skeleton::validate(&component["skeleton_binding"])?;
     Ok(())
 }
 
@@ -1109,7 +1112,7 @@ fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Valu
             && player["lifetime"] == "controller_arena"
             && (if virtual_reached {
                 player["stage"] == "player_components_pending"
-                    && player["pending_dependency"] == "tp_default_skeleton"
+                    && player["pending_dependency"] == "animation_refresh_scratch"
             } else {
                 player["stage"] == "player_reset_complete"
                     && player["pending_dependency"] == "constructor_source_flag"
@@ -3299,7 +3302,7 @@ mod tests {
         world["actor_definitions"]["rng_draws"] = json!(2);
         world["player_initialization"] = json!({
             "origin":"fresh_constructor_snapshot","lifetime":"controller_arena","stage":"player_components_pending",
-            "pending_dependency":"tp_default_skeleton","operation_complete":false,"attempt_bound":true,"catalog_bound":true,
+            "pending_dependency":"animation_refresh_scratch","operation_complete":false,"attempt_bound":true,"catalog_bound":true,
             "operation_entries":0,"creation_dispatches":1,"catalog_entries":2,"selected_catalog_index":1,"selected_source_ordinal":4,
             "requested_start_point_before":1,"requested_start_point_after":1,"base_constructor_complete":true,
             "handler_rng_reads":1,"base_reset_calls":2,"persistent_base_resets":2,"handler_kind_bound":false,"inventory_records":1,"inventory_capacity":16,
@@ -3349,7 +3352,7 @@ mod tests {
             .extend(links.as_object().unwrap().clone());
         world["player_initialization"]["virtual_initialization"] = virtual_init;
         world["player_initialization"]["component_initialization"] = json!({
-            "stage":"tp_default_skeleton_pending","pending_dependency":"tp_default_skeleton",
+            "stage":"tp_animation_refresh_pending","pending_dependency":"animation_refresh_scratch",
             "native_component_bytes":0x1b8,"constructed_slots":4,"active_slots":1,
             "retained_file_bytes":1024,"retained_section_bytes":256,
             "third_person_constructed":true,"third_person_attached":false,"first_person_constructed":false,
@@ -3357,7 +3360,8 @@ mod tests {
             "texture_directory_outcome":"enumerated","texture_requests":3,"texture_targets_resident":3,
             "texture_residency_complete":true,"texture_requests_state_sha256":"f".repeat(64),
             "preparation_state_sha256":"d".repeat(64),"target_state_sha256":"e".repeat(64),
-            "scope":"Authored TP allocation and retained skin request; textures and attachment remain pending"});
+            "skeleton_binding":player_skeleton::tests::fixture(),
+            "scope":"Authored TP skeleton bind prefix; shared refresh and attachment remain pending"});
         probe
     }
 

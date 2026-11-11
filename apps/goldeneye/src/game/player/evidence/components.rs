@@ -5,6 +5,8 @@ use ge_core::mission::player::{
     world::World,
 };
 use serde::Serialize;
+mod skeleton;
+pub use skeleton::SkeletonBinding;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ComponentInitialization {
@@ -28,6 +30,7 @@ pub struct ComponentInitialization {
     pub component_binding_complete: bool,
     pub preparation_state_sha256: String,
     pub target_state_sha256: String,
+    pub skeleton_binding: SkeletonBinding,
     pub scope: &'static str,
 }
 pub(super) fn build(player: &Owned, world: &World) -> Result<Option<ComponentInitialization>> {
@@ -36,8 +39,8 @@ pub(super) fn build(player: &Owned, world: &World) -> Result<Option<ComponentIni
     }
     let preparation = &player.components.preparation;
     ensure!(
-        preparation.stage() == Stage::AwaitingSkeleton,
-        "component preparation has not reached its actual texture traversal"
+        preparation.stage() == Stage::AwaitingAnimationRefresh,
+        "component preparation has not reached its actual skeleton binding"
     );
     let owner = preparation
         .animator()
@@ -81,8 +84,8 @@ pub(super) fn build(player: &Owned, world: &World) -> Result<Option<ComponentIni
         "TP owner, source or attachment boundary differs"
     );
     Ok(Some(ComponentInitialization {
-        stage: "tp_default_skeleton_pending",
-        pending_dependency: "tp_default_skeleton",
+        stage: "tp_animation_refresh_pending",
+        pending_dependency: "animation_refresh_scratch",
         native_component_bytes: 0x1b8,
         constructed_slots: 4,
         active_slots: usize::from(owner.byte(0x130).context("TP active count unknown")?),
@@ -107,6 +110,7 @@ pub(super) fn build(player: &Owned, world: &World) -> Result<Option<ComponentIni
             preparation.visit_state_words(emit)
         }),
         target_state_sha256: target.fingerprint(),
-        scope: "The TP constructor and skin request use retained owners. Texture discovery reads only reached skin/geometry fields, keeps native directory absence distinct and preserves first-encounter order. Each deduplicated texture request resolves through that same wrapper and retains its actual target/section owner before the next request. No original texture hashes are exported. Default skeleton loading is next; TP attachment, FP construction, component bind, player completion, sampled pose and camera remain incomplete. Native streaming/history and lifetime parity remain unverified.",
+        skeleton_binding: skeleton::build(player)?,
+        scope: "The TP constructor, skin and ordered texture requests use retained owners. The default skeleton and component files share the existing resource registry. Primary initialization owns bone hierarchy, constructor locals/matrices and zeroed auxiliary words. Real animator/runtime backlinks, secondary skin and component references are bound; raw reference zero creates no mode. The captured source frame counter remains unresolved. The bind has not returned: its shared zero-time animation refresh is next. TP attachment, visual postbind, FP construction, player completion, sampled pose and camera remain incomplete. Native streaming/history, timing and lifetime parity remain unverified.",
     }))
 }

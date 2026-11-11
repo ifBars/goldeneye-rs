@@ -15,8 +15,10 @@ basic initializer's session suffix. The handler scalar retains captured unknown
 operands; its getter must fail until those inputs are resolved. TP entry now owns
 the fresh cleanup, original inventory slots, animator constructor and actual skin
 request. Geometry texture discovery now feeds ordered same-wrapper target
-requests; completed target owners survive cancellation. Default skeleton
-binding, TP attachment and FP construction remain pending. Later initialization and gameplay remain
+requests; completed target owners survive cancellation. The default TP skeleton
+now owns bones, auxiliary storage, animator backlinks and primary/secondary skin
+bindings. The source bind still awaits its shared zero-time refresh scratch;
+TP attachment and FP construction remain pending. Later initialization and gameplay remain
 incomplete. docs/player-creation.md describes the reached boundary.
 
 ## Source and asset boundaries

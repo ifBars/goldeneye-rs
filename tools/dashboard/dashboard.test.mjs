@@ -2263,7 +2263,7 @@ test('incomplete loader Wait28 retains its pending phase and legacy zero session
 
 function playerPreludeFixture(catalogEntries=2) {
   return {origin:'fresh_constructor_snapshot',lifetime:'controller_arena',stage:'player_components_pending',
-    pending_dependency:'tp_default_skeleton',operation_complete:false,attempt_bound:true,catalog_bound:true,
+    pending_dependency:'animation_refresh_scratch',operation_complete:false,attempt_bound:true,catalog_bound:true,
     operation_entries:0,creation_dispatches:1,catalog_entries:catalogEntries,selected_catalog_index:1,selected_source_ordinal:4,
     requested_start_point_before:1,requested_start_point_after:1,base_constructor_complete:true,
     handler_rng_reads:1,base_reset_calls:2,persistent_base_resets:2,handler_kind_bound:false,
@@ -2287,14 +2287,20 @@ function playerPreludeFixture(catalogEntries=2) {
     component_initialization:componentPlayerFixture(),
     scope:'Authored retained EXItem actor and capsule; basic return with unresolved scalar; PlayerNew remains incomplete'};
 }
+function skeletonPlayerFixture() {
+  return {native_runtime_bytes:0x164,native_storage_bytes:288,bones:2,roots:1,auxiliary_words:4,
+    primary_bound:true,secondary_bound:true,animator_backlink_bound:true,component_resource_bound:true,
+    frame_stamp_known:false,empty_refresh_complete:false,retained_skeleton_file_bytes:1024,
+    retained_component_file_bytes:2048,state_sha256:'a'.repeat(64)};
+}
 function componentPlayerFixture() {
-  return {stage:'tp_default_skeleton_pending',pending_dependency:'tp_default_skeleton',
+  return {stage:'tp_animation_refresh_pending',pending_dependency:'animation_refresh_scratch',
     native_component_bytes:0x1b8,constructed_slots:4,active_slots:1,retained_file_bytes:1024,retained_section_bytes:256,
     third_person_constructed:true,third_person_attached:false,first_person_constructed:false,skin_request_resolved:true,
     texture_dependencies_enumerated:true,component_binding_complete:false,
     texture_directory_outcome:'enumerated',texture_requests:3,texture_targets_resident:3,
     texture_residency_complete:true,texture_requests_state_sha256:'f'.repeat(64),preparation_state_sha256:'d'.repeat(64),
-    target_state_sha256:'e'.repeat(64),scope:'Authored TP constructor and skin request; texture traversal and attachment pending'};
+    target_state_sha256:'e'.repeat(64),skeleton_binding:skeletonPlayerFixture(),scope:'Authored TP skeleton bind prefix; shared refresh and attachment pending'};
 }
 function virtualPlayerFixture() {
   return {stage:'player_basic_complete',pending_dependency:'tp_fp_components',
@@ -2505,13 +2511,13 @@ test('retained registry can grow across cancellation while physics stays unactiv
 });
 
 
-test('TP constructor and skin evidence keep unresolved textures attachment and FP explicit',async()=>{
+test('TP skeleton binding keeps shared refresh attachment and FP explicit',async()=>{
   const report=withPlayerPrelude(gameSessionFixture());
   await inspect(embed(report),d=>{
     const text=d.querySelector('#game-session-summary').textContent;
     assert.match(text,/Third-person constructor retained: 4 animation slots, 1 active/);
     assert.match(text,/skin request retains 1,024 file bytes and 256 logical section bytes/);
-    assert.match(text,/Texture residency completed: 3 ordered target requests. Default skeleton setup, TP attachment and FP construction remain pending/);
+    assert.match(text,/Texture residency completed: 3 ordered target requests. Default skeleton initialized: 2 bones and 4 auxiliary words. Its animator backlink and secondary skin are bound. Shared zero-time refresh, TP attachment and FP construction remain pending/);
   });
   const changes=[state=>{state.third_person_constructed=false;},state=>{state.third_person_attached=true;},
     state=>{state.first_person_constructed=true;},state=>{state.texture_dependencies_enumerated=false;},
@@ -2520,6 +2526,13 @@ test('TP constructor and skin evidence keep unresolved textures attachment and F
     state=>{state.texture_targets_resident=2;},state=>{state.texture_residency_complete=false;},state=>{state.texture_requests_state_sha256='short';},
     state=>{state.active_slots=4;},state=>{state.constructed_slots=1;},state=>{state.native_component_bytes=0;},
     state=>{state.retained_section_bytes=2048;},state=>{state.target_state_sha256='short';},state=>{state.source_rows=[1,2,3];}];
+  for (const key of ['primary_bound','secondary_bound','animator_backlink_bound','component_resource_bound'])
+    changes.push(state=>{state.skeleton_binding[key]=false;});
+  for (const [key,value] of Object.entries({empty_refresh_complete:true,frame_stamp_known:true,bones:129,roots:3,
+    auxiliary_words:4097,native_runtime_bytes:0,native_storage_bytes:287,retained_skeleton_file_bytes:0,
+    retained_component_file_bytes:0,state_sha256:'short',pose:[0,0,0,1]}))
+    changes.push(state=>{state.skeleton_binding[key]=value;});
+  changes.push(state=>{delete state.skeleton_binding;});
   for(const change of changes) {
     const invalid=withPlayerPrelude(gameSessionFixture());
     change(invalid.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization);

@@ -1,7 +1,9 @@
 //! The next source world hook, backed by actual synchronous supplied-data
 //! residency. This owner does not model the original streaming scheduler.
 mod evidence;
+mod files;
 mod targets;
+pub(crate) use files::FileBinding;
 pub(crate) use targets::Target;
 
 use anyhow::{Context, Result, ensure};
@@ -116,17 +118,7 @@ fn resolve(
         request.is_file_request(),
         "post-trigger file prefix rejected"
     );
-    if let std::collections::btree_map::Entry::Vacant(entry) = files.entry(request.file) {
-        let edb = load(request.file)?;
-        ensure!(
-            edb.header.hash == request.file,
-            "post-trigger file owner differs"
-        );
-        entry.insert(File {
-            edb: Arc::new(edb),
-            sections: Vec::new(),
-        });
-    }
+    files::retain(files, request.file, load)?;
     let file = files
         .get_mut(&request.file)
         .context("post-trigger file owner is absent")?;

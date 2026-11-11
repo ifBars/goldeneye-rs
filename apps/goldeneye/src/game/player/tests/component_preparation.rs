@@ -193,6 +193,36 @@ fn actual_basic_return_enters_tp_with_same_inventory_and_preserves_deferred_phys
             .is_err()
     );
     assert!(item.components().is_empty());
+    preparation
+        .bind_default_skeleton(
+            components::SkeletonInput {
+                primary: components::ResourceBinding {
+                    file: 0x010a_0056,
+                    reference: 0x0d00_0001,
+                },
+                bones: &[ge_core::animation::skeleton::BoneInput {
+                    parent: u16::MAX,
+                    range_end: 0,
+                    auxiliary_raw: [0; 2],
+                }],
+                auxiliary_words: 4,
+                captured_frame_counter: None,
+            },
+            components::ResourceBinding {
+                file: 0x0102_0017,
+                reference: 0,
+            },
+            components::SkeletonBudget::default(),
+        )
+        .unwrap();
+    assert_eq!(
+        preparation.stage(),
+        components::Stage::AwaitingAnimationRefresh
+    );
+    let runtime = preparation.animator().unwrap().skeleton().unwrap();
+    assert_eq!(runtime.animator(), Some(base.player()));
+    assert_eq!(runtime.auxiliary(), &[0; 4]);
+    assert!(item.components().is_empty());
 }
 
 #[test]

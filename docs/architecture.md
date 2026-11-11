@@ -48,7 +48,15 @@ player. The post-trigger report remains scoped to its earlier operation. Texture
 discovery reads only reached geometry fields and retains directory absence as a
 distinct outcome. First-encounter hashes feed actual target requests through the
 same wrapper, with each successful target owner retained before the next request.
-Default skeleton binding, attachment and the subsequent FP call remain pending.
+The next file lookups retain the default skeleton and TP component wrappers in
+that same registry, before binding. The fresh skeletal runtime owns checked bone
+hierarchy, constructor locals/matrices and zeroed auxiliary words. Semantic
+animator backlinks replace constructor NULL; primary/secondary skin and component
+references remain tied to retained files. Raw reference zero creates no mode.
+The captured source frame-counter read remains unresolved and its getter fails.
+The bind stops before its shared zero-time animation refresh, which requires a
+real shared scratch/context owner even with empty controls. Attachment and the
+subsequent FP call remain pending.
 The controller arena retains the actual player/item/physics owners and registry
 rows across worker cancellation. Its world/arena mutex is separate from manager
 state, so reached reset/configuration writes can use their original owners.

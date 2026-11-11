@@ -118,8 +118,37 @@ bone topology, tags and unrelated payloads remain unread. Each hash then feeds
 an ordered same-wrapper target request. Successful targets retain their actual
 payload and logical section owners across cancellation, and a failed request
 preserves the completed prefix. The preparation stage reaches default skeleton
-loading only after all these requests finish. No diagnostic prewarm, TP
-attachment or FP constructor substitutes for that work.
+loading only after all these requests finish.
+
+The next two file lookups retain the default skeleton wrapper and then the TP
+component wrapper through the existing resource registry. This synchronous
+supplied-data adapter does not establish the original registry's preload
+history. File lookup creates no extra target request. The supported default
+skin belongs to the base section; another section needs its real residency
+provider. The skin and both wrappers stay owned across cancellation.
+
+The fresh animator bind clears its empty active control list and resets its
+component reference before primary initialization. The skeletal runtime owns
+the actual bone hierarchy, source range words, constructor local vectors and
+identity matrices. Its auxiliary words are allocated and zeroed separately.
+A private census of the supported default skin found 37 bones, one root and 16
+auxiliary words; this is static asset evidence, not a fresh runtime pass. The
+runtime and animator retain matching semantic backlinks. Constructor NULL in
+the sparse numeric view becomes unknown when replaced by a semantic owner link,
+so later callers cannot mistake stale zero for the current pointer. The same
+default pair becomes the secondary skin. The component file's raw reference zero
+produces no initial mode and does not select the first animation entry.
+
+The skeletal constructor captures the engine frame counter minus one, with
+32-bit wrapping. Its actual source counter is not yet bound to the host clock;
+the reached field retains a captured unknown and its getter fails. No later
+counter value can repair that historical read. The reached bind prefix does
+not read that field.
+
+The source bind has not returned successfully. Its next zero-time refresh needs
+a shared 0x2200-byte scratch allocation and changes shared animation-context
+regions and flags even with empty controls. That provider is still pending.
+No diagnostic prewarm, TP attachment or FP constructor substitutes for it.
 
 The controller arena retains actual player, item and physics objects, their
 registry rows and actor memberships across cancellation. Worker teardown leaves

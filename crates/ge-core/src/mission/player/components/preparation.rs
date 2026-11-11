@@ -1,4 +1,4 @@
-use super::{Animator, Visual};
+use super::{Animator, ResourceBinding, SkeletonBudget, SkeletonInput, Visual};
 use crate::mission::player::{
     base_handler,
     constructor::{PendingPrelude, PendingReset},
@@ -16,6 +16,8 @@ pub enum Stage {
     AwaitingTextures,
     AwaitingTextureResidency,
     AwaitingSkeleton,
+    BindingSkeleton,
+    AwaitingAnimationRefresh,
     Failed,
 }
 /// Directory absence ends the source loop before any part is read. It stays
@@ -252,8 +254,31 @@ impl Preparation {
         self.stage = Stage::AwaitingSkeleton;
         Ok(())
     }
+    pub fn bind_default_skeleton(
+        &mut self,
+        input: SkeletonInput<'_>,
+        component: ResourceBinding,
+        budget: SkeletonBudget,
+    ) -> Result<()> {
+        ensure!(
+            self.stage == Stage::AwaitingSkeleton,
+            "default skeleton bind is out of source order"
+        );
+        self.stage = Stage::BindingSkeleton;
+        let result = self
+            .animator
+            .as_mut()
+            .context("TP animator owner is absent")?
+            .bind_skeleton(input, component, budget);
+        self.stage = if result.is_ok() {
+            Stage::AwaitingAnimationRefresh
+        } else {
+            Stage::Failed
+        };
+        result
+    }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(2);
+        emit(3);
         emit(match self.stage {
             Stage::Fresh => 0,
             Stage::Clearing => 1,
@@ -263,6 +288,8 @@ impl Preparation {
             Stage::Failed => 5,
             Stage::AwaitingSkeleton => 6,
             Stage::AwaitingTextureResidency => 7,
+            Stage::BindingSkeleton => 8,
+            Stage::AwaitingAnimationRefresh => 9,
         });
         emit(u32::from(self.player.is_some()));
         if let Some(player) = self.player {
@@ -307,3 +334,7 @@ impl Preparation {
         emit(self.texture_requests as u32);
     }
 }
+
+#[cfg(test)]
+#[path = "tests/skeleton.rs"]
+mod skeleton_tests;
