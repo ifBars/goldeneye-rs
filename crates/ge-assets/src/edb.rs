@@ -219,6 +219,20 @@ impl Edb {
         crate::skeletal_animation::payload(&self.data, animation)
     }
 
+    /// Runtime view restricted to the logically resident base. Cached later
+    /// sections are unavailable to its lazy directory/command reads.
+    pub fn base_animation_modes(&self) -> Result<crate::animation_modes::View<'_>> {
+        ensure!(
+            self.header.version == 263,
+            "animation modes require supported EDB version"
+        );
+        let data = self
+            .data
+            .get(..usize::try_from(self.header.base_bytes)?)
+            .context("animation base exceeds retained file")?;
+        crate::animation_modes::read(data, &self.tables)
+    }
+
     /// Retained-owner lazy mode/set access. No animation is selected or sampled.
     pub fn animation_modes(&self) -> Result<crate::animation_modes::View<'_>> {
         ensure!(

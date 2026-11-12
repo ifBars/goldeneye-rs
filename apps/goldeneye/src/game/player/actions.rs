@@ -6,9 +6,11 @@ use ge_core::mission::player::{
     actions::{self, Target},
     world::World,
 };
+mod selector;
 pub(super) struct Owned {
     pub state: actions::Pending,
     pub mappings: Vec<ge_assets::weapon_static::Remap>,
+    pub tp_command: Option<ge_assets::animation_modes::CommandLocation>,
 }
 pub(super) fn initialize(
     player: &mut Player,
@@ -26,6 +28,7 @@ pub(super) fn initialize(
     player.action = Some(Owned {
         state: actions::Pending::begin(&player.base, &mut player.reset)?,
         mappings: Vec::new(),
+        tp_command: None,
     });
     let owner = player
         .action
@@ -90,7 +93,5 @@ pub(super) fn initialize(
         hook.ensure_current()?;
     }
     hook.capture_initial_tp(&mut owner.state, &mut player.components.preparation)?;
-    // Actual captured control lists precede TP mode selection. Mode histories,
-    // callback return, FP dispatch and the second generic request still follow.
-    Ok(())
+    selector::initialize(player, hook)
 }

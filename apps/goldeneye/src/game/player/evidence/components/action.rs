@@ -24,6 +24,7 @@ pub struct InitialAction {
     pub state_sha256: String,
     pub mapping_state_sha256: String,
     pub tp_capture: super::ThirdPersonCapture,
+    pub tp_selector: super::ThirdPersonSelector,
 }
 pub(super) fn build(
     player: &Owned,
@@ -52,8 +53,10 @@ pub(super) fn build(
         "FP controls were reached before TP selector return"
     );
     ensure!(
-        state.stage() == Stage::AwaitingThirdPersonSelector
-            && state.player() == player.base.player()
+        matches!(
+            state.stage(),
+            Stage::AwaitingThirdPersonCommand | Stage::AwaitingThirdPersonSetterTail
+        ) && state.player() == player.base.player()
             && state.resolved().len() == 3
             && owner.mappings.len() == 3
             && state.generic() == 0x0900_071e
@@ -109,7 +112,7 @@ pub(super) fn build(
         }
     }
     Ok(InitialAction {
-        stage: "tp_selector_pending",
+        stage: super::selector::boundary(state.stage())?.0,
         generic_request: state.generic(),
         parameter_bits: 0,
         direction_raw: 0xff,
@@ -128,10 +131,11 @@ pub(super) fn build(
         mode_controls_created: tp.controls().len(),
         mode_history_updated: false,
         callback_returned: false,
-        state_sha256: super::super::words(b"ge_player_initial_action_v1\0", |emit| {
+        state_sha256: super::super::words(b"ge_player_initial_action_v2\0", |emit| {
             state.visit_state_words(emit)
         }),
         mapping_state_sha256: format!("{:x}", hash.finalize()),
         tp_capture: super::control_capture::build(player, hook)?,
+        tp_selector: super::selector::build(player)?,
     })
 }

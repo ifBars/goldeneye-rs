@@ -4,6 +4,7 @@ use super::{File, Owned};
 use anyhow::{Context, Result, ensure};
 use ge_assets::{edb::Edb, resource::GameAssets, skin, target_section};
 use std::{collections::BTreeMap, sync::Arc};
+mod modes;
 
 pub(crate) struct FileBinding {
     source: Arc<Edb>,
@@ -43,15 +44,6 @@ impl Owned {
     }
 }
 impl FileBinding {
-    pub(crate) fn mode_available(&self, reference: u32) -> Result<bool> {
-        // Availability resolves only the directory reference. It reads no mode
-        // body, publishes no resource section and constructs no control node.
-        Ok(self
-            .source
-            .animation_modes()?
-            .resolve_mode(reference)?
-            .is_some())
-    }
     pub(crate) fn same_target(&self, target: &super::Target) -> bool {
         Arc::ptr_eq(&self.source, &target.source)
     }

@@ -36,6 +36,44 @@ impl components::Provider for EntryProvider {
 
 #[test]
 fn actual_basic_return_enters_tp_with_same_inventory_and_preserves_deferred_physics() {
+    initial_selector_chain(true);
+}
+#[test]
+fn unavailable_fp_mode_tracks_tp_and_retains_the_actual_primary_head_before_selection() {
+    initial_selector_chain(false);
+}
+struct ModeSource {
+    calls: Vec<&'static str>,
+}
+impl ge_core::animation::mode::runtime::Provider for ModeSource {
+    fn resolve_mode(&mut self, reference: u32) -> Result<Option<usize>> {
+        self.calls.push("resolve");
+        match reference {
+            0x0900_071e => Ok(Some(1)),
+            0 => Ok(Some(0)),
+            _ => anyhow::bail!("fallback must not precede pending command effects"),
+        }
+    }
+    fn mode(&mut self, index: usize) -> Result<ge_core::animation::mode::Mode> {
+        self.calls.push("mode");
+        ensure!(index == 0, "target descriptor must stay unread");
+        Ok(ge_core::animation::mode::Mode {
+            hash: 0x0900_00bb,
+            transition_count: 1,
+        })
+    }
+    fn transition_target(&mut self, index: usize, row: usize) -> Result<u32> {
+        self.calls.push("target");
+        ensure!((index, row) == (0, 0), "unreached row");
+        Ok(1)
+    }
+    fn command_count(&mut self, index: usize, row: usize) -> Result<usize> {
+        self.calls.push("count");
+        ensure!((index, row) == (0, 0), "unmatched command list");
+        Ok(1)
+    }
+}
+fn initial_selector_chain(fp_available: bool) {
     let (mut base, mut prelude, mut reset) = player_state(44);
     let mut world = world();
     let mut registry = Registry::from_constructor();
@@ -574,6 +612,71 @@ fn actual_basic_return_enters_tp_with_same_inventory_and_preserves_deferred_phys
             .is_err()
     );
     assert_eq!(fallback.writes(), 2);
+    let prior_scalars = (base.word(0x1c0), base.word(0x6e4));
+    let primary = preparation.animator().unwrap().layers().unwrap().slots()[0].nodes_head()[0];
+    action
+        .begin_third_person_selector(&mut base, &reset, &preparation, fp_available)
+        .unwrap();
+    assert_eq!(action.tracks_player_modes(), Some(!fp_available));
+    assert_eq!(
+        action.primary_head(),
+        if fp_available {
+            None
+        } else {
+            Some((Some(primary), 0))
+        }
+    );
+    assert_eq!(
+        (base.word(0x1c0), base.word(0x6e4)),
+        if fp_available {
+            prior_scalars
+        } else {
+            (Some(0), Some(0))
+        }
+    );
+    let mut source = ModeSource { calls: Vec::new() };
+    let command = action
+        .advance_third_person_selector(&mut source)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        (command.mode, command.transition, command.ordinal),
+        (0, 0, 0)
+    );
+    assert_eq!(
+        source.calls,
+        ["resolve", "resolve", "mode", "target", "count"]
+    );
+    assert_eq!(
+        action.stage(),
+        ge_core::mission::player::actions::Stage::AwaitingThirdPersonCommand
+    );
+    let cursor = action.selector().unwrap();
+    assert_eq!(cursor.inputs().requested, action.resolved()[1].output);
+    assert_eq!(cursor.inputs().previous, 0);
+    assert_eq!(cursor.inputs().fallback, fallback.value().unwrap());
+    assert_eq!(cursor.pending(), Some(command));
+    assert_eq!(cursor.completed_commands(), 0);
+    assert_eq!(cursor.return_word(), None);
+    assert_eq!(preparation.animator().unwrap().controls().len(), 4);
+    assert_eq!(
+        preparation
+            .first_person()
+            .unwrap()
+            .animator()
+            .controls()
+            .len(),
+        0
+    );
+    for at in [0x70c, 0x710, 0x714, 0x718] {
+        assert_eq!(reset.word(at), Some(0));
+    }
+    assert_eq!(base.word(0x704), Some(0));
+    assert!(
+        action
+            .begin_third_person_selector(&mut base, &reset, &preparation, fp_available)
+            .is_err()
+    );
 }
 
 #[test]

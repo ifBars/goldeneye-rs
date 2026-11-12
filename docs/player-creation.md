@@ -302,9 +302,36 @@ keep their own initial scalars and copy snapshot data. The active count remains
 one; this operation differs from the mode command's active-slot mask loop.
 Header/list ownership and each successful prefix survive allocation failure,
 which cannot publish a returned capture or replay its failed state. The live
-checkpoint now awaits TP mode selection/execution, followed by FP dispatch and
+checkpoint now enters TP selection as described below, before FP dispatch and
 the remaining initial action callback. Constructor snapshots remain separate
 from evaluated poses, camera output and reference parity.
+
+TP mode qualification now queries the actual retained FP wrapper for its mapped
+request. An available FP mode selects generic previous history; otherwise the
+tracked TP branch clears its reached handler words and checks the actual dirty
+interface. The fresh NULL interface needs no notification. That branch retains
+the real slot-zero head before selection. Its current snapshot-control type is
+outside the compared mode-child subtype, so the saved comparison word is zero.
+Later node types require their own provider; unknown head types cannot be skipped.
+
+A resumable generic animation cursor resolves the requested target first. Previous
+reference zero is a valid coded index. Transition keys are visited in order and
+only the first matching row opens its command list. The host retains only the
+first reached command's location/opcode; later pointers and operands stay unread.
+It acknowledges no command yet. The cursor's protocol requires command effects
+to return before reading the next command or trying fallback after source hash
+zero. Provider/command errors preserve the reached prefix and prohibit replay.
+If no command is reached, the selector return stays separate from its pending
+setter tail, including native zero returns. No history words are updated yet.
+
+Live directory, count and opcode reads use the same component wrapper's resident
+base, independently of its full cached payload. Reports carry only aggregate
+cursor state and an opcode, never source addresses or private payload arrays.
+The dashboard distinguishes a pending command from a pending setter tail. Both
+leave command effects, mode history, callback completion, pose and camera work
+incomplete. Hosted tests use authored malformed pointers, missing targets, zero
+source hashes, ordered command returns and failures; they establish no original
+runtime or numerical parity.
 
 The controller arena retains actual player, item and physics objects, their
 registry rows and actor memberships across cancellation. Worker teardown leaves

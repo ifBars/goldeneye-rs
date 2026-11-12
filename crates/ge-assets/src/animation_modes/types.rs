@@ -16,6 +16,20 @@ pub struct Descriptor {
     pub hash: u32,
     pub count: u32,
 }
+/// A reached command pointer/opcode. Operand and set-body reads remain lazy.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CommandLocation {
+    pub(super) address: usize,
+    pub(super) opcode: u32,
+}
+impl CommandLocation {
+    pub fn source_address(self) -> usize {
+        self.address
+    }
+    pub fn opcode(self) -> u32 {
+        self.opcode
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Command {

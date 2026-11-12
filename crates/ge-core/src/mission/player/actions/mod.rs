@@ -10,6 +10,7 @@ use super::{
 };
 use anyhow::{Context, Result, ensure};
 mod capture;
+mod selector;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stage {
@@ -19,6 +20,10 @@ pub enum Stage {
     AwaitingThirdPersonDispatch,
     CapturingThirdPerson,
     AwaitingThirdPersonSelector,
+    SelectingThirdPerson,
+    AwaitingThirdPersonCommand,
+    AwaitingThirdPersonSetterTail,
+    ThirdPersonCommandFailed,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Target {
@@ -51,6 +56,9 @@ pub struct Pending {
     resolved: Vec<Resolved>,
     fallback: Option<u32>,
     fallback_writes: Option<u64>,
+    selector: Option<crate::animation::mode::runtime::Cursor>,
+    tracks_player_modes: Option<bool>,
+    primary_head: Option<(Option<crate::animation::layers::NodeId>, u32)>,
 }
 impl Pending {
     pub fn begin(base: &base_handler::Owner, reset: &mut PendingReset) -> Result<Self> {
@@ -65,6 +73,9 @@ impl Pending {
             resolved: Vec::new(),
             fallback: None,
             fallback_writes: None,
+            selector: None,
+            tracks_player_modes: None,
+            primary_head: None,
         })
     }
     pub fn stage(&self) -> Stage {
@@ -211,7 +222,7 @@ impl Pending {
         Ok(())
     }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(2);
+        emit(4);
         emit(self.stage as u32);
         emit((self.player.get() >> 32) as u32);
         emit(self.player.get() as u32);
@@ -243,6 +254,23 @@ impl Pending {
         if let Some(value) = self.fallback_writes {
             emit((value >> 32) as u32);
             emit(value as u32);
+        }
+        emit(u32::from(self.tracks_player_modes.is_some()));
+        if let Some(value) = self.tracks_player_modes {
+            emit(u32::from(value));
+        }
+        emit(u32::from(self.primary_head.is_some()));
+        if let Some((head, word)) = self.primary_head {
+            emit(u32::from(head.is_some()));
+            if let Some(head) = head {
+                emit((head.get() >> 32) as u32);
+                emit(head.get() as u32);
+            }
+            emit(word);
+        }
+        emit(u32::from(self.selector.is_some()));
+        if let Some(selector) = &self.selector {
+            selector.visit_state_words(emit);
         }
     }
 }

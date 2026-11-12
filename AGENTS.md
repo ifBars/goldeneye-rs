@@ -32,8 +32,12 @@ and resolves the actual current inventory. Three mappings run in source order
 through retained supplied tables and lazy target availability. TP now performs
 its ordinary empty refresh through shared scratch and captures primary locals
 and auxiliary storage into four independent physical-slot controls. Active count
-stays one. The shared fallback stores bracket this capture. TP mode selection
-and execution are next, before FP dispatch. Pose postprocess targets
+stays one. The shared fallback stores bracket this capture. TP now qualifies
+through the actual FP wrapper and advances a resumable selector over the logically
+resident base. Its tracked branch preserves the actual preclear and snapshot-head
+comparison. Selection retains the first reached opcode before operands/effects,
+or returns before the unimplemented setter tail. Command execution and the setter
+tail are next, before FP dispatch. Pose postprocess targets
 are assigned, but their body and frame scheduling remain unavailable.
 Later initialization and gameplay remain
 incomplete. docs/player-creation.md describes the reached boundary.

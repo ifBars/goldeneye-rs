@@ -12,6 +12,7 @@ mod control_capture;
 mod first_person;
 mod postbind;
 mod refresh;
+mod selector;
 mod skeleton;
 pub use action::InitialAction;
 pub use attachment::AttachmentBinding;
@@ -20,6 +21,7 @@ pub use control_capture::ThirdPersonCapture;
 pub use first_person::FirstPersonBinding;
 pub use postbind::VisualPostbind;
 pub use refresh::BindRefresh;
+pub use selector::ThirdPersonSelector;
 pub use skeleton::SkeletonBinding;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -108,9 +110,18 @@ pub(super) fn build(
             && preparation.textures().is_some(),
         "TP owner, source or attachment boundary differs"
     );
+    let action = action::build(player, hook)?;
+    let (stage, pending_dependency) = selector::boundary(
+        player
+            .action
+            .as_ref()
+            .context("TP action absent")?
+            .state
+            .stage(),
+    )?;
     Ok(Some(ComponentInitialization {
-        stage: "tp_selector_pending",
-        pending_dependency: "tp_animation_selector",
+        stage,
+        pending_dependency,
         native_component_bytes: 0x1b8,
         constructed_slots: 4,
         active_slots: usize::from(owner.byte(0x130).context("TP active count unknown")?),
@@ -141,7 +152,7 @@ pub(super) fn build(
         visual_postbind: postbind::build(player, world)?,
         callbacks: callbacks::build(player, world, hook)?,
         first_person: first_person::build(player, world, identities, hook)?,
-        initial_action: action::build(player, hook)?,
-        scope: "The initial caller now completes TP's fresh capture helper before mode selection. Its ordinary empty refresh uses the actual shared scratch owner and clears the reached update flag; primary locals and auxiliary words feed four independently owned controls in physical slots. Active count remains one. Shared fallback stores precede and follow capture. TP mode selection/execution, mode history, FP dispatch, callback return, pose postprocessing, scheduling, completed player and camera remain incomplete.",
+        initial_action: action,
+        scope: "TP selection now reads the actual resident base through its retained component wrapper. FP availability selects the actual previous-history branch. The live cursor stops at the first reached command opcode, or retains a selector return before the setter tail. No command is acknowledged. The four captured controls remain owned and active count stays one. Command effects, setter tail, mode history, FP dispatch, callback return, pose postprocessing, scheduling, completed player and camera remain incomplete.",
     }))
 }

@@ -10,6 +10,7 @@ mod player_capture;
 mod player_first_person;
 mod player_postbind;
 mod player_refresh;
+mod player_selector;
 mod player_skeleton;
 
 const CONTROLLER_FIELDS: &[&str] = &[
@@ -1033,8 +1034,9 @@ fn validate_player_components(component: &Value, reached: bool) -> Result<()> {
         ],
     )?;
     ensure!(
-        component["stage"] == "tp_selector_pending"
-            && component["pending_dependency"] == "tp_animation_selector"
+        player_selector::dependency(&component["stage"])
+            .is_some_and(|dependency| component["pending_dependency"] == dependency)
+            && component["stage"] == component["initial_action"]["stage"]
             && component["native_component_bytes"] == 0x1b8
             && component["constructed_slots"] == 4
             && component["active_slots"] == 1
@@ -1158,7 +1160,8 @@ fn validate_player_initialization(player: &Value, world: &Value, snapshot: &Valu
             && player["lifetime"] == "controller_arena"
             && (if virtual_reached {
                 player["stage"] == "player_components_pending"
-                    && player["pending_dependency"] == "tp_animation_selector"
+                    && player["pending_dependency"]
+                        == player["component_initialization"]["pending_dependency"]
             } else {
                 player["stage"] == "player_reset_complete"
                     && player["pending_dependency"] == "constructor_source_flag"
@@ -3348,7 +3351,7 @@ mod tests {
         world["actor_definitions"]["rng_draws"] = json!(2);
         world["player_initialization"] = json!({
             "origin":"fresh_constructor_snapshot","lifetime":"controller_arena","stage":"player_components_pending",
-            "pending_dependency":"tp_animation_selector","operation_complete":false,"attempt_bound":true,"catalog_bound":true,
+            "pending_dependency":"tp_animation_command","operation_complete":false,"attempt_bound":true,"catalog_bound":true,
             "operation_entries":0,"creation_dispatches":1,"catalog_entries":2,"selected_catalog_index":1,"selected_source_ordinal":4,
             "requested_start_point_before":1,"requested_start_point_after":1,"base_constructor_complete":true,
             "handler_rng_reads":1,"base_reset_calls":2,"persistent_base_resets":2,"handler_kind_bound":false,"inventory_records":1,"inventory_capacity":16,
@@ -3398,7 +3401,7 @@ mod tests {
             .extend(links.as_object().unwrap().clone());
         world["player_initialization"]["virtual_initialization"] = virtual_init;
         world["player_initialization"]["component_initialization"] = json!({
-            "stage":"tp_selector_pending","pending_dependency":"tp_animation_selector",
+            "stage":"tp_command_pending","pending_dependency":"tp_animation_command",
             "native_component_bytes":0x1b8,"constructed_slots":4,"active_slots":1,
             "retained_file_bytes":1024,"retained_section_bytes":256,
             "third_person_constructed":true,"third_person_attached":true,"first_person_constructed":true,
@@ -3415,6 +3418,44 @@ mod tests {
             "initial_action":player_action::tests::fixture(),
             "scope":"Authored TP control capture; TP mode selector remains pending"});
         probe
+    }
+
+    #[test]
+    fn selector_return_changes_every_parent_dependency_without_claiming_player_completion() {
+        let mut probe = player_probe_fixture();
+        let player = &mut probe["window"]["game_session"]["active"]["world_initialization"]["player_initialization"];
+        player["pending_dependency"] = json!("tp_mode_setter_tail");
+        let component = &mut player["component_initialization"];
+        component["stage"] = json!("tp_setter_tail_pending");
+        component["pending_dependency"] = json!("tp_mode_setter_tail");
+        let action = &mut component["initial_action"];
+        action["stage"] = json!("tp_setter_tail_pending");
+        let selector = &mut action["tp_selector"];
+        selector["stage"] = json!("returned");
+        selector["commands_issued"] = json!(0);
+        selector["pending_ordinal"] = Value::Null;
+        selector["pending_opcode"] = Value::Null;
+        selector["return_word"] = json!(0x0900_00ab);
+        validate(
+            &probe,
+            Check::Loaded {
+                difficulty: 0,
+                reentry: false,
+            },
+        )
+        .unwrap();
+        let player = &mut probe["window"]["game_session"]["active"]["world_initialization"]["player_initialization"];
+        player["pending_dependency"] = json!("tp_animation_command");
+        assert!(
+            validate(
+                &probe,
+                Check::Loaded {
+                    difficulty: 0,
+                    reentry: false
+                }
+            )
+            .is_err()
+        );
     }
 
     #[test]

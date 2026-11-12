@@ -167,7 +167,10 @@ pub(super) fn build(
             "player_reset_complete"
         },
         pending_dependency: if virtual_reached {
-            "tp_animation_selector"
+            component_initialization
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("player component boundary absent"))?
+                .pending_dependency
         } else {
             "constructor_source_flag"
         },

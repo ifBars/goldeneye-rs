@@ -79,6 +79,50 @@ fn budget() -> Budget {
         children: 1,
     }
 }
+
+#[test]
+fn command_location_and_one_command_leave_a_later_bad_pointer_unread() {
+    let mut data = fixture();
+    word(&mut data, 0x268, 0x7fff_ffff);
+    let edb = Edb::parse(data).unwrap();
+    let view = edb.base_animation_modes().unwrap();
+    assert_eq!(view.command_count(0, 1, 2).unwrap(), 2);
+    let first = view.command_location(0, 1, 0, 2).unwrap();
+    assert_eq!(first.opcode(), 0x0c00_0005);
+    assert!(matches!(
+        view.command(0, 1, 0, 2).unwrap(),
+        Command::MaskOperation { mask_raw: 3, .. }
+    ));
+    assert!(view.command_location(0, 1, 1, 2).is_err());
+    assert!(view.commands(0, 1, budget()).is_err());
+}
+#[test]
+fn cached_payload_does_not_extend_live_mode_base_residency() {
+    let mut data = fixture();
+    word(&mut data, 0x18, 0x2b0);
+    let edb = Edb::parse(data).unwrap();
+    let base = edb.base_animation_modes().unwrap();
+    assert!(base.command_location(0, 1, 0, 2).is_ok());
+    assert!(base.command_location(0, 1, 1, 2).is_err());
+    assert!(
+        edb.animation_modes()
+            .unwrap()
+            .command_location(0, 1, 1, 2)
+            .is_ok()
+    );
+}
+#[test]
+fn unknown_command_opcode_can_be_retained_before_its_execution_provider() {
+    let mut data = fixture();
+    word(&mut data, 0x2a0, 0x0c00_00ff);
+    let edb = Edb::parse(data).unwrap();
+    let view = edb.base_animation_modes().unwrap();
+    assert_eq!(
+        view.command_location(0, 1, 0, 2).unwrap().opcode(),
+        0x0c00_00ff
+    );
+    assert!(view.command(0, 1, 0, 2).is_err());
+}
 fn truncate(data: &mut Vec<u8>, length: usize) {
     data.truncate(length);
     word(data, 0x14, length as u32);

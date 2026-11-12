@@ -1,10 +1,11 @@
 //! Retained-owner native mode/set views. All body access is reached and bounded.
 //! This reader plans no initial mode, allocates no animator children and samples
 //! no channels. Nonzero sections require a future section-ownership adapter.
+mod commands;
 mod sets;
 mod types;
 
-pub use types::{Budget, Child, Command, Descriptor, Group, Set};
+pub use types::{Budget, Child, Command, CommandLocation, Descriptor, Group, Set};
 
 use crate::{binary::Bytes, edb::Table};
 use anyhow::{Context, Result, ensure};
@@ -52,61 +53,6 @@ impl View<'_> {
     pub fn transition_target(&self, index: usize, row: usize) -> Result<u32> {
         let at = self.transition_address(index, row)?;
         Bytes(self.data).u32(at)
-    }
-
-    /// The caller supplies the first matching row. Later duplicate rows and
-    /// unmatched pointer words are not read. Unknown reached opcodes are errors.
-    pub fn commands(&self, index: usize, row: usize, budget: Budget) -> Result<Vec<Command>> {
-        let at = self.transition_address(index, row)?;
-        let b = Bytes(self.data);
-        let list = self.required_relative(add(at, 4)?, "transition command list")?;
-        let count = usize::try_from(b.u32(list)?)?;
-        ensure!(
-            count <= budget.commands,
-            "animation command budget exhausted"
-        );
-        let mut result = Vec::new();
-        result
-            .try_reserve_exact(count)
-            .context("allocating bounded animation commands")?;
-        for ordinal in 0..count {
-            let field = add(
-                add(list, 4)?,
-                ordinal
-                    .checked_mul(4)
-                    .context("animation command offset overflow")?,
-            )?;
-            let source_address = self.required_relative(field, "animation command")?;
-            let opcode = b.u32(source_address)?;
-            let command = match opcode {
-                0x0c00_0002 => {
-                    let set_reference = b.u32(add(source_address, 4)?)?;
-                    let flags_override = b.u16(add(source_address, 8)?)?;
-                    let options_raw = b.u16(add(source_address, 10)?)? as i16;
-                    let divisor_override_raw = if options_raw & 1 != 0 {
-                        b.u32(add(source_address, 12)?)?
-                    } else {
-                        0
-                    };
-                    Command::StartSet {
-                        source_address,
-                        set_reference,
-                        flags_override,
-                        options_raw,
-                        divisor_override_raw,
-                    }
-                }
-                0x0c00_0005 => Command::MaskOperation {
-                    source_address,
-                    mask_raw: b.u16(add(source_address, 8)?)?,
-                },
-                _ => anyhow::bail!(
-                    "unsupported reached animation opcode {opcode:#010x} at {source_address:#x}"
-                ),
-            };
-            result.push(command);
-        }
-        Ok(result)
     }
 
     pub fn set(&self, reference: u32, budget: Budget) -> Result<Option<Set>> {

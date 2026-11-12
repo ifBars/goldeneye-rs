@@ -3,6 +3,7 @@
 //! no independent stream/store or completed player is manufactured here.
 mod animation;
 mod basic;
+mod mode_setter;
 pub use animation::AnimationInterface;
 mod constructor_flag;
 mod generic;

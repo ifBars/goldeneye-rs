@@ -2263,7 +2263,7 @@ test('incomplete loader Wait28 retains its pending phase and legacy zero session
 
 function playerPreludeFixture(catalogEntries=2) {
   return {origin:'fresh_constructor_snapshot',lifetime:'controller_arena',stage:'player_components_pending',
-    pending_dependency:'tp_animation_selector',operation_complete:false,attempt_bound:true,catalog_bound:true,
+    pending_dependency:'tp_animation_command',operation_complete:false,attempt_bound:true,catalog_bound:true,
     operation_entries:0,creation_dispatches:1,catalog_entries:catalogEntries,selected_catalog_index:1,selected_source_ordinal:4,
     requested_start_point_before:1,requested_start_point_after:1,base_constructor_complete:true,
     handler_rng_reads:1,base_reset_calls:2,persistent_base_resets:2,handler_kind_bound:false,
@@ -2293,11 +2293,17 @@ function tpCapturePlayerFixture() {
     frame_stamp_known:false,postprocess_executed:false,fallback:0x090006c0,fallback_writes:2,
     refresh:{...refreshPlayerFixture(),refresh_ordinal:3,allocation_ordinal:3},state_sha256:'c'.repeat(64)};
 }
+function tpSelectorPlayerFixture() {
+  return {stage:'command_pending',requested:0x090000ac,previous:0,fallback:0x090006c0,
+    tracks_player_modes:false,target_index:1,attempts:1,lookups:2,transition_rows:1,
+    commands_issued:1,commands_executed:0,pending_ordinal:0,pending_opcode:0x0c000002,
+    return_word:null,base_only:true,command_effects_complete:false,state_sha256:'d'.repeat(64)};
+}
 function initialActionPlayerFixture() {
-  return {stage:'tp_selector_pending',generic_request:0x0900071e,parameter_bits:0,direction_raw:255,
+  return {stage:'tp_command_pending',generic_request:0x0900071e,parameter_bits:0,direction_raw:255,
     weapon_key:0x020000ab,variant:0,remap_calls:3,map_rows_read:20,fp_mapped:0x090000ab,tp_mapped:0x090000ac,
     tp_secondary_mapped:0x090000ad,source_tables_reused:true,mode_controls_created:4,mode_history_updated:false,
-    callback_returned:false,state_sha256:'a'.repeat(64),mapping_state_sha256:'b'.repeat(64),tp_capture:tpCapturePlayerFixture()};
+    callback_returned:false,state_sha256:'a'.repeat(64),mapping_state_sha256:'b'.repeat(64),tp_capture:tpCapturePlayerFixture(),tp_selector:tpSelectorPlayerFixture()};
 }
 function firstPersonPlayerFixture() {
   return {helper_returned:true,identity_registered:true,item_list_ordinal:1,ordered_links_bound:true,
@@ -2331,7 +2337,7 @@ function skeletonPlayerFixture() {
     retained_component_file_bytes:2048,state_sha256:'a'.repeat(64)};
 }
 function componentPlayerFixture() {
-  return {stage:'tp_selector_pending',pending_dependency:'tp_animation_selector',
+  return {stage:'tp_command_pending',pending_dependency:'tp_animation_command',
     native_component_bytes:0x1b8,constructed_slots:4,active_slots:1,retained_file_bytes:1024,retained_section_bytes:256,
     third_person_constructed:true,third_person_attached:true,first_person_constructed:true,skin_request_resolved:true,
     texture_dependencies_enumerated:true,component_binding_complete:true,
@@ -2554,7 +2560,8 @@ test('TP skeleton binding keeps shared refresh attachment and FP explicit',async
     const text=d.querySelector('#game-session-summary').textContent;
     assert.match(text,/Third-person constructor retained: 4 animation slots, 1 active/);
     assert.match(text,/skin request retains 1,024 file bytes and 256 logical section bytes/);
-    assert.match(text,/Texture residency completed: 3 ordered target requests. Default skeleton initialized: 2 bones and 4 auxiliary words. Its animator backlink and secondary skin are bound. Shared zero-time refresh completed and released its scratch reservation. TP is attached to its item. Visual postbind completed: the visual skin and empty override collection are bound; all four animation headers are configured. TP and FP helpers returned: both animators share the callback table and scratch owner. FP is attached after TP with its own skeleton and configured masks. Initial action selected and all three mappings resolved through the retained inventory and supplied tables. TP captured four independent controls from primary locals and auxiliary storage; the active slot count remains one. TP mode selection is next. Pose postprocessing and frame scheduling remain incomplete/);
+    assert.match(text,/Initial action selected and all three mappings resolved through the retained inventory and supplied tables. TP captured four independent controls from primary locals and auxiliary storage; the active slot count remains one/);
+    assert.match(text,/First command opcode 0xc000002 retained; execution pending. No command effects or mode history updates are claimed. Pose postprocessing and frame scheduling remain incomplete/);
   });
   const changes=[state=>{state.third_person_constructed=false;},state=>{state.third_person_attached=false;},
     state=>{state.first_person_constructed=false;},state=>{state.texture_dependencies_enumerated=false;},
@@ -2611,6 +2618,13 @@ test('TP skeleton binding keeps shared refresh attachment and FP explicit',async
     refresh:null,state_sha256:'short',pose:[1,2,3]})) changes.push(state=>{state.initial_action.tp_capture[key]=value;});
   for (const key of Object.keys(tpCapturePlayerFixture())) changes.push(state=>{delete state.initial_action.tp_capture[key];});
   changes.push(state=>{delete state.initial_action.tp_capture;});
+  for (const [key,value] of Object.entries({stage:'complete',requested:0,previous:1,fallback:0,
+    tracks_player_modes:null,target_index:null,attempts:0,lookups:3,transition_rows:0,commands_issued:0,
+    commands_executed:1,pending_ordinal:1,pending_opcode:null,return_word:0,base_only:false,
+    command_effects_complete:true,state_sha256:'short',payload:[1,2,3]})) changes.push(state=>{state.initial_action.tp_selector[key]=value;});
+  for (const key of Object.keys(tpSelectorPlayerFixture())) changes.push(state=>{delete state.initial_action.tp_selector[key];});
+  changes.push(state=>{delete state.initial_action.tp_selector;});
+  changes.push(state=>{state.initial_action.stage='tp_setter_tail_pending';});
   changes.push(state=>{state.initial_action.tp_capture.refresh.refresh_ordinal=2;});
   changes.push(state=>{state.initial_action.tp_capture.refresh.allocation_ordinal=2;});
   changes.push(state=>{state.initial_action.tp_capture.bones_per_control=3;state.initial_action.tp_capture.native_backing_bytes_per_control=112;});
@@ -2619,4 +2633,35 @@ test('TP skeleton binding keeps shared refresh attachment and FP explicit',async
     change(invalid.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization);
     await inspect(embed(invalid),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
   }
+});
+
+
+test('live selector returns report only the pending setter tail and unknown opcodes stay pending',async()=>{
+  for (const missingTarget of [false,true]) {
+    const report=withPlayerPrelude(gameSessionFixture());
+    for(const probe of [...report.menu.details.game_session.difficulty_probes,report.menu.details.game_session.cancel_reentry]) {
+      const player=probe.window.game_session.active.world_initialization.player_initialization;
+      player.pending_dependency='tp_mode_setter_tail';
+      const component=player.component_initialization;
+      component.stage='tp_setter_tail_pending';component.pending_dependency='tp_mode_setter_tail';
+      component.initial_action.stage=component.stage;
+      Object.assign(component.initial_action.tp_selector,{stage:'returned',commands_issued:0,pending_ordinal:null,
+        pending_opcode:null,return_word:missingTarget ? 0 : 0x090000ab,
+        ...(missingTarget ? {target_index:null,attempts:0,lookups:1,transition_rows:0} : {})});
+    }
+    await inspect(embed(report),d=>{
+      const text=d.querySelector('#game-session-summary').textContent;
+      assert.match(text,/Selector returned; its setter tail is pending/);
+      assert.match(text,/No command effects or mode history updates are claimed/);
+      assert.doesNotMatch(text,/First command opcode|has not been recorded completely/);
+      assert.equal(d.querySelector('#parity-count').textContent,'0 of 3 tracked criteria verified');
+    });
+    report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.pending_dependency='tp_animation_command';
+    await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+  }
+  const report=withPlayerPrelude(gameSessionFixture());
+  for(const probe of [...report.menu.details.game_session.difficulty_probes,report.menu.details.game_session.cancel_reentry]) {
+    probe.window.game_session.active.world_initialization.player_initialization.component_initialization.initial_action.tp_selector.pending_opcode=0x0c0000ff;
+  }
+  await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/First command opcode 0xc0000ff retained; execution pending/));
 });

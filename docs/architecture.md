@@ -93,8 +93,17 @@ initial control capture before mode selection. A real header owner precedes the
 ordinary empty refresh through the same scratch/context; reached flags clear
 before primary locals and auxiliary words are copied. The physical-slot helper
 creates four separately owned controls while preserving active count one. Its
-shared fallback stores persist across cancellation. TP mode selection and
-execution still precede FP dispatch and the optional second generic request. Pose
+shared fallback stores persist across cancellation. TP now qualifies through the
+actual FP component wrapper. Its tracked branch clears the reached handler words
+and retains the current slot-zero snapshot head/comparison before selection.
+The live mode cursor resolves the target before previous/fallback lookup, scans
+keys without touching unmatched command lists, then retains one reached opcode.
+Each command needs an exact successful acknowledgement before the next command
+or fallback can run. Failed execution keeps the completed prefix and cannot replay.
+Live asset reads use only the logically resident base; full-file caching grants
+no later-section access. A selector return still awaits the actual setter tail.
+Command execution, setter side effects, FP dispatch and the optional second
+request remain required. Pose
 postprocessing and frame dispatch remain unavailable; these constructor and
 mapping operations do not establish player or gameplay readiness.
 The controller arena retains the actual player/item/physics owners and registry

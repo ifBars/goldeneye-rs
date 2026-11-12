@@ -1,9 +1,10 @@
-//! Lazy mode-transition selection and ordered command plans.
+//! Lazy mode-transition plans and a separate resumable live selector.
 //!
 //! Inputs describe an explicit caller/resource snapshot. A plan allocates no
 //! animation child, clears no runtime layer and establishes no sampled pose or
 //! camera readiness. Provider failures remain errors, never native misses.
 mod plan;
+pub mod runtime;
 mod selector;
 mod types;
 
