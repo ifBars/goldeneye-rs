@@ -12,7 +12,10 @@ fn primary_mode_entry_preserves_the_clear_prefix_before_dirty_provider_failure()
         let result = owner.begin_primary_mode_update();
         assert_eq!(result.is_ok(), binding == Some(0));
         assert_eq!(owner.word(0x1c0), Some(0));
-        assert_eq!(owner.word(0x6e4), Some(0));
+        assert_eq!(
+            owner.word(0x6e4),
+            Some(if binding.is_some() { 0 } else { 88 })
+        );
         assert_eq!(owner.word(0x4f8), binding);
     }
 }
