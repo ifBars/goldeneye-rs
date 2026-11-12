@@ -19,6 +19,7 @@ pub struct CommandBody {
     pub child_divisor: Option<u32>,
     pub mask: Option<u16>,
     pub children_created: usize,
+    pub child_header: Option<super::ChildHeader>,
     pub command_returned: bool,
     pub cleanup_complete: bool,
     pub selector_acknowledged: bool,
@@ -41,7 +42,16 @@ pub(super) fn build(player: &Owned) -> Result<Option<CommandBody>> {
             && action.tp_command_stream.is_some(),
         "TP command source binding differs"
     );
+    let child_header = super::child::build(player)?;
     let stage = match command.stage() {
+        Stage::ChildFactoryPending
+            if child_header
+                .as_ref()
+                .is_some_and(|header| header.factory_returned) =>
+        {
+            "child_effects_pending"
+        }
+        Stage::ChildFactoryPending if child_header.is_some() => "child_initializer_pending",
         Stage::ChildFactoryPending => "child_factory_pending",
         Stage::CleanupPending => "cleanup_pending",
         Stage::MaskControlPending => "mask_control_pending",
@@ -82,7 +92,8 @@ pub(super) fn build(player: &Owned) -> Result<Option<CommandBody>> {
         child_flags: child.map(|child| child.effective_flags),
         child_divisor: child.map(|child| child.divisor),
         mask: command.mask(),
-        children_created: 0,
+        children_created: usize::from(child_header.is_some()),
+        child_header,
         command_returned: false,
         cleanup_complete: false,
         selector_acknowledged: false,

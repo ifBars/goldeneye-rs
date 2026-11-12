@@ -1,27 +1,11 @@
 //! Owned class-control snapshots. Captured locals and auxiliary words are kept
 //! separate from sampled poses, node-list membership and native addresses.
 //! IDs are per-component host handles, not native allocator or SDK history.
+pub use super::nodes::OwnerId;
+use super::nodes::{Ids, Kind};
 use crate::animation::{layers::NodeId, skeleton::LocalPose};
 use anyhow::{Context, Result, ensure};
 use std::collections::BTreeMap;
-
-/// Nonzero host identity of the animator owning these snapshots.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct OwnerId(u64);
-impl OwnerId {
-    pub fn new(value: u64) -> Result<Self> {
-        ensure!(value != 0, "control owner identity is zero");
-        Ok(Self(value))
-    }
-    pub fn get(self) -> u64 {
-        self.0
-    }
-    fn visit_state_words(self, mut emit: impl FnMut(u32)) {
-        emit(1);
-        emit((self.0 >> 32) as u32);
-        emit(self.0 as u32);
-    }
-}
 
 #[derive(Debug, Clone, Copy)]
 pub struct Budget {
@@ -50,7 +34,6 @@ pub struct Control {
 #[derive(Debug)]
 pub struct Store {
     component: OwnerId,
-    next: u64,
     controls: BTreeMap<NodeId, Control>,
     budget: Budget,
 }
@@ -58,23 +41,22 @@ impl Store {
     pub fn from_constructor(component: OwnerId, budget: Budget) -> Self {
         Self {
             component,
-            next: 0,
             controls: BTreeMap::new(),
             budget,
         }
     }
     /// Retain the actual header allocation before the owner's refresh/backing
     /// operations. A later failure must not discard this reached allocation.
-    pub fn allocate(&mut self) -> Result<NodeId> {
+    pub fn allocate(&mut self, ids: &mut Ids) -> Result<NodeId> {
+        ensure!(
+            ids.owner() == self.component,
+            "control node identity owner differs"
+        );
         ensure!(
             self.controls.len() < self.budget.nodes,
             "control allocation budget exhausted"
         );
-        let next = self
-            .next
-            .checked_add(1)
-            .context("control identity overflow")?;
-        let id = NodeId::new(next)?;
+        let id = ids.allocate(Kind::Control)?;
         self.controls.insert(
             id,
             Control {
@@ -86,7 +68,6 @@ impl Store {
                 flags: 0,
             },
         );
-        self.next = next;
         Ok(id)
     }
     pub fn capture(
@@ -111,9 +92,9 @@ impl Store {
         control.auxiliary = Some(auxiliary);
         Ok(())
     }
-    pub fn clone_control(&mut self, source: NodeId) -> Result<NodeId> {
+    pub fn clone_control(&mut self, source: NodeId, ids: &mut Ids) -> Result<NodeId> {
         // Clone uses a fresh base/header constructor; only backing is copied.
-        let id = self.allocate()?;
+        let id = self.allocate(ids)?;
         let source = self
             .controls
             .get(&source)
@@ -147,10 +128,8 @@ impl Store {
         self.controls.is_empty()
     }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(1);
+        emit(2);
         self.component.visit_state_words(&mut emit);
-        emit((self.next >> 32) as u32);
-        emit(self.next as u32);
         emit(self.controls.len() as u32);
         for (id, control) in &self.controls {
             emit((id.get() >> 32) as u32);

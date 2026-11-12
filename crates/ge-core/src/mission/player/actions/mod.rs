@@ -11,6 +11,7 @@ use super::{
 use anyhow::{Context, Result, ensure};
 mod capture;
 mod command;
+mod factory;
 mod selector;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

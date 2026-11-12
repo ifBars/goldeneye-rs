@@ -5,6 +5,7 @@ use super::{
 };
 use anyhow::{Result, ensure};
 use std::sync::Arc;
+mod child_factory;
 mod control_capture;
 mod mode_command;
 
@@ -25,6 +26,8 @@ pub struct Animator {
     previous: Option<Identity>,
     next: Option<Identity>,
     controls: crate::animation::controls::Store,
+    node_ids: crate::animation::nodes::Ids,
+    script_children: crate::animation::script_child::Store,
     layers: Option<crate::animation::layers::State>,
     capture_refresh: Option<crate::animation::scratch::Refresh>,
 }
@@ -44,6 +47,16 @@ impl Animator {
                 crate::animation::controls::OwnerId::new(identity.id().get())
                     .expect("registered nonzero component identity"),
                 crate::animation::controls::Budget::default(),
+            ),
+            node_ids: crate::animation::nodes::Ids::from_constructor(
+                crate::animation::nodes::OwnerId::new(identity.id().get())
+                    .expect("registered nonzero component identity"),
+                4096,
+            ),
+            script_children: crate::animation::script_child::Store::from_constructor(
+                crate::animation::nodes::OwnerId::new(identity.id().get())
+                    .expect("registered nonzero component identity"),
+                4096,
             ),
             layers: None,
             capture_refresh: None,
@@ -322,7 +335,7 @@ impl Animator {
         (self.flag_8f_known_mask, 0)
     }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(6);
+        emit(7);
         self.identity.visit_state_words(&mut emit);
         emit(u32::from(self.item.is_some()));
         if let Some(item) = self.item {
@@ -362,6 +375,8 @@ impl Animator {
             }
         }
         self.controls.visit_state_words(&mut emit);
+        self.node_ids.visit_state_words(&mut emit);
+        self.script_children.visit_state_words(&mut emit);
         emit(u32::from(self.layers.is_some()));
         if let Some(layers) = &self.layers {
             layers.visit_state_words(&mut emit);

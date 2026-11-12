@@ -9,6 +9,8 @@ pub mod dispatch;
 pub mod frame;
 pub mod layers;
 pub mod mode;
+pub mod nodes;
 pub mod scratch;
+pub mod script_child;
 pub mod skeleton;
 pub mod transform;

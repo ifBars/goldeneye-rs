@@ -1,4 +1,4 @@
-use super::{closed, count};
+use super::{closed, count, player_child};
 use anyhow::{Result, ensure};
 use serde_json::Value;
 fn bounded(value: &Value, maximum: u64) -> bool {
@@ -30,6 +30,7 @@ pub(super) fn validate(state: &Value, action: &Value) -> Result<()> {
             "child_divisor",
             "mask",
             "children_created",
+            "child_header",
             "command_returned",
             "cleanup_complete",
             "selector_acknowledged",
@@ -45,7 +46,7 @@ pub(super) fn validate(state: &Value, action: &Value) -> Result<()> {
             && opcode <= u64::from(u32::MAX)
             && groups <= 4096
             && count(state, "weight_writes")? <= groups
-            && state["children_created"] == 0
+            && bounded(&state["children_created"], 1)
             && state["command_returned"] == false
             && state["cleanup_complete"] == false
             && state["selector_acknowledged"] == false
@@ -73,7 +74,12 @@ pub(super) fn validate(state: &Value, action: &Value) -> Result<()> {
         .into_iter()
         .all(|key| state[key].is_null());
     match state["stage"].as_str() {
-        Some("child_factory_pending" | "cleanup_pending") => {
+        Some(
+            "child_factory_pending"
+            | "child_initializer_pending"
+            | "child_effects_pending"
+            | "cleanup_pending",
+        ) => {
             ensure!(
                 matches!(opcode, 0x0c00_0002 | 0x0c00_0003)
                     && bounded(&state["set_reference"], u64::from(u32::MAX))
@@ -83,7 +89,7 @@ pub(super) fn validate(state: &Value, action: &Value) -> Result<()> {
                     && state["mask"].is_null(),
                 "TP set binding or reached groups differ"
             );
-            if state["stage"] == "child_factory_pending" {
+            if state["stage"] != "cleanup_pending" {
                 ensure!(
                     groups > 0
                         && state["pending_group"] == groups - 1
@@ -95,15 +101,34 @@ pub(super) fn validate(state: &Value, action: &Value) -> Result<()> {
                         && bounded(&state["child_divisor"], u64::from(u32::MAX)),
                     "TP factory request is absent or contradictory"
                 );
+                if state["stage"] == "child_factory_pending" {
+                    ensure!(
+                        state["factory_class"] != 4
+                            && state["children_created"] == 0
+                            && state["child_header"].is_null(),
+                        "supported class04 allocation was skipped"
+                    );
+                } else {
+                    ensure!(
+                        state["factory_class"] == 4 && state["children_created"] == 1,
+                        "retained child header is absent or wrong class"
+                    );
+                    player_child::validate(&state["child_header"], &state["stage"])?;
+                }
             } else {
                 ensure!(
-                    no_child && groups == count(state, "set_groups")?,
+                    no_child
+                        && groups == count(state, "set_groups")?
+                        && state["children_created"] == 0
+                        && state["child_header"].is_null(),
                     "TP cleanup skipped an unfinished group or factory"
                 );
             }
         }
         Some("mask_control_pending" | "mask_clear_pending") => ensure!(
             opcode == 0x0c00_0005
+                && state["children_created"] == 0
+                && state["child_header"].is_null()
                 && no_set
                 && no_child
                 && groups == 0
@@ -113,6 +138,8 @@ pub(super) fn validate(state: &Value, action: &Value) -> Result<()> {
         ),
         Some("opcode_pending") => ensure!(
             !matches!(opcode, 0x0c00_0002 | 0x0c00_0003 | 0x0c00_0005)
+                && state["children_created"] == 0
+                && state["child_header"].is_null()
                 && no_set
                 && no_child
                 && groups == 0
@@ -128,9 +155,9 @@ pub(super) mod tests {
     use super::*;
     use serde_json::json;
     pub(in super::super) fn fixture() -> Value {
-        json!({"stage":"child_factory_pending","opcode":0x0c00_0002,"set_reference":0x0a00_00ab,"set_index":0,"set_groups":1,
+        json!({"stage":"child_initializer_pending","opcode":0x0c00_0002,"set_reference":0x0a00_00ab,"set_index":0,"set_groups":1,
             "groups_visited":1,"weight_writes":1,"pending_group":0,"pending_slot":1,"child_reference":0x0400_00ab,"factory_class":4,
-            "child_flags":32,"child_divisor":3,"mask":null,"children_created":0,"command_returned":false,"cleanup_complete":false,
+            "child_flags":32,"child_divisor":3,"mask":null,"children_created":1,"child_header":player_child::tests::fixture(),"command_returned":false,"cleanup_complete":false,
             "selector_acknowledged":false,"state_sha256":"a".repeat(64),"layers_state_sha256":"b".repeat(64)})
     }
     #[test]
@@ -152,7 +179,7 @@ pub(super) mod tests {
             ("child_flags", json!(65536)),
             ("child_divisor", json!(-1)),
             ("mask", json!(1)),
-            ("children_created", json!(1)),
+            ("children_created", json!(0)),
             ("command_returned", json!(true)),
             ("cleanup_complete", json!(true)),
             ("selector_acknowledged", json!(true)),
@@ -186,6 +213,8 @@ pub(super) mod tests {
             state[key] = Value::Null;
         }
         state["stage"] = json!("cleanup_pending");
+        state["children_created"] = json!(0);
+        state["child_header"] = Value::Null;
         validate(&state, &action).unwrap();
         for key in ["set_reference", "set_index", "set_groups"] {
             state[key] = Value::Null;

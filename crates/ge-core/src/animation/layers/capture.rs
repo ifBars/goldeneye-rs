@@ -8,6 +8,7 @@ impl State {
     pub fn capture_fresh_slots(
         &mut self,
         controls: &mut Store,
+        ids: &mut crate::animation::nodes::Ids,
         first: NodeId,
         mask: u8,
     ) -> Result<()> {
@@ -39,7 +40,7 @@ impl State {
                 }
                 let id = if inserted {
                     self.charge_capture_node()?;
-                    controls.clone_control(first)?
+                    controls.clone_control(first, ids)?
                 } else {
                     first
                 };

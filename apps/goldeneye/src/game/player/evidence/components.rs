@@ -8,6 +8,7 @@ use serde::Serialize;
 mod action;
 mod attachment;
 mod callbacks;
+mod child;
 mod command;
 mod control_capture;
 mod first_person;
@@ -18,6 +19,7 @@ mod skeleton;
 pub use action::InitialAction;
 pub use attachment::AttachmentBinding;
 pub use callbacks::CallbackBinding;
+pub use child::ChildHeader;
 pub use command::CommandBody;
 pub use control_capture::ThirdPersonCapture;
 pub use first_person::FirstPersonBinding;
@@ -155,6 +157,6 @@ pub(super) fn build(
         callbacks: callbacks::build(player, world, hook)?,
         first_person: first_person::build(player, world, identities, hook)?,
         initial_action: action,
-        scope: "TP selection and reached command operands use the same resident component base. Start-set group weights now update actual TP slots in source order, stopping at the first child factory or cleanup dependency. Mask commands retain their required control/clear dependency; other opcodes remain pending. No command is acknowledged and four captured controls remain owned with active count one. Factories, later effects, setter tail, mode history, FP dispatch, callback return, pose postprocessing, scheduling, completed player and camera remain incomplete.",
+        scope: "TP selection and reached command operands use the same resident component base. Start-set group weights now update actual TP slots in source order, stopping at the first child factory or cleanup dependency. Mask commands retain their required control/clear dependency; other opcodes remain pending. Class-four headers and their resource cache are now retained before phase-zero interpretation, using the same file generation and node-ID owner as the four controls. No command is acknowledged and active count stays one. Script initialization, later effects, setter tail, mode history, FP dispatch, callback return, pose postprocessing, scheduling, completed player and camera remain incomplete.",
     }))
 }

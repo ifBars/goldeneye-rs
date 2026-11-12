@@ -11,7 +11,7 @@ impl Pending {
                 emit(value);
             }
         }
-        emit(1);
+        emit(2);
         emit(self.opcode);
         emit(self.stage as u32);
         optional(&mut emit, self.set_reference);
@@ -45,5 +45,11 @@ impl Pending {
         }
         optional(&mut emit, self.mask.map(u32::from));
         emit(u32::from(self.flags_or));
+        emit(u32::from(self.factory_started));
+        emit(u32::from(self.factory_node.is_some()));
+        if let Some(id) = self.factory_node {
+            emit((id.get() >> 32) as u32);
+            emit(id.get() as u32);
+        }
     }
 }

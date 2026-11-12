@@ -7,6 +7,7 @@ mod player_action;
 mod player_attachment;
 mod player_callbacks;
 mod player_capture;
+mod player_child;
 mod player_command;
 mod player_first_person;
 mod player_postbind;

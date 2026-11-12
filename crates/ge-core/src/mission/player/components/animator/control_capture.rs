@@ -83,7 +83,7 @@ impl Animator {
                 children: 16384,
             },
         )?);
-        let first = self.controls.allocate()?;
+        let first = self.controls.allocate(&mut self.node_ids)?;
         // Actual ordinary refresh: no LOD table, children or linked base child.
         // The shared elapsed calculation has no consumer on this empty path.
         ensure!(
@@ -109,7 +109,7 @@ impl Animator {
             .layers
             .as_mut()
             .expect("retained TP layers")
-            .capture_fresh_slots(&mut self.controls, first, 0x0f);
+            .capture_fresh_slots(&mut self.controls, &mut self.node_ids, first, 0x0f);
         // Reached host lists replace numeric source pointers, including partial
         // membership if a later clone/allocation fails.
         for (index, start) in [0x138, 0x158, 0x178, 0x198].into_iter().enumerate() {

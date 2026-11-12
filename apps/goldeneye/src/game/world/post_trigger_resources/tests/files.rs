@@ -80,3 +80,31 @@ fn base_skin_lookup_owns_checked_topology_and_reads_auxiliary_count_lazily() {
     .unwrap();
     assert!(other.skin_body(SKIN).is_err());
 }
+
+#[test]
+fn script_lookup_uses_the_same_loaded_generation_and_survives_registry_drop() {
+    use ge_core::animation::script_child::Provider;
+    let mut data = bytes();
+    for (at, value) in [
+        (0x68usize, 0x0001_0001u32),
+        (0x6c, 0x1a0 - 0x6c),
+        (0x1a0, 0x0400_00ab),
+        (0x1a4, 0),
+        (0x1a8, 0x1bc),
+        (0x1ac, 0),
+        (0x1bc, 0x300),
+    ] {
+        data[at..at + 4].copy_from_slice(&value.to_be_bytes());
+    }
+    let mut files = BTreeMap::new();
+    let original = retain(&mut files, FILE, &mut |_| Edb::parse(data.clone())).unwrap();
+    let mut source = original.shared_script_source();
+    assert!(Arc::ptr_eq(&original.source, &source.source));
+    drop(files);
+    assert_eq!(source.generation().unwrap(), 0);
+    let binding = source.resolve_script(0x8400_0000).unwrap().unwrap();
+    assert_eq!(binding.directory_index, 0);
+    assert_eq!(binding.hash, 0x0400_00ab);
+    assert!(source.bind_body(binding).unwrap());
+    assert!(source.resolve_script(0x0400_00ac).unwrap().is_none());
+}

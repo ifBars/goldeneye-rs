@@ -24,8 +24,20 @@ struct Section {
 }
 
 struct File {
-    edb: Arc<Edb>,
+    edb: Arc<LoadedFile>,
     sections: Vec<Arc<Section>>,
+}
+struct LoadedFile {
+    edb: Edb,
+    // Source wrapper constructor -1 plus its first completed base publication.
+    // This retained registry does not implement replacement/unload yet.
+    generation: u32,
+}
+impl std::ops::Deref for LoadedFile {
+    type Target = Edb;
+    fn deref(&self) -> &Edb {
+        &self.edb
+    }
 }
 
 struct Resolution {

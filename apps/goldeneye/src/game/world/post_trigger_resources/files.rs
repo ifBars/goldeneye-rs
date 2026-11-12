@@ -1,13 +1,14 @@
 //! File-only lookups share the existing resource registry. A supplied-data load
 //! is a host adaptation, not proof of the native registry's preload history.
-use super::{File, Owned};
+use super::{File, LoadedFile, Owned};
 use anyhow::{Context, Result, ensure};
 use ge_assets::{edb::Edb, resource::GameAssets, skin, target_section};
 use std::{collections::BTreeMap, sync::Arc};
 mod modes;
+mod script_child;
 
 pub(crate) struct FileBinding {
-    source: Arc<Edb>,
+    source: Arc<LoadedFile>,
 }
 pub(super) fn retain(
     files: &mut BTreeMap<u32, File>,
@@ -19,7 +20,10 @@ pub(super) fn retain(
         let edb = load(file)?;
         ensure!(edb.header.hash == file, "resource file owner differs");
         entry.insert(File {
-            edb: Arc::new(edb),
+            edb: Arc::new(LoadedFile {
+                edb,
+                generation: u32::MAX.wrapping_add(1),
+            }),
             sections: Vec::new(),
         });
     }

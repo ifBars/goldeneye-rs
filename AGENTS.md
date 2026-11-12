@@ -38,8 +38,11 @@ resident base. Its tracked branch preserves the actual preclear and snapshot-hea
 comparison. Live command reads now preserve optional-operand gates and apply
 start-set group weights to actual TP slots before stopping at the child factory
 or cleanup dependency. Later child words/groups stay unread. Mask commands retain
-their actual control/clear dependency. No command has returned yet. Factories,
-later command effects and the setter tail are next, before FP dispatch. Pose postprocess targets
+their actual control/clear dependency. Class-four factories now retain a header,
+its slot/flags, the actual animator resource update and a generation-bound script
+metadata/body lookup. Shared component-local node IDs cover controls and scripts.
+Phase-zero interpretation, later child/list effects and the setter tail are next,
+before FP dispatch. No command has returned yet. Pose postprocess targets
 are assigned, but their body and frame scheduling remain unavailable.
 Later initialization and gameplay remain
 incomplete. docs/player-creation.md describes the reached boundary.

@@ -60,11 +60,10 @@ pub(super) fn build(player: &Owned) -> Result<SkeletonBinding> {
                     .map(|postbind| postbind.secondary())
             && runtime.animator() == Some(animator.identity())
             && animator.player() == player.base.player()
-            && animator.component()
-                == Some(ResourceBinding {
-                    file: component.file(),
-                    reference: 0
-                })
+            && animator
+                .component()
+                .is_some_and(|binding| binding.file == component.file()
+                    && animator.word(0x20) == Some(binding.reference))
             && runtime.skeleton().bones().len() == skin.bone_count()
             && runtime.auxiliary().len() == source.auxiliary_words(skin)?
             && runtime.auxiliary().iter().all(|&word| word == 0)

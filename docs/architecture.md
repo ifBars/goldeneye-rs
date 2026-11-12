@@ -116,6 +116,17 @@ remaining effects, setter side effects, FP dispatch and the optional second
 request remain required. Pose
 postprocessing and frame dispatch remain unavailable; these constructor and
 mapping operations do not establish player or gameplay readiness.
+The first class-four factory now allocates its own retained header before any
+script-provider call. A component-local ID allocator covers both control snapshots
+and script headers, preserving detached allocations without reusing IDs. Factory
+context binds the actual slot and flags before updating the animator's current
+resource reference and resetting its cache. Script lookup uses the same retained
+file wrapper and its fresh base-publication generation. Metadata caching precedes
+body access; a later body failure keeps the header, cache and owner mutations.
+Intrusive links remain unwritten until the parent insertion really occurs.
+A resident script body now awaits phase-zero interpretation; a real missing body
+returns through the source early-out instead. Neither state completes a layer or
+command. The separate inspection binder cannot replace this live initializer.
 The controller arena retains the actual player/item/physics owners and registry
 rows across worker cancellation. Its world/arena mutex is separate from manager
 state, so reached reset/configuration writes can use their original owners.

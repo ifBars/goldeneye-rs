@@ -36,19 +36,20 @@ impl components::Provider for EntryProvider {
 
 #[test]
 fn actual_basic_return_enters_tp_with_same_inventory_and_preserves_deferred_physics() {
-    initial_selector_chain(true, false);
+    initial_selector_chain(true, false, false);
 }
 #[test]
 fn unavailable_fp_mode_tracks_tp_and_retains_the_actual_primary_head_before_selection() {
-    initial_selector_chain(false, false);
+    initial_selector_chain(false, false, false);
 }
 #[test]
 fn command_provider_failure_keeps_actual_weight_write_and_unacknowledged_selector() {
-    initial_selector_chain(true, true);
+    initial_selector_chain(true, true, false);
 }
 struct ModeSource {
     calls: Vec<&'static str>,
     fail_count: bool,
+    fail_body: bool,
 }
 impl ge_core::animation::mode::runtime::Provider for ModeSource {
     fn resolve_mode(&mut self, reference: u32) -> Result<Option<usize>> {
@@ -120,7 +121,35 @@ impl ge_core::animation::layers::command::Source for ModeSource {
         anyhow::bail!("factory dependency must precede the next group")
     }
 }
-fn initial_selector_chain(fp_available: bool, fail_count: bool) {
+#[test]
+fn script_body_failure_retains_header_cache_and_actual_animator_resource_update() {
+    initial_selector_chain(true, false, true);
+}
+impl ge_core::animation::script_child::Provider for ModeSource {
+    fn file(&self) -> u32 {
+        0x0102_0017
+    }
+    fn generation(&mut self) -> Result<u32> {
+        self.calls.push("generation");
+        Ok(0)
+    }
+    fn resolve_script(
+        &mut self,
+        _: u32,
+    ) -> Result<Option<ge_core::animation::script_child::Binding>> {
+        self.calls.push("script");
+        Ok(Some(ge_core::animation::script_child::Binding {
+            directory_index: 0,
+            hash: 0x0400_00ab,
+        }))
+    }
+    fn bind_body(&mut self, _: ge_core::animation::script_child::Binding) -> Result<bool> {
+        self.calls.push("body");
+        ensure!(!self.fail_body, "authored body failure");
+        Ok(true)
+    }
+}
+fn initial_selector_chain(fp_available: bool, fail_count: bool, fail_body: bool) {
     let (mut base, mut prelude, mut reset) = player_state(44);
     let mut world = world();
     let mut registry = Registry::from_constructor();
@@ -684,6 +713,7 @@ fn initial_selector_chain(fp_available: bool, fail_count: bool) {
     let mut source = ModeSource {
         calls: Vec::new(),
         fail_count,
+        fail_body,
     };
     let command = action
         .advance_third_person_selector(&mut source)
@@ -770,6 +800,56 @@ fn initial_selector_chain(fp_available: bool, fail_count: bool) {
             )
             .is_err()
     );
+    if !fail_count {
+        let result = action.initialize_third_person_child_prefix(&mut preparation, &mut source);
+        assert_eq!(result.is_err(), fail_body);
+        let animator = preparation.animator().unwrap();
+        let id = action.command().unwrap().factory_node().unwrap();
+        let header = animator.script_children().get(id).unwrap();
+        assert_eq!(animator.script_children().len(), 1);
+        assert_eq!(animator.controls().len(), 4);
+        assert_eq!(
+            animator.node_ids().kind(id),
+            Some(ge_core::animation::nodes::Kind::Script)
+        );
+        assert_eq!(animator.layers().unwrap().created_nodes().len(), 5);
+        assert!(
+            animator
+                .layers()
+                .unwrap()
+                .slots()
+                .iter()
+                .all(|slot| !slot.nodes_head().contains(&id))
+        );
+        assert_eq!(animator.layers().unwrap().active_count(), 1);
+        assert_eq!(animator.word(0x20), Some(0x0400_00ab));
+        assert_eq!(animator.word(0x24), Some(u32::MAX));
+        assert_eq!(animator.component().unwrap().reference, 0x0400_00ab);
+        assert_eq!(header.word(0x14), Some(0));
+        assert!(header.cached().is_some());
+        assert_eq!(header.word(0), None);
+        assert_eq!(header.word(4), None);
+        assert_eq!(
+            header.stage(),
+            if fail_body {
+                ge_core::animation::script_child::Stage::Failed
+            } else {
+                ge_core::animation::script_child::Stage::AwaitingInitializer
+            }
+        );
+        assert_eq!(action.selector().unwrap().return_word(), None);
+        assert_eq!(action.selector().unwrap().completed_commands(), 0);
+        let calls = source.calls.clone();
+        assert!(
+            action
+                .initialize_third_person_child_prefix(&mut preparation, &mut source)
+                .is_err()
+        );
+        assert_eq!(source.calls, calls);
+        for at in [0x70c, 0x710, 0x714, 0x718] {
+            assert_eq!(reset.word(at), Some(0));
+        }
+    }
 }
 
 #[test]

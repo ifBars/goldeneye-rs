@@ -74,6 +74,19 @@ pub(super) fn initialize(player: &mut Player, hook: &world_hooks::Attempt) -> Re
             hook.animation_slot_override()?,
         )?;
         hook.ensure_current()?;
+        if owner
+            .state
+            .command()
+            .and_then(|command| command.child())
+            .is_some_and(|child| ((child.reference >> 24) & 0x7f) == 4)
+        {
+            let mut script_source = tp_source.shared_script_source();
+            owner.state.initialize_third_person_child_prefix(
+                &mut player.components.preparation,
+                &mut script_source,
+            )?;
+            hook.ensure_current()?;
+        }
     }
     // The real operand/weight prefix is retained before its factory/cleanup
     // dependency. No command return or mode-history update is fabricated.

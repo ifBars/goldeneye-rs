@@ -1,6 +1,7 @@
 //! Reached command body up to its next real allocation/cleanup dependency.
 //! Reads and weight writes precede child factories. No factory result, later
 //! child word or command return is invented by this preparation.
+mod factory;
 mod state;
 use super::{SlotOverride, State, execute::charge};
 use anyhow::{Context, Result, ensure};
@@ -61,6 +62,8 @@ pub struct Pending {
     child: Option<ChildRequest>,
     mask: Option<u16>,
     flags_or: u16,
+    factory_started: bool,
+    factory_node: Option<super::NodeId>,
 }
 impl Pending {
     pub fn new(opcode: u32) -> Self {
@@ -77,6 +80,8 @@ impl Pending {
             child: None,
             mask: None,
             flags_or: 0,
+            factory_started: false,
+            factory_node: None,
         }
     }
     pub fn opcode(&self) -> u32 {

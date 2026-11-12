@@ -349,6 +349,25 @@ pose and camera work incomplete. Hosted tests use authored malformed pointers, m
 source hashes, ordered command returns and failures; they establish no original
 runtime or numerical parity.
 
+The first class-four factory now retains its actual header before initialization.
+Controls and script children share one component-local host ID sequence; each
+payload store remains separate. Constructors preserve unknown intrusive links
+and use typed roles for self-relative pointers. Factory context writes flags and
+links the actual slot before updating the animator's current resource reference
+and resetting its cache. The snapshot controls and active count stay unchanged.
+
+The same file wrapper owns its publication generation. Its source constructor
+starts at minus one, and the first completed base load wraps it to zero. This is
+a reconstructed fresh owner, not original preload history. Repeated lookups and
+cancelled attempts retain that owner. Replacing/unloading it is not implemented.
+The child compares its cache generation before resolving script metadata. A
+successful metadata lookup updates the cache before the body is validated against
+the logically resident base. A later failure retains those writes and the real
+allocation. A cached payload from a later section grants no runtime residence.
+A resident script now awaits phase-zero interpretation, while a genuine absent
+body takes the native early return. No phase initialization, parent copy/wrapper
+step, layer insertion, child scalar initialization or command return is inferred.
+
 The controller arena retains actual player, item and physics objects, their
 registry rows and actor memberships across cancellation. Worker teardown leaves
 no item reference pointing at a dropped player. The global world is constructed

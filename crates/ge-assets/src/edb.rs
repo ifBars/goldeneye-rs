@@ -5,6 +5,7 @@ use crate::{
 };
 use anyhow::{Context, Result, ensure};
 use serde::Serialize;
+mod script_reference;
 
 const TABLE_NAMES: [&str; 16] = [
     "sections",
@@ -460,31 +461,62 @@ impl Edb {
             .tables
             .get(5)
             .context("missing animation script directory")?;
-        let Some(directory_index) = crate::reference::resolve(&self.data, table, 16, reference)?
-        else {
+        let Some(descriptor) = script_reference::metadata(&self.data, table, reference)? else {
             return Ok(None);
         };
-        let at = table
-            .offset
-            .checked_add(
-                directory_index
-                    .checked_mul(16)
-                    .context("script descriptor offset overflow")?,
-            )
-            .context("script descriptor offset overflow")?;
-        let b = Bytes(&self.data);
-        b.range(at, 16)?;
-        let address = b.u32(at + 8)?;
-        b.range(address as usize, 4)
+        Bytes(&self.data)
+            .range(descriptor.address as usize, 4)
             .context("script body address outside resource")?;
-        Ok(Some(AnimationScriptReference {
-            directory_index,
-            hash: b.u32(at)?,
-            section: b.u16(at + 4)?,
-            debug: b.u16(at + 6)?,
-            address,
-            runtime_pointer_raw: b.u32(at + 12)?,
-        }))
+        Ok(Some(descriptor))
+    }
+    /// Metadata lookup against the logically resident base, before body access.
+    pub fn base_animation_script_reference(
+        &self,
+        reference: u32,
+    ) -> Result<Option<AnimationScriptReference>> {
+        ensure!(
+            self.header.version == 263,
+            "live scripts require supported EDB version"
+        );
+        let base = self
+            .data
+            .get(..usize::try_from(self.header.base_bytes)?)
+            .context("script base exceeds retained file")?;
+        script_reference::metadata(
+            base,
+            self.tables
+                .get(5)
+                .context("missing animation script directory")?,
+            reference,
+        )
+    }
+    /// Reached cached descriptor's body. A cached later section grants no residence.
+    pub fn base_animation_script_body(
+        &self,
+        index: usize,
+    ) -> Result<Option<crate::frontend_script::Script<'_>>> {
+        ensure!(
+            index < 32767,
+            "script descriptor index exceeds native directory bound"
+        );
+        let descriptor = self
+            .base_animation_script_reference(0x8400_0000 | u32::try_from(index)?)?
+            .context("cached script descriptor is absent")?;
+        ensure!(
+            descriptor.section & 0x7fff == 0,
+            "live script requires non-base residency provider"
+        );
+        if descriptor.address == 0 {
+            return Ok(None);
+        }
+        let base = self
+            .data
+            .get(..usize::try_from(self.header.base_bytes)?)
+            .context("script base exceeds retained file")?;
+        Ok(Some(crate::frontend_script::read_at(
+            base,
+            descriptor.address as usize,
+        )?))
     }
     /// Native coded reference lookup, distinct from the CLI's strict literal hash selectors.
     pub fn entity_reference(&self, reference: u32) -> Result<Option<EntityReference>> {

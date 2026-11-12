@@ -39,7 +39,7 @@ impl State {
     fn allocation_request(&mut self) -> Result<()> {
         charge(&mut self.work.nodes, self.budget.nodes, "node factory")
     }
-    fn register_node(&mut self, id: NodeId) -> Result<NodeId> {
+    pub(super) fn register_node(&mut self, id: NodeId) -> Result<NodeId> {
         ensure!(
             self.identities.insert(id),
             "animation factory returned a reused node identity"
