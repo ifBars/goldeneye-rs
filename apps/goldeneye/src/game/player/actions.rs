@@ -11,6 +11,7 @@ pub(super) struct Owned {
     pub state: actions::Pending,
     pub mappings: Vec<ge_assets::weapon_static::Remap>,
     pub tp_command: Option<ge_assets::animation_modes::CommandLocation>,
+    pub tp_command_stream: Option<ge_assets::animation_modes::CommandStream>,
 }
 pub(super) fn initialize(
     player: &mut Player,
@@ -29,6 +30,7 @@ pub(super) fn initialize(
         state: actions::Pending::begin(&player.base, &mut player.reset)?,
         mappings: Vec::new(),
         tp_command: None,
+        tp_command_stream: None,
     });
     let owner = player
         .action

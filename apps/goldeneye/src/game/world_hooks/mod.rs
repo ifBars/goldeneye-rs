@@ -29,6 +29,7 @@ struct State {
     animation_scratch: ge_core::animation::scratch::Arena,
     animation_callbacks: Arc<ge_core::mission::player::components::callbacks::Table>,
     animation_fallback: ge_core::animation::dispatch::Fallback,
+    animation_slot_override: ge_core::animation::layers::SlotOverride,
 }
 
 struct SharedState {
@@ -65,6 +66,12 @@ impl Shared {
                         .expect("nonzero startup animation callback table identity"),
                 ),
                 animation_fallback: ge_core::animation::dispatch::Fallback::default(),
+                // The supported startup zeros both small-data globals. The
+                // fresh first-action branch reaches no override store.
+                animation_slot_override: ge_core::animation::layers::SlotOverride {
+                    enabled_raw: 0,
+                    slot_raw: 0,
+                },
             }),
             current: AtomicU64::new(0),
         }))

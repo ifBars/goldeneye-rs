@@ -25,6 +25,7 @@ pub struct InitialAction {
     pub mapping_state_sha256: String,
     pub tp_capture: super::ThirdPersonCapture,
     pub tp_selector: super::ThirdPersonSelector,
+    pub tp_command: Option<super::CommandBody>,
 }
 pub(super) fn build(
     player: &Owned,
@@ -137,5 +138,6 @@ pub(super) fn build(
         mapping_state_sha256: format!("{:x}", hash.finalize()),
         tp_capture: super::control_capture::build(player, hook)?,
         tp_selector: super::selector::build(player)?,
+        tp_command: super::command::build(player)?,
     })
 }

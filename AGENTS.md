@@ -35,9 +35,11 @@ and auxiliary storage into four independent physical-slot controls. Active count
 stays one. The shared fallback stores bracket this capture. TP now qualifies
 through the actual FP wrapper and advances a resumable selector over the logically
 resident base. Its tracked branch preserves the actual preclear and snapshot-head
-comparison. Selection retains the first reached opcode before operands/effects,
-or returns before the unimplemented setter tail. Command execution and the setter
-tail are next, before FP dispatch. Pose postprocess targets
+comparison. Live command reads now preserve optional-operand gates and apply
+start-set group weights to actual TP slots before stopping at the child factory
+or cleanup dependency. Later child words/groups stay unread. Mask commands retain
+their actual control/clear dependency. No command has returned yet. Factories,
+later command effects and the setter tail are next, before FP dispatch. Pose postprocess targets
 are assigned, but their body and frame scheduling remain unavailable.
 Later initialization and gameplay remain
 incomplete. docs/player-creation.md describes the reached boundary.
@@ -76,11 +78,15 @@ gameplay merely to increase coverage or reported completion.
 
 ## Commands and evidence
 
-Keep local work lightweight after the reported CPU issue. Use hosted CI for full
-builds and coverage; do not start an unrestricted local rebuild. Run any authorized
-local Cargo tasks serially with the default target directories:
+The user requested one published branch, `main`. Preserve merged work and avoid
+leaving redundant feature branches after consolidation.
+
+Local CPU use is authorized again. Keep Cargo invocations serial and use two
+build jobs by default; do not overlap builds and coverage. Hosted CI verifies
+both supported host configurations. Use the default local target directories:
 
 ```powershell
+$env:CARGO_BUILD_JOBS = '2'
 cargo xtask check
 cargo xtask coverage
 cargo xtask report

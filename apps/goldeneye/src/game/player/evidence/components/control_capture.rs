@@ -67,7 +67,7 @@ pub(super) fn build(player: &Owned, hook: &world_hooks::Attempt) -> Result<Third
                 && owner.word(start).is_none()
                 && owner.word(start + 4).is_none()
                 && slot.flags_raw() == 1
-                && slot.weight_bits() == 1f32.to_bits(),
+                && owner.word(start + 12) == Some(slot.weight_bits()),
             "TP physical capture membership differs"
         );
         let id = slot.nodes_head()[0];
@@ -125,7 +125,7 @@ pub(super) fn build(player: &Owned, hook: &world_hooks::Attempt) -> Result<Third
                 refresh.visit_state_words(emit)
             }),
         },
-        state_sha256: super::super::words(b"ge_player_tp_control_capture_v1\0", |mut emit| {
+        state_sha256: super::super::words(b"ge_player_tp_control_capture_v2\0", |mut emit| {
             owner.controls().visit_state_words(&mut emit);
             layers.visit_state_words(emit);
         }),

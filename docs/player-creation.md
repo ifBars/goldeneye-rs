@@ -316,20 +316,36 @@ Later node types require their own provider; unknown head types cannot be skippe
 
 A resumable generic animation cursor resolves the requested target first. Previous
 reference zero is a valid coded index. Transition keys are visited in order and
-only the first matching row opens its command list. The host retains only the
-first reached command's location/opcode; later pointers and operands stay unread.
-It acknowledges no command yet. The cursor's protocol requires command effects
+only the first matching row opens its command list. The host retains the first reached command and then reads its body incrementally.
+Set resolution precedes options and flags. Disabled overrides leave serialized
+words unread. The additive command uses only a positive signed command override
+and still reads the serialized child divisor. The first-action slot override
+comes from the same controller-lived, source-zeroed globals; no reached first
+branch changes it.
+
+For each reached set group, slot zero writes one without reading serialized
+weight. Other slots write positive zero only when source weight compares equal
+to zero; otherwise they preserve current weight. The actual layer owner and
+animator bytes retain each write even if the next provider read fails. A negative
+child count remains retained before its unsupported boundary. Child divisor and
+flags honor their distinct override gates, then the actual reference reaches a
+pending factory request. The factory has not returned: child post-word reads,
+allocation, copy/wrapper effects, insertion and initialization remain later work.
+Sets without a reached child stop before actual cleanup. Mask commands retain
+their required control-capture or clear dependency. Unhandled opcodes stay pending.
+No command is acknowledged yet. The cursor's protocol requires command effects
 to return before reading the next command or trying fallback after source hash
 zero. Provider/command errors preserve the reached prefix and prohibit replay.
 If no command is reached, the selector return stays separate from its pending
 setter tail, including native zero returns. No history words are updated yet.
 
 Live directory, count and opcode reads use the same component wrapper's resident
-base, independently of its full cached payload. Reports carry only aggregate
-cursor state and an opcode, never source addresses or private payload arrays.
+base, independently of its full cached payload. Reports carry aggregate
+cursor/body state and typed pending factory metadata, never source addresses or
+private payload arrays.
 The dashboard distinguishes a pending command from a pending setter tail. Both
-leave command effects, mode history, callback completion, pose and camera work
-incomplete. Hosted tests use authored malformed pointers, missing targets, zero
+leave factories and remaining command effects, mode history, callback completion,
+pose and camera work incomplete. Hosted tests use authored malformed pointers, missing targets, zero
 source hashes, ordered command returns and failures; they establish no original
 runtime or numerical parity.
 

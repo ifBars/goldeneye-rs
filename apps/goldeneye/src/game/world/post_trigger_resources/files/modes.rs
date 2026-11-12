@@ -1,5 +1,6 @@
 //! Live mode reads stay inside the existing logically resident base owner.
 use super::*;
+mod command;
 use ge_core::animation::mode::{
     Mode,
     runtime::{Invocation, Provider},

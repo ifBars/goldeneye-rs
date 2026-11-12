@@ -123,6 +123,62 @@ fn unknown_command_opcode_can_be_retained_before_its_execution_provider() {
     );
     assert!(view.command(0, 1, 0, 2).is_err());
 }
+
+#[test]
+fn live_set_stream_reaches_first_child_without_reading_post_factory_word_or_later_group() {
+    let mut data = fixture();
+    truncate(&mut data, 0x310);
+    let edb = Edb::parse(data).unwrap();
+    let view = edb.base_animation_modes().unwrap();
+    let mut stream = CommandStream::new(view.command_location(0, 1, 1, 2).unwrap());
+    assert_eq!(stream.set_reference(&view).unwrap(), 0);
+    assert_eq!(stream.resolve_set(&view, 0).unwrap(), Some(0));
+    assert_eq!(stream.options(&view).unwrap(), 0);
+    assert_eq!(stream.flags_override(&view).unwrap(), 0x1234);
+    assert_eq!(stream.begin_set(&view, 0).unwrap(), 2);
+    assert_eq!(stream.group_slot(&view).unwrap(), 2);
+    assert_eq!(stream.child_count(&view).unwrap(), 1);
+    assert_eq!(stream.child_reference(&view, 0).unwrap(), 0x8400_0077);
+    assert_eq!(stream.child_flags(&view, 0).unwrap(), 0xffff);
+    assert_eq!(stream.child_divisor(&view, 0).unwrap(), 0xffff);
+    assert!(stream.child_reference(&view, 1).is_err());
+    assert!(view.set(0, budget()).is_err());
+}
+#[test]
+fn live_stream_optional_divisor_and_group_body_do_not_gain_cached_payload_residency() {
+    let mut data = fixture();
+    word(&mut data, 0x18, 0x2bc);
+    let edb = Edb::parse(data).unwrap();
+    let view = edb.base_animation_modes().unwrap();
+    let mut stream = CommandStream::new(view.command_location(0, 1, 1, 2).unwrap());
+    assert_eq!(stream.resolve_set(&view, 0).unwrap(), Some(0));
+    assert_eq!(stream.options(&view).unwrap(), 0);
+    assert!(stream.divisor_override(&view).is_err());
+    assert_eq!(stream.begin_set(&view, 0).unwrap(), 2);
+    assert!(stream.group_slot(&view).is_err());
+}
+#[test]
+fn live_stream_retains_negative_count_and_reads_body_binding_even_for_zero_groups() {
+    let mut data = fixture();
+    half(&mut data, 0x302, 0xffff);
+    let edb = Edb::parse(data).unwrap();
+    let view = edb.base_animation_modes().unwrap();
+    let mut stream = CommandStream::new(view.command_location(0, 1, 1, 2).unwrap());
+    stream.resolve_set(&view, 0).unwrap();
+    stream.begin_set(&view, 0).unwrap();
+    assert_eq!(stream.group_slot(&view).unwrap(), 2);
+    assert_eq!(stream.child_count(&view).unwrap(), -1);
+    assert!(stream.child_reference(&view, 0).is_err());
+    assert!(stream.next_group(0xffff).is_err());
+    let mut data = fixture();
+    half(&mut data, 0x164, 3);
+    word(&mut data, 0x170, 0);
+    let edb = Edb::parse(data).unwrap();
+    let view = edb.base_animation_modes().unwrap();
+    let mut stream = CommandStream::new(view.command_location(0, 1, 1, 2).unwrap());
+    stream.resolve_set(&view, 0).unwrap();
+    assert!(stream.begin_set(&view, 0).is_err());
+}
 fn truncate(data: &mut Vec<u8>, length: usize) {
     data.truncate(length);
     word(data, 0x14, length as u32);

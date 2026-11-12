@@ -36,14 +36,19 @@ impl components::Provider for EntryProvider {
 
 #[test]
 fn actual_basic_return_enters_tp_with_same_inventory_and_preserves_deferred_physics() {
-    initial_selector_chain(true);
+    initial_selector_chain(true, false);
 }
 #[test]
 fn unavailable_fp_mode_tracks_tp_and_retains_the_actual_primary_head_before_selection() {
-    initial_selector_chain(false);
+    initial_selector_chain(false, false);
+}
+#[test]
+fn command_provider_failure_keeps_actual_weight_write_and_unacknowledged_selector() {
+    initial_selector_chain(true, true);
 }
 struct ModeSource {
     calls: Vec<&'static str>,
+    fail_count: bool,
 }
 impl ge_core::animation::mode::runtime::Provider for ModeSource {
     fn resolve_mode(&mut self, reference: u32) -> Result<Option<usize>> {
@@ -73,7 +78,49 @@ impl ge_core::animation::mode::runtime::Provider for ModeSource {
         Ok(1)
     }
 }
-fn initial_selector_chain(fp_available: bool) {
+impl ge_core::animation::layers::command::Source for ModeSource {
+    fn set_reference(&mut self) -> Result<u32> {
+        Ok(0x0a00_00ab)
+    }
+    fn resolve_set(&mut self, _: u32) -> Result<Option<usize>> {
+        Ok(Some(0))
+    }
+    fn options(&mut self) -> Result<i16> {
+        Ok(0)
+    }
+    fn divisor_override(&mut self) -> Result<u32> {
+        anyhow::bail!("disabled divisor override must stay unread")
+    }
+    fn flags_override(&mut self) -> Result<u16> {
+        Ok(0)
+    }
+    fn begin_set(&mut self, _: usize) -> Result<usize> {
+        Ok(1)
+    }
+    fn group_slot(&mut self) -> Result<u16> {
+        Ok(1)
+    }
+    fn group_weight(&mut self) -> Result<u32> {
+        Ok(0x8000_0000)
+    }
+    fn child_count(&mut self) -> Result<i16> {
+        ensure!(!self.fail_count, "authored child count failure");
+        Ok(1)
+    }
+    fn child_divisor(&mut self, _: usize) -> Result<u16> {
+        Ok(3)
+    }
+    fn child_flags(&mut self, _: usize) -> Result<u16> {
+        Ok(0x20)
+    }
+    fn child_reference(&mut self, _: usize) -> Result<u32> {
+        Ok(0x0400_00ab)
+    }
+    fn next_group(&mut self, _: u16) -> Result<()> {
+        anyhow::bail!("factory dependency must precede the next group")
+    }
+}
+fn initial_selector_chain(fp_available: bool, fail_count: bool) {
     let (mut base, mut prelude, mut reset) = player_state(44);
     let mut world = world();
     let mut registry = Registry::from_constructor();
@@ -634,7 +681,10 @@ fn initial_selector_chain(fp_available: bool) {
             (Some(0), Some(0))
         }
     );
-    let mut source = ModeSource { calls: Vec::new() };
+    let mut source = ModeSource {
+        calls: Vec::new(),
+        fail_count,
+    };
     let command = action
         .advance_third_person_selector(&mut source)
         .unwrap()
@@ -675,6 +725,49 @@ fn initial_selector_chain(fp_available: bool) {
     assert!(
         action
             .begin_third_person_selector(&mut base, &reset, &preparation, fp_available)
+            .is_err()
+    );
+    let result = action.prepare_third_person_command(
+        &mut preparation,
+        0x0c00_0002,
+        &mut source,
+        ge_core::animation::layers::SlotOverride {
+            enabled_raw: 0,
+            slot_raw: 0,
+        },
+    );
+    assert_eq!(result.is_err(), fail_count);
+    let tp = preparation.animator().unwrap();
+    assert_eq!(tp.word(0x164), Some(0));
+    assert_eq!(tp.layers().unwrap().slots()[1].weight_bits(), 0);
+    assert_eq!(tp.layers().unwrap().failed(), fail_count);
+    assert_eq!(tp.controls().len(), 4);
+    assert_eq!(tp.layers().unwrap().active_count(), 1);
+    assert_eq!(action.command().unwrap().weight_writes(), 1);
+    assert_eq!(
+        action.command().unwrap().stage(),
+        if fail_count {
+            ge_core::animation::layers::command::Stage::Failed
+        } else {
+            ge_core::animation::layers::command::Stage::ChildFactoryPending
+        }
+    );
+    assert_eq!(action.selector().unwrap().return_word(), None);
+    assert_eq!(action.selector().unwrap().completed_commands(), 0);
+    for at in [0x70c, 0x710, 0x714, 0x718] {
+        assert_eq!(reset.word(at), Some(0));
+    }
+    assert!(
+        action
+            .prepare_third_person_command(
+                &mut preparation,
+                0x0c00_0002,
+                &mut source,
+                ge_core::animation::layers::SlotOverride {
+                    enabled_raw: 0,
+                    slot_raw: 0
+                }
+            )
             .is_err()
     );
 }

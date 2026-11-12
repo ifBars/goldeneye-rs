@@ -2293,6 +2293,12 @@ function tpCapturePlayerFixture() {
     frame_stamp_known:false,postprocess_executed:false,fallback:0x090006c0,fallback_writes:2,
     refresh:{...refreshPlayerFixture(),refresh_ordinal:3,allocation_ordinal:3},state_sha256:'c'.repeat(64)};
 }
+function tpCommandPlayerFixture() {
+  return {stage:'child_factory_pending',opcode:0x0c000002,set_reference:0x0a0000ab,set_index:0,set_groups:1,
+    groups_visited:1,weight_writes:1,pending_group:0,pending_slot:1,child_reference:0x040000ab,factory_class:4,
+    child_flags:32,child_divisor:3,mask:null,children_created:0,command_returned:false,cleanup_complete:false,
+    selector_acknowledged:false,state_sha256:'a'.repeat(64),layers_state_sha256:'b'.repeat(64)};
+}
 function tpSelectorPlayerFixture() {
   return {stage:'command_pending',requested:0x090000ac,previous:0,fallback:0x090006c0,
     tracks_player_modes:false,target_index:1,attempts:1,lookups:2,transition_rows:1,
@@ -2303,7 +2309,7 @@ function initialActionPlayerFixture() {
   return {stage:'tp_command_pending',generic_request:0x0900071e,parameter_bits:0,direction_raw:255,
     weapon_key:0x020000ab,variant:0,remap_calls:3,map_rows_read:20,fp_mapped:0x090000ab,tp_mapped:0x090000ac,
     tp_secondary_mapped:0x090000ad,source_tables_reused:true,mode_controls_created:4,mode_history_updated:false,
-    callback_returned:false,state_sha256:'a'.repeat(64),mapping_state_sha256:'b'.repeat(64),tp_capture:tpCapturePlayerFixture(),tp_selector:tpSelectorPlayerFixture()};
+    callback_returned:false,state_sha256:'a'.repeat(64),mapping_state_sha256:'b'.repeat(64),tp_capture:tpCapturePlayerFixture(),tp_selector:tpSelectorPlayerFixture(),tp_command:tpCommandPlayerFixture()};
 }
 function firstPersonPlayerFixture() {
   return {helper_returned:true,identity_registered:true,item_list_ordinal:1,ordered_links_bound:true,
@@ -2561,7 +2567,7 @@ test('TP skeleton binding keeps shared refresh attachment and FP explicit',async
     assert.match(text,/Third-person constructor retained: 4 animation slots, 1 active/);
     assert.match(text,/skin request retains 1,024 file bytes and 256 logical section bytes/);
     assert.match(text,/Initial action selected and all three mappings resolved through the retained inventory and supplied tables. TP captured four independent controls from primary locals and auxiliary storage; the active slot count remains one/);
-    assert.match(text,/First command opcode 0xc000002 retained; execution pending. No command effects or mode history updates are claimed. Pose postprocessing and frame scheduling remain incomplete/);
+    assert.match(text,/First command opcode 0xc000002 retained; execution pending. Command body retained 1 group weight write; awaiting child factory. Factory class 4. No child was created or command returned. Mode history and command return remain pending. Pose postprocessing and frame scheduling remain incomplete/);
   });
   const changes=[state=>{state.third_person_constructed=false;},state=>{state.third_person_attached=false;},
     state=>{state.first_person_constructed=false;},state=>{state.texture_dependencies_enumerated=false;},
@@ -2625,6 +2631,12 @@ test('TP skeleton binding keeps shared refresh attachment and FP explicit',async
   for (const key of Object.keys(tpSelectorPlayerFixture())) changes.push(state=>{delete state.initial_action.tp_selector[key];});
   changes.push(state=>{delete state.initial_action.tp_selector;});
   changes.push(state=>{state.initial_action.stage='tp_setter_tail_pending';});
+  for (const [key,value] of Object.entries({stage:'complete',opcode:0,set_reference:null,set_index:32767,set_groups:0,
+    groups_visited:2,weight_writes:2,pending_group:1,pending_slot:4,child_reference:null,factory_class:3,child_flags:65536,
+    child_divisor:-1,mask:1,children_created:1,command_returned:true,cleanup_complete:true,selector_acknowledged:true,
+    state_sha256:'short',layers_state_sha256:'short',payload:[1,2,3]})) changes.push(state=>{state.initial_action.tp_command[key]=value;});
+  for(const key of Object.keys(tpCommandPlayerFixture())) changes.push(state=>{delete state.initial_action.tp_command[key];});
+  changes.push(state=>{state.initial_action.tp_command=null;});
   changes.push(state=>{state.initial_action.tp_capture.refresh.refresh_ordinal=2;});
   changes.push(state=>{state.initial_action.tp_capture.refresh.allocation_ordinal=2;});
   changes.push(state=>{state.initial_action.tp_capture.bones_per_control=3;state.initial_action.tp_capture.native_backing_bytes_per_control=112;});
@@ -2645,6 +2657,7 @@ test('live selector returns report only the pending setter tail and unknown opco
       const component=player.component_initialization;
       component.stage='tp_setter_tail_pending';component.pending_dependency='tp_mode_setter_tail';
       component.initial_action.stage=component.stage;
+      component.initial_action.tp_command=null;
       Object.assign(component.initial_action.tp_selector,{stage:'returned',commands_issued:0,pending_ordinal:null,
         pending_opcode:null,return_word:missingTarget ? 0 : 0x090000ab,
         ...(missingTarget ? {target_index:null,attempts:0,lookups:1,transition_rows:0} : {})});
@@ -2652,7 +2665,7 @@ test('live selector returns report only the pending setter tail and unknown opco
     await inspect(embed(report),d=>{
       const text=d.querySelector('#game-session-summary').textContent;
       assert.match(text,/Selector returned; its setter tail is pending/);
-      assert.match(text,/No command effects or mode history updates are claimed/);
+      assert.match(text,/Mode history and command return remain pending/);
       assert.doesNotMatch(text,/First command opcode|has not been recorded completely/);
       assert.equal(d.querySelector('#parity-count').textContent,'0 of 3 tracked criteria verified');
     });
@@ -2661,7 +2674,35 @@ test('live selector returns report only the pending setter tail and unknown opco
   }
   const report=withPlayerPrelude(gameSessionFixture());
   for(const probe of [...report.menu.details.game_session.difficulty_probes,report.menu.details.game_session.cancel_reentry]) {
-    probe.window.game_session.active.world_initialization.player_initialization.component_initialization.initial_action.tp_selector.pending_opcode=0x0c0000ff;
+    const action=probe.window.game_session.active.world_initialization.player_initialization.component_initialization.initial_action;
+    action.tp_selector.pending_opcode=0x0c0000ff;
+    action.tp_command={...tpCommandPlayerFixture(),stage:'opcode_pending',opcode:0x0c0000ff,set_reference:null,set_index:null,set_groups:null,
+      groups_visited:0,weight_writes:0,pending_group:null,pending_slot:null,child_reference:null,factory_class:null,child_flags:null,child_divisor:null};
   }
   await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/First command opcode 0xc0000ff retained; execution pending/));
+});
+
+
+test('command cleanup and mask boundaries stay pending without factory or selector completion',async()=>{
+  const noChild={pending_group:null,pending_slot:null,child_reference:null,factory_class:null,child_flags:null,child_divisor:null};
+  const noSet={set_reference:null,set_index:null,set_groups:null,groups_visited:0,weight_writes:0};
+  for(const [body,dependency] of [
+    [{...tpCommandPlayerFixture(),...noChild,stage:'cleanup_pending'},'set cleanup'],
+    [{...tpCommandPlayerFixture(),...noChild,...noSet,stage:'mask_control_pending',opcode:0x0c000005,mask:15},'control capture'],
+    [{...tpCommandPlayerFixture(),...noChild,...noSet,stage:'mask_clear_pending',opcode:0x0c000005,mask:0},'mask clear'],
+    [{...tpCommandPlayerFixture(),...noChild,...noSet,stage:'opcode_pending',opcode:0x0c000004},'opcode provider'],
+  ]) {
+    const report=withPlayerPrelude(gameSessionFixture());
+    for(const probe of [...report.menu.details.game_session.difficulty_probes,report.menu.details.game_session.cancel_reentry]) {
+      const action=probe.window.game_session.active.world_initialization.player_initialization.component_initialization.initial_action;
+      action.tp_selector.pending_opcode=body.opcode;action.tp_command={...body};
+    }
+    await inspect(embed(report),d=>{
+      const text=d.querySelector('#game-session-summary').textContent;
+      assert.ok(text.includes(`awaiting ${dependency}.`));
+      assert.match(text,/No child was created or command returned/);
+      assert.doesNotMatch(text,/has not been recorded completely/);
+      assert.equal(d.querySelector('#parity-count').textContent,'0 of 3 tracked criteria verified');
+    });
+  }
 });

@@ -162,7 +162,7 @@ impl State {
     }
 }
 
-fn charge(used: &mut usize, limit: usize, label: &str) -> Result<()> {
+pub(super) fn charge(used: &mut usize, limit: usize, label: &str) -> Result<()> {
     let next = used
         .checked_add(1)
         .context("animation layer work overflow")?;

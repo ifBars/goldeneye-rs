@@ -2,6 +2,7 @@
 //! incremental like the source; errors latch failure and require discarding the
 //! state/host attempt. This is not child ticking, pose sampling or camera output.
 mod capture;
+pub mod command;
 mod execute;
 mod types;
 pub use types::{Budget, Host, NodeId, Slot, SlotOverride, Snapshot};

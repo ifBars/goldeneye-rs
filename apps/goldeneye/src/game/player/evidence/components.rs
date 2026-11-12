@@ -8,6 +8,7 @@ use serde::Serialize;
 mod action;
 mod attachment;
 mod callbacks;
+mod command;
 mod control_capture;
 mod first_person;
 mod postbind;
@@ -17,6 +18,7 @@ mod skeleton;
 pub use action::InitialAction;
 pub use attachment::AttachmentBinding;
 pub use callbacks::CallbackBinding;
+pub use command::CommandBody;
 pub use control_capture::ThirdPersonCapture;
 pub use first_person::FirstPersonBinding;
 pub use postbind::VisualPostbind;
@@ -153,6 +155,6 @@ pub(super) fn build(
         callbacks: callbacks::build(player, world, hook)?,
         first_person: first_person::build(player, world, identities, hook)?,
         initial_action: action,
-        scope: "TP selection now reads the actual resident base through its retained component wrapper. FP availability selects the actual previous-history branch. The live cursor stops at the first reached command opcode, or retains a selector return before the setter tail. No command is acknowledged. The four captured controls remain owned and active count stays one. Command effects, setter tail, mode history, FP dispatch, callback return, pose postprocessing, scheduling, completed player and camera remain incomplete.",
+        scope: "TP selection and reached command operands use the same resident component base. Start-set group weights now update actual TP slots in source order, stopping at the first child factory or cleanup dependency. Mask commands retain their required control/clear dependency; other opcodes remain pending. No command is acknowledged and four captured controls remain owned with active count one. Factories, later effects, setter tail, mode history, FP dispatch, callback return, pose postprocessing, scheduling, completed player and camera remain incomplete.",
     }))
 }

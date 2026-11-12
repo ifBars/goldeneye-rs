@@ -102,7 +102,17 @@ Each command needs an exact successful acknowledgement before the next command
 or fallback can run. Failed execution keeps the completed prefix and cannot replay.
 Live asset reads use only the logically resident base; full-file caching grants
 no later-section access. A selector return still awaits the actual setter tail.
-Command execution, setter side effects, FP dispatch and the optional second
+Live command bodies now read set references before optional operands, preserving
+override gates and signed additive divisors. The retained asset stream visits one
+group at a time. Reached weight writes update both the layer owner and the actual
+animator bytes, including prefixes before a later provider failure. Slot zero
+skips its serialized weight; other slots preserve existing weight unless the
+source compares equal to zero. The source-zeroed slot-override globals belong to
+the controller and survive cancellation. The fresh first-action branch stores no
+override. Execution stops at the first child factory or set cleanup dependency;
+mask commands stop before required control capture/clear. No later child word,
+factory return or command acknowledgement is synthesized. Actual factories,
+remaining effects, setter side effects, FP dispatch and the optional second
 request remain required. Pose
 postprocessing and frame dispatch remain unavailable; these constructor and
 mapping operations do not establish player or gameplay readiness.

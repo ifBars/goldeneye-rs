@@ -59,8 +59,23 @@ pub(super) fn initialize(player: &mut Player, hook: &world_hooks::Attempt) -> Re
             }
         }
         hook.ensure_current()?;
+        let location = owner.tp_command.context("TP reached command is absent")?;
+        owner.tp_command_stream = Some(ge_assets::animation_modes::CommandStream::new(location));
+        let mut source = tp_source.mode_command_source(
+            owner
+                .tp_command_stream
+                .as_mut()
+                .expect("retained command stream"),
+        )?;
+        owner.state.prepare_third_person_command(
+            &mut player.components.preparation,
+            location.opcode(),
+            &mut source,
+            hook.animation_slot_override()?,
+        )?;
+        hook.ensure_current()?;
     }
-    // The reached opcode is retained before its operand/body execution. No
-    // command acknowledgement or caller mode-history update is fabricated.
+    // The real operand/weight prefix is retained before its factory/cleanup
+    // dependency. No command return or mode-history update is fabricated.
     Ok(())
 }

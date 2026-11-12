@@ -6,6 +6,7 @@ use super::{
 use anyhow::{Result, ensure};
 use std::sync::Arc;
 mod control_capture;
+mod mode_command;
 
 pub const SOURCE_BYTES: usize = 0x1b8;
 

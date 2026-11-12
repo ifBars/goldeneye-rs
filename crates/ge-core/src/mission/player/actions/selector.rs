@@ -110,18 +110,6 @@ impl Pending {
         };
         Ok(result)
     }
-    pub fn third_person_command_executed(&mut self, invocation: Invocation) -> Result<()> {
-        ensure!(
-            self.stage == Stage::AwaitingThirdPersonCommand,
-            "TP command return is out of source order"
-        );
-        self.selector
-            .as_mut()
-            .context("TP live selector is absent")?
-            .executed(invocation)?;
-        self.stage = Stage::SelectingThirdPerson;
-        Ok(())
-    }
     pub fn third_person_command_failed(&mut self, invocation: Invocation) -> Result<()> {
         ensure!(
             self.stage == Stage::AwaitingThirdPersonCommand,

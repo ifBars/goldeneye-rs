@@ -3,8 +3,10 @@
 //! no channels. Nonzero sections require a future section-ownership adapter.
 mod commands;
 mod sets;
+mod stream;
 mod types;
 
+pub use stream::CommandStream;
 pub use types::{Budget, Child, Command, CommandLocation, Descriptor, Group, Set};
 
 use crate::{binary::Bytes, edb::Table};
@@ -60,16 +62,7 @@ impl View<'_> {
     }
 
     fn descriptor(&self, table: &Table, index: usize) -> Result<Descriptor> {
-        ensure!(
-            index < usize::from(table.count),
-            "animation descriptor index is absent"
-        );
-        let at = add(
-            table.offset,
-            index
-                .checked_mul(STRIDE)
-                .context("animation descriptor offset overflow")?,
-        )?;
+        let at = self.directory_address(table, index)?;
         let b = Bytes(self.data);
         Ok(Descriptor {
             directory_index: index,
@@ -79,15 +72,31 @@ impl View<'_> {
         })
     }
 
+    fn directory_address(&self, table: &Table, index: usize) -> Result<usize> {
+        ensure!(
+            index < usize::from(table.count),
+            "animation descriptor index is absent"
+        );
+        add(
+            table.offset,
+            index
+                .checked_mul(STRIDE)
+                .context("animation descriptor offset overflow")?,
+        )
+    }
+
     fn body_address(&self, descriptor: Descriptor) -> Result<usize> {
+        self.body_address_at(descriptor.descriptor_address)
+    }
+    fn body_address_at(&self, address: usize) -> Result<usize> {
         let b = Bytes(self.data);
-        let section = b.u16(add(descriptor.descriptor_address, 4)?)? & 0x7fff;
+        let section = b.u16(add(address, 4)?)? & 0x7fff;
         ensure!(
             section == 0,
             "unsupported reached animation section {section} at {:#x}",
-            descriptor.descriptor_address
+            address
         );
-        Ok(b.u32(add(descriptor.descriptor_address, 8)?)? as usize)
+        Ok(b.u32(add(address, 8)?)? as usize)
     }
 
     fn transition_address(&self, index: usize, row: usize) -> Result<usize> {

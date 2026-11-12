@@ -10,6 +10,7 @@ use super::{
 };
 use anyhow::{Context, Result, ensure};
 mod capture;
+mod command;
 mod selector;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,6 +60,7 @@ pub struct Pending {
     selector: Option<crate::animation::mode::runtime::Cursor>,
     tracks_player_modes: Option<bool>,
     primary_head: Option<(Option<crate::animation::layers::NodeId>, u32)>,
+    command: Option<crate::animation::layers::command::Pending>,
 }
 impl Pending {
     pub fn begin(base: &base_handler::Owner, reset: &mut PendingReset) -> Result<Self> {
@@ -76,6 +78,7 @@ impl Pending {
             selector: None,
             tracks_player_modes: None,
             primary_head: None,
+            command: None,
         })
     }
     pub fn stage(&self) -> Stage {
@@ -222,7 +225,7 @@ impl Pending {
         Ok(())
     }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(4);
+        emit(5);
         emit(self.stage as u32);
         emit((self.player.get() >> 32) as u32);
         emit(self.player.get() as u32);
@@ -270,7 +273,11 @@ impl Pending {
         }
         emit(u32::from(self.selector.is_some()));
         if let Some(selector) = &self.selector {
-            selector.visit_state_words(emit);
+            selector.visit_state_words(&mut emit);
+        }
+        emit(u32::from(self.command.is_some()));
+        if let Some(command) = &self.command {
+            command.visit_state_words(emit);
         }
     }
 }

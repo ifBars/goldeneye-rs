@@ -7,6 +7,7 @@ mod player_action;
 mod player_attachment;
 mod player_callbacks;
 mod player_capture;
+mod player_command;
 mod player_first_person;
 mod player_postbind;
 mod player_refresh;
@@ -3430,6 +3431,7 @@ mod tests {
         component["pending_dependency"] = json!("tp_mode_setter_tail");
         let action = &mut component["initial_action"];
         action["stage"] = json!("tp_setter_tail_pending");
+        action["tp_command"] = Value::Null;
         let selector = &mut action["tp_selector"];
         selector["stage"] = json!("returned");
         selector["commands_issued"] = json!(0);
