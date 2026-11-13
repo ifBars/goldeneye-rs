@@ -9,7 +9,26 @@ a complete player, run a complete match or
 restore a complete simulation snapshot. Networking must not report those
 capabilities before the game supplies them.
 
-Status: implementation plan. No `ge-net` crate exists at this checkpoint.
+Status: implementation plan on `main`. The networking crates are not registered
+in this branch's workspace yet. A candidate implementation exists on a separate
+branch; inspect it before starting another implementation.
+
+## Current handoff
+
+On November 12, 2026, the candidate branch was
+[`claude/peaceful-shannon-0ued29`](https://github.com/ifBars/goldeneye-rs/tree/claude/peaceful-shannon-0ued29)
+at commit
+[`f408cd8`](https://github.com/ifBars/goldeneye-rs/commit/f408cd80824b23342304238727c5d08eaf747860).
+It contains `ge-net`, a QUIC-based `ge-net-transport`, a wire specification,
+synthetic examples and implementation notes. Those notes report completed
+milestones, including hosted Windows and Linux checks. This plan update has not
+independently validated those claims or merged that work.
+
+Treat that commit as a review starting point. Check the live branch and its
+current owner before editing it. Keep useful existing work, identify missing
+acceptance evidence and coordinate the next changes. The unchecked milestones
+below describe acceptance still outstanding on `main`, rather than a claim that
+no implementation exists elsewhere.
 
 ## Target and first deliverable
 
@@ -87,8 +106,12 @@ Do not move networking rules into the root of `ge-core`.
 
 Workspace manifests, the lockfile and CI configuration are shared files. Coordinate
 their edits and use one Git writer at a time in a shared checkout. Stage only the
-workstream's files. Preserve unrelated edits. The repository currently uses only
-`main`; do not create leftover feature branches or force-push another model's work.
+workstream's files. Preserve unrelated edits. `main` is the integration branch.
+Use an isolated checkout for parallel work and coordinate ownership of the
+existing candidate branch. Do not switch branches beneath another model's dirty
+checkout, force-push its work or delete an active branch. Remove temporary
+branches after their work has been merged and ownership is clear, consistent
+with the user's preference for one retained `main` branch.
 Run Cargo commands serially with two jobs, including across parallel workstreams.
 
 ## Library contracts
@@ -356,12 +379,27 @@ claiming they are implemented or adding service dependencies now.
 
 ## Handoff to the implementing model
 
-Implement M0 through M5 in order. Begin with `crates/ge-net`, its wire contract
-and deterministic synthetic tests. Keep the core independent of game crates.
-Choose and document one real transport when reaching M4. Preserve the primary
-model's runtime work and coordinate shared manifests, Git operations and builds.
+First inspect the current handoff above and the candidate implementation. Review
+its evidence against M0 through M5, then implement or repair the missing pieces
+in dependency order. If the candidate is unavailable, begin with `crates/ge-net`,
+its wire contract and deterministic synthetic tests. Keep the core independent
+of game crates. Preserve the primary model's runtime work and coordinate shared
+manifests, Git operations and builds.
 
 For each completed milestone, report changed paths, commands run, scenario seeds,
 observed results and remaining limitations. Update the checklist only when its
 acceptance evidence exists. Return a usable networking foundation and an honest
 integration contract; do not mark multiplayer or the game complete.
+
+Suggested task for the parallel model:
+
+> Read AGENTS.md and docs/networking-crate-plan.md. Own the networking crates,
+> their synthetic tests, wire specification and examples. Inspect the candidate
+> branch named in the plan and coordinate with its owner before editing. Reuse
+> suitable work and complete the plan's acceptance criteria with recorded
+> evidence. Keep sockets and async runtime dependencies in the transport crate.
+> Do not modify player initialization, integrate networking into New Game or
+> transfer game assets. Coordinate shared manifests, CI, Git operations and
+> serial two-job Cargo checks with the main rewrite workstream. Report the exact
+> tested commit and platform results, remaining limitations and integration
+> prerequisites. Leave merge decisions to the coordinating workstream.
