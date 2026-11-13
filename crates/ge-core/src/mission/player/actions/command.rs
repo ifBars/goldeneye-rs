@@ -8,6 +8,8 @@ impl Pending {
                 Stage::AwaitingThirdPersonSetterTail
                     | Stage::AwaitingThirdPersonDispatchTail
                     | Stage::AwaitingFirstPersonDispatch
+                    | Stage::FirstPersonDispatch
+                    | Stage::AwaitingActionSuffix
             ) {
                 self.completed_commands.last()
             } else {

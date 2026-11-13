@@ -6,6 +6,7 @@ use ge_core::mission::player::{
     actions::{self, Target},
     world::World,
 };
+mod first_person;
 mod selector;
 mod tail;
 pub(super) struct Owned {
@@ -13,6 +14,8 @@ pub(super) struct Owned {
     pub mappings: Vec<ge_assets::weapon_static::Remap>,
     pub tp_command: Option<ge_assets::animation_modes::CommandLocation>,
     pub tp_command_stream: Option<ge_assets::animation_modes::CommandStream>,
+    pub fp_command: Option<ge_assets::animation_modes::CommandLocation>,
+    pub fp_command_stream: Option<ge_assets::animation_modes::CommandStream>,
 }
 pub(super) fn initialize(
     player: &mut Player,
@@ -32,6 +35,8 @@ pub(super) fn initialize(
         mappings: Vec::new(),
         tp_command: None,
         tp_command_stream: None,
+        fp_command: None,
+        fp_command_stream: None,
     });
     let owner = player
         .action
@@ -96,5 +101,13 @@ pub(super) fn initialize(
         hook.ensure_current()?;
     }
     hook.capture_initial_tp(&mut owner.state, &mut player.components.preparation)?;
-    selector::initialize(player, hook)
+    selector::initialize(player, hook)?;
+    if player
+        .action
+        .as_ref()
+        .is_some_and(|a| a.state.stage() == actions::Stage::AwaitingFirstPersonDispatch)
+    {
+        first_person::initialize(player, hook)?;
+    }
+    Ok(())
 }

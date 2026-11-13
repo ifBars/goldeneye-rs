@@ -49,7 +49,17 @@ setter returns without writing player mode history. Its dispatch tail visits
 three blend-coordinate helpers, writes two script heads and re-enters both
 scripts through initflag1. Rate queries reuse retained clips, and unchanged play
 selection skips clip setup. Both updates return before TP dispatch returns;
-the native path now awaits FP dispatch. Factory and update traces stay separate,
+the native path now completes FP dispatch too. FP qualifies through its actual
+resource file, takes the tracked primary branch and retains its own mode cursor.
+Its mask3 command captures one control into slot0: the loop follows active count1,
+not the highest mask bit. The ordinary refresh and backing return precede list
+insertion. A second command initializes one slot1 script with one inline clip,
+range76 and FPS30; active count grows to two. Both bodies return before FP
+selection returns 0x0900000b. The setter stores the requested generic/mapped
+0x0900071e pair, compares the real new primary head and clears secondary history.
+Its slot1 coordinate helper returns before FP dispatch returns. The enclosing
+initial-action suffix's attribute masks and parameter writes remain next.
+Factory and update traces stay separate,
 with bounded diagnostic history independent of simulation lifetime. Pose postprocess targets
 are assigned, but their body and frame scheduling remain unavailable.
 Later initialization and gameplay remain

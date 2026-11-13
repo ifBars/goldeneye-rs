@@ -1,7 +1,8 @@
 # Retained script updates
 
-The fresh New Game path now returns from its TP setter and TP dispatch. It stops
-before FP dispatch, with player creation and the gameplay camera still pending.
+The fresh New Game path now returns from its TP and FP dispatchers. It stops
+before the enclosing initial-action suffix, with player creation and the
+gameplay camera still pending.
 This is a native loading checkpoint, not a playable mission or a parity result.
 
 ## Setter and dispatch order
@@ -55,3 +56,6 @@ callback and gameplay readiness remain separate. Authored tests cover skipped
 reads, retained backing, ordered cache failures, pending providers and replay
 rejection; native probes check the reached game-data path. Neither establishes
 reference runtime or numerical parity.
+
+FP entry and its later mask-command capture have different scopes. See
+[first-person mode dispatch](first-person-mode-dispatch.md) for that continuation.

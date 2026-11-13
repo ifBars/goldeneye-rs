@@ -23,8 +23,10 @@ pub struct ThirdPersonSelector {
     pub command_effects_complete: bool,
     pub state_sha256: String,
 }
-pub(super) fn boundary(stage: Stage) -> Result<(&'static str, &'static str)> {
-    match stage {
+pub(super) fn boundary(
+    state: &ge_core::mission::player::actions::Pending,
+) -> Result<(&'static str, &'static str)> {
+    match state.stage() {
         Stage::AwaitingThirdPersonCommand => Ok(("tp_command_pending", "tp_animation_command")),
         Stage::AwaitingThirdPersonSetterTail => {
             Ok(("tp_setter_tail_pending", "tp_mode_setter_tail"))
@@ -33,7 +35,26 @@ pub(super) fn boundary(stage: Stage) -> Result<(&'static str, &'static str)> {
             Ok(("tp_dispatch_pending", "tp_animation_update"))
         }
         Stage::AwaitingFirstPersonDispatch => Ok(("fp_dispatch_pending", "fp_mode_dispatch")),
-        _ => anyhow::bail!("TP selector has no reportable pending boundary"),
+        Stage::FirstPersonDispatch => match state
+            .first_person_dispatch()
+            .context("FP dispatcher absent")?
+            .stage()
+        {
+            ge_core::mission::player::actions::FirstPersonStage::CommandPending => {
+                Ok(("fp_command_pending", "fp_animation_command"))
+            }
+            ge_core::mission::player::actions::FirstPersonStage::SetterTail => {
+                Ok(("fp_setter_tail_pending", "fp_mode_setter_tail"))
+            }
+            ge_core::mission::player::actions::FirstPersonStage::DispatchTail => {
+                Ok(("fp_dispatch_tail_pending", "fp_dispatch_tail"))
+            }
+            _ => anyhow::bail!("FP dispatcher has no reportable pending boundary"),
+        },
+        Stage::AwaitingActionSuffix => {
+            Ok(("initial_action_suffix_pending", "initial_action_suffix"))
+        }
+        _ => anyhow::bail!("initial action has no reportable pending boundary"),
     }
 }
 pub(super) fn build(player: &Owned) -> Result<ThirdPersonSelector> {
@@ -61,7 +82,9 @@ pub(super) fn build(player: &Owned) -> Result<ThirdPersonSelector> {
         }
         Stage::AwaitingThirdPersonSetterTail
         | Stage::AwaitingThirdPersonDispatchTail
-        | Stage::AwaitingFirstPersonDispatch => {
+        | Stage::AwaitingFirstPersonDispatch
+        | Stage::FirstPersonDispatch
+        | Stage::AwaitingActionSuffix => {
             ensure!(
                 cursor.stage() == runtime::Stage::Complete
                     && pending.is_none()
@@ -120,7 +143,12 @@ pub(super) fn build(player: &Owned) -> Result<ThirdPersonSelector> {
             "untracked TP path has a primary comparison"
         );
     }
-    if owner
+    if owner.state.first_person_dispatch().is_some() {
+        ensure!(
+            cursor.stage() == runtime::Stage::Complete,
+            "historical TP selector has not returned before FP"
+        );
+    } else if owner
         .state
         .third_person_dispatch()
         .and_then(|d| d.setter())
@@ -136,8 +164,19 @@ pub(super) fn build(player: &Owned) -> Result<ThirdPersonSelector> {
             "TP selector history changed outside its tracked setter"
         );
     }
+    Ok(report(cursor, tracks, stage, command.map(|v| v.opcode())))
+}
+pub(super) fn report(
+    cursor: &runtime::Cursor,
+    tracks: bool,
+    stage: &'static str,
+    opcode: Option<u32>,
+) -> ThirdPersonSelector {
+    let inputs = cursor.inputs();
+    let pending = cursor.pending();
+    let returned = cursor.return_word();
     let work = cursor.work();
-    Ok(ThirdPersonSelector {
+    ThirdPersonSelector {
         stage,
         requested: inputs.requested,
         previous: inputs.previous,
@@ -150,7 +189,7 @@ pub(super) fn build(player: &Owned) -> Result<ThirdPersonSelector> {
         commands_issued: work.commands,
         commands_executed: cursor.completed_commands(),
         pending_ordinal: pending.map(|value| value.ordinal),
-        pending_opcode: pending.and_then(|_| command.map(|value| value.opcode())),
+        pending_opcode: pending.and(opcode),
         return_word: returned,
         base_only: true,
         command_effects_complete: cursor.stage() == runtime::Stage::Complete
@@ -158,10 +197,10 @@ pub(super) fn build(player: &Owned) -> Result<ThirdPersonSelector> {
         state_sha256: super::super::words(b"ge_player_tp_live_selector_v1\0", |mut emit| {
             cursor.visit_state_words(&mut emit);
             emit(u32::from(tracks));
-            emit(u32::from(command.is_some()));
-            if let Some(command) = command {
-                emit(command.opcode());
+            emit(u32::from(opcode.is_some()));
+            if let Some(opcode) = opcode {
+                emit(opcode);
             }
         }),
-    })
+    }
 }

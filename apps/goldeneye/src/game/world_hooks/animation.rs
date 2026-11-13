@@ -5,6 +5,52 @@ use anyhow::Result;
 use ge_core::mission::player::components::Preparation;
 
 impl Attempt {
+    pub fn finish_initial_fp_mask(
+        &self,
+        action: &mut ge_core::mission::player::actions::FirstPersonDispatch,
+        preparation: &mut Preparation,
+    ) -> Result<()> {
+        self.ensure_current()?;
+        let mut state = self
+            .shared
+            .0
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("FP mask scratch owner lock is poisoned"))?;
+        self.ensure_current()?;
+        let State {
+            animation_context,
+            animation_scratch,
+            ..
+        } = &mut *state;
+        action.finish_mask_command(preparation, animation_context, animation_scratch)?;
+        self.ensure_current()?;
+        Ok(())
+    }
+    pub fn begin_initial_fp_dispatch(
+        &self,
+        action: &mut ge_core::mission::player::actions::Pending,
+        base: &mut ge_core::mission::player::base_handler::Owner,
+        reset: &ge_core::mission::player::constructor::PendingReset,
+        preparation: &mut Preparation,
+    ) -> Result<()> {
+        self.ensure_current()?;
+        let mut state = self
+            .shared
+            .0
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("FP fallback owner lock is poisoned"))?;
+        self.ensure_current()?;
+        action.begin_first_person_dispatch(
+            base,
+            reset,
+            preparation,
+            &mut state.animation_fallback,
+        )?;
+        self.ensure_current()?;
+        Ok(())
+    }
     pub fn animation_rate_inputs(
         &self,
         current_file_data_available: bool,

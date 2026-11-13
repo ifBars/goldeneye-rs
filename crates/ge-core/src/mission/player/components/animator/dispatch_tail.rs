@@ -107,7 +107,7 @@ impl super::super::Preparation {
     }
 }
 impl Animator {
-    fn dispatch_script(&self, slot: u8) -> Result<Option<NodeId>> {
+    pub(super) fn dispatch_script(&self, slot: u8) -> Result<Option<NodeId>> {
         let layers = self.layers.as_ref().context("TP dispatch layers absent")?;
         let head = layers
             .slots()

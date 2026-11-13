@@ -4,10 +4,12 @@
 mod effects;
 mod factory;
 mod groups;
+mod mask;
 mod state;
 use super::{SlotOverride, State, execute::charge};
 use anyhow::{Context, Result, ensure};
 pub use effects::{EffectStage, Effects};
+pub use mask::MaskEffects;
 
 pub trait Source {
     fn set_reference(&mut self) -> Result<u32>;
@@ -40,6 +42,10 @@ pub enum Stage {
     ChildWrapperPending,
     ChildContinuationPending,
     Returned,
+    MaskRefreshPending,
+    MaskBackingPending,
+    MaskEffectsPending,
+    MaskDestroyPending,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ChildRequest {
@@ -74,6 +80,7 @@ pub struct Pending {
     factory_started: bool,
     factory_node: Option<super::NodeId>,
     effects: Vec<Effects>,
+    mask_effects: Option<MaskEffects>,
 }
 impl Pending {
     pub fn new(opcode: u32) -> Self {
@@ -93,6 +100,7 @@ impl Pending {
             factory_started: false,
             factory_node: None,
             effects: Vec::new(),
+            mask_effects: None,
         }
     }
     pub fn opcode(&self) -> u32 {

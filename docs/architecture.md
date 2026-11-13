@@ -120,8 +120,14 @@ setter now returns without history writes. Three ordered scalar helpers then
 visit the TP heads and update two script blend coordinates. Both scripts re-enter
 with initflag1, resolve rates through existing animation caches and reuse their
 unchanged play selections before position preparation returns. TP dispatch now
-returns before FP dispatch. The enclosing callback, pose postprocessing and frame
-scheduling remain incomplete. These returns do not establish player or gameplay
+returns before FP dispatch. FP now takes its own tracked primary branch over
+the actual FP resource wrapper and existing masked headers. Its first mask
+command refreshes and captures one control into slot zero, following active
+count rather than the raw mask's highest bit. Its second command initializes one
+slot-one script. Both commands return before selection and the tracked setter
+advance player history. FP dispatch then returns after its scalar helper. The
+enclosing action suffix, pose postprocessing and frame scheduling remain
+incomplete. These returns do not establish player or gameplay
 readiness. [Script updates](animation-script-updates.md) describes their separate
 traces and provider boundaries.
 The first class-four factory now allocates its own retained header before any

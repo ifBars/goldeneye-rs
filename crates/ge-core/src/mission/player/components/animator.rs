@@ -9,11 +9,13 @@ mod child_effects;
 mod child_factory;
 mod control_capture;
 mod dispatch_tail;
+mod mask_control;
 mod mode_command;
+mod mode_target;
 
 pub const SOURCE_BYTES: usize = 0x1b8;
 
-/// Actual pending TP allocation, scoped to its one-shot player initializer.
+/// Retained TP/FP allocation, scoped to its player/component identity.
 /// Item/resource/skeleton backlinks are NULL until their real bind operations.
 #[derive(Debug)]
 pub struct Animator {

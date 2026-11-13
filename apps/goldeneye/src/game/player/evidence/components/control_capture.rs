@@ -44,7 +44,15 @@ pub(super) fn build(player: &Owned, hook: &world_hooks::Attempt) -> Result<Third
         .as_ref()
         .context("TP capture action owner is absent")?
         .state;
-    let (fallback, writes) = hook.animation_fallback()?;
+    let (current_fallback, current_writes) = hook.animation_fallback()?;
+    let fallback = action.fallback().context("TP captured fallback absent")?;
+    let writes = action
+        .fallback_writes()
+        .context("TP captured fallback ordinal absent")?;
+    let latest = action
+        .first_person_dispatch()
+        .and_then(|fp| fp.fallback())
+        .unwrap_or((fallback, writes));
     ensure!(
         owner.controls().len() == 4
             && !layers.failed()
@@ -59,6 +67,10 @@ pub(super) fn build(player: &Owned, hook: &world_hooks::Attempt) -> Result<Third
             && action.fallback() == Some(fallback)
             && action.fallback_writes() == Some(writes),
         "TP captured state or actual shared fallback differs"
+    );
+    ensure!(
+        (current_fallback, current_writes) == latest,
+        "current fallback differs from the latest retained dispatch write"
     );
     let mut ids = std::collections::BTreeSet::new();
     for (slot, start) in layers.slots().iter().zip([0x138, 0x158, 0x178, 0x198]) {

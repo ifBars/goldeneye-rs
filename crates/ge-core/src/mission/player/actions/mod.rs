@@ -1,5 +1,5 @@
-//! Reached initial action caller. Mapping prepares dispatch inputs; it does not
-//! execute mode controls, change mode history or complete the enclosing callback.
+//! Initial action mapping and ordered TP/FP dispatch. Receiver ownership,
+//! command returns and history writes stay separate from callback completion.
 use super::{
     base_handler,
     components::{Identity, Preparation, Stage as ComponentStage},
@@ -13,9 +13,11 @@ mod capture;
 mod child_effects;
 mod command;
 mod factory;
+mod first_person;
 mod selector;
 mod setter;
 mod third_person_tail;
+pub use first_person::{FirstPersonDispatch, FirstPersonStage};
 pub use setter::SetterReturn;
 pub use third_person_tail::{DispatchStage, ThirdPersonDispatch};
 
@@ -34,6 +36,8 @@ pub enum Stage {
     AwaitingThirdPersonDispatchTail,
     ThirdPersonDispatchFailed,
     AwaitingFirstPersonDispatch,
+    FirstPersonDispatch,
+    AwaitingActionSuffix,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Target {
@@ -72,6 +76,7 @@ pub struct Pending {
     command: Option<crate::animation::layers::command::Pending>,
     completed_commands: Vec<crate::animation::layers::command::Pending>,
     dispatch: Option<ThirdPersonDispatch>,
+    first_person: Option<FirstPersonDispatch>,
 }
 impl Pending {
     pub fn begin(base: &base_handler::Owner, reset: &mut PendingReset) -> Result<Self> {
@@ -92,6 +97,7 @@ impl Pending {
             command: None,
             completed_commands: Vec::new(),
             dispatch: None,
+            first_person: None,
         })
     }
     pub fn stage(&self) -> Stage {
@@ -238,7 +244,7 @@ impl Pending {
         Ok(())
     }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(6);
+        emit(7);
         emit(self.stage as u32);
         emit((self.player.get() >> 32) as u32);
         emit(self.player.get() as u32);
@@ -299,6 +305,10 @@ impl Pending {
         emit(u32::from(self.dispatch.is_some()));
         if let Some(dispatch) = &self.dispatch {
             dispatch.visit_state_words(&mut emit);
+        }
+        emit(u32::from(self.first_person.is_some()));
+        if let Some(fp) = &self.first_person {
+            fp.visit_state_words(&mut emit);
         }
     }
 }

@@ -1,16 +1,33 @@
-use super::{closed, count, player_child};
+use super::{closed, count, player_child, player_mask};
 use anyhow::{Result, ensure};
 use serde_json::{Value, json};
 fn bounded(v: &Value, max: u64) -> bool {
     v.as_u64().is_some_and(|n| n <= max)
 }
 pub(super) fn validate(s: &Value, a: &Value) -> Result<()> {
+    let pending = a["stage"] == "tp_command_pending";
+    ensure!(
+        pending
+            || matches!(
+                a["stage"].as_str(),
+                Some(
+                    "tp_setter_tail_pending"
+                        | "tp_dispatch_pending"
+                        | "fp_dispatch_pending"
+                        | "fp_command_pending"
+                        | "fp_setter_tail_pending"
+                        | "fp_dispatch_tail_pending"
+                        | "initial_action_suffix_pending"
+                )
+            ),
+        "TP command parent stage differs"
+    );
+    validate_for(s, &a["tp_selector"], pending)
+}
+pub(super) fn validate_for(s: &Value, selector: &Value, pending: bool) -> Result<()> {
     if s.is_null() {
         ensure!(
-            matches!(
-                a["stage"].as_str(),
-                Some("tp_setter_tail_pending" | "tp_dispatch_pending" | "fp_dispatch_pending")
-            ) && a["tp_selector"]["commands_executed"] == 0,
+            !pending && selector["commands_executed"] == 0,
             "command receipt missing after execution"
         );
         return Ok(());
@@ -32,6 +49,7 @@ pub(super) fn validate(s: &Value, a: &Value) -> Result<()> {
             "child_flags",
             "child_divisor",
             "mask",
+            "mask_effects",
             "children_created",
             "children_completed",
             "children_inserted",
@@ -77,17 +95,12 @@ pub(super) fn validate(s: &Value, a: &Value) -> Result<()> {
     );
     if s["selector_acknowledged"] == true {
         ensure!(
-            returned
-                && matches!(
-                    a["stage"].as_str(),
-                    Some("tp_setter_tail_pending" | "tp_dispatch_pending" | "fp_dispatch_pending")
-                )
-                && count(&a["tp_selector"], "commands_executed")? > 0,
+            returned && !pending && count(selector, "commands_executed")? > 0,
             "command acknowledgement differs"
         );
     } else {
         ensure!(
-            a["stage"] == "tp_command_pending" && s["opcode"] == a["tp_selector"]["pending_opcode"],
+            pending && s["opcode"] == selector["pending_opcode"],
             "pending command differs from selector"
         );
     }
@@ -118,6 +131,33 @@ pub(super) fn validate(s: &Value, a: &Value) -> Result<()> {
     let no_set = ["set_reference", "set_index", "set_groups"]
         .iter()
         .all(|k| s[k].is_null());
+    if op == 0x0c00_0005 {
+        ensure!(
+            created == 0
+                && completed == 0
+                && s["head_copies"] == 0
+                && s["child_header"].is_null()
+                && no_set
+                && no_child
+                && groups == 0
+                && s["weight_writes"] == 0
+                && s["effective_flags_or"] == 0
+                && s["cleanup_complete"] == false
+                && s["cleanup_skipped"] == false
+                && bounded(&s["mask"], 65535),
+            "mask command invented set/child effects"
+        );
+        return player_mask::validate(
+            &s["mask_effects"],
+            s["stage"].as_str().unwrap_or(""),
+            count(s, "mask")?,
+            count(s, "active_slots")?,
+        );
+    }
+    ensure!(
+        s["mask_effects"].is_null(),
+        "non-mask command owns mask effects"
+    );
     match s["stage"].as_str() {
         Some(
             "child_factory_pending"
@@ -232,7 +272,7 @@ pub(super) mod tests {
     pub(in super::super) fn fixture() -> Value {
         json!({"stage":"child_initializer_pending","opcode":0x0c00_0002,"set_reference":0x0a00_00ab,"set_index":0,"set_groups":1,
             "groups_visited":1,"weight_writes":1,"pending_group":0,"pending_slot":1,"child_reference":0x0400_00ab,"factory_class":4,
-            "child_flags":32,"child_divisor":3,"mask":null,"children_created":1,"children_completed":0,"children_inserted":0,"head_copies":0,"active_slots":1,"effective_flags_or":32,"last_completed_child":null,"cleanup_skipped":false,"child_header":player_child::tests::fixture(),"command_returned":false,"cleanup_complete":false,
+            "child_flags":32,"child_divisor":3,"mask":null,"mask_effects":null,"children_created":1,"children_completed":0,"children_inserted":0,"head_copies":0,"active_slots":1,"effective_flags_or":32,"last_completed_child":null,"cleanup_skipped":false,"child_header":player_child::tests::fixture(),"command_returned":false,"cleanup_complete":false,
             "selector_acknowledged":false,"state_sha256":"a".repeat(64),"layers_state_sha256":"b".repeat(64)})
     }
     #[test]
