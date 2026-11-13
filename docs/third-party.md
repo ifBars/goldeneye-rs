@@ -7,6 +7,12 @@ Rust versions are pinned in Cargo.lock. Direct dependencies include nod, wgpu,
 winit, cpal, jpeg-decoder, png, serde, clap, anyhow, sha2 and pollster. Cargo
 downloads their code separately; it is not vendored in this repository.
 
+The networking transport crate, `ge-net-transport`, adds quinn, rustls, rcgen,
+tokio and bytes, all MIT and/or Apache-2.0 (rustls also ISC). Its TLS provider
+is ring, under Apache-2.0 and ISC. The native executable does not link this
+crate yet; the generated notices list it because they cover the workspace.
+`ge-net` itself has no dependencies.
+
 `cargo xtask notices` collects license and notice texts for the current Rust
 build host into THIRD_PARTY_NOTICES.md. `cargo xtask package` regenerates and
 includes that file with the executable. The generated document stays out of Git

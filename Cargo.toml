@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/ge-assets", "crates/ge-core", "crates/ge-render", "apps/goldeneye", "xtask"]
+members = ["crates/ge-assets", "crates/ge-core", "crates/ge-net", "crates/ge-net-transport", "crates/ge-render", "apps/goldeneye", "xtask"]
 default-members = ["crates/ge-assets", "apps/goldeneye"]
 resolver = "3"
 
@@ -22,6 +22,11 @@ cpal = { version = "=0.18.2", default-features = false }
 wgpu = {version="=30.0.1",default-features=false,features=["std","parking_lot","dx12","vulkan","wgsl"]}
 pollster = "0.4"
 winit = { version = "=0.30.13", default-features = false, features = ["rwh_06", "x11"] }
+quinn = { version = "=0.11.12", default-features = false, features = ["runtime-tokio", "rustls-ring"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+rcgen = { version = "0.14", default-features = false, features = ["crypto", "ring"] }
+tokio = { version = "1", default-features = false, features = ["rt", "net", "time", "sync"] }
+bytes = "1"
 
 [profile.release]
 lto = "thin"

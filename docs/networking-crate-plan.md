@@ -9,26 +9,32 @@ a complete player, run a complete match or
 restore a complete simulation snapshot. Networking must not report those
 capabilities before the game supplies them.
 
-Status: implementation plan on `main`. The networking crates are not registered
-in this branch's workspace yet. A candidate implementation exists on a separate
-branch; inspect it before starting another implementation.
+Status: `crates/ge-net` and `crates/ge-net-transport` exist on this branch and
+are registered in its workspace. The implementing workstream reports evidence
+for milestones M0 to M5; see [implementation status](#implementation-status).
+Nothing is wired into the game. This is a networking foundation, not
+multiplayer.
 
 ## Current handoff
 
-On November 12, 2026, the candidate branch was
+The implementation was developed on
 [`claude/peaceful-shannon-0ued29`](https://github.com/ifBars/goldeneye-rs/tree/claude/peaceful-shannon-0ued29)
-at commit
-[`f408cd8`](https://github.com/ifBars/goldeneye-rs/commit/f408cd80824b23342304238727c5d08eaf747860).
-It contains `ge-net`, a QUIC-based `ge-net-transport`, a wire specification,
-synthetic examples and implementation notes. Those notes report completed
-milestones, including hosted Windows and Linux checks. This plan update has not
-independently validated those claims or merged that work.
+and is proposed for `main` in
+[pull request 2](https://github.com/ifBars/goldeneye-rs/pull/2). It contains
+`ge-net`, a QUIC-based `ge-net-transport`, a wire specification, synthetic
+examples and the implementation notes below.
 
-Treat that commit as a review starting point. Check the live branch and its
-current owner before editing it. Keep useful existing work, identify missing
-acceptance evidence and coordinate the next changes. The unchecked milestones
-below describe acceptance still outstanding on `main`, rather than a claim that
-no implementation exists elsewhere.
+The exact tested commit is
+[`f408cd8`](https://github.com/ifBars/goldeneye-rs/commit/f408cd80824b23342304238727c5d08eaf747860).
+`cargo xtask check` passed on it locally on Linux, and hosted CI passed its
+check and coverage steps on `ubuntu-latest` and `windows-latest`. Later commits
+on the branch only merge `main` and reconcile this document; they change no
+networking code.
+
+These results were produced by the implementing workstream. The coordinating
+workstream has not independently validated them. Review the evidence against
+M0 to M5 before relying on it, and check the live branch and its owner before
+editing it. The merge decision belongs to the coordinating workstream.
 
 ## Target and first deliverable
 
@@ -310,14 +316,17 @@ the game's parity numerator.
 | M4: real transport | Selected backend adapter, identity verification and process lifecycle | Separate host/two-client loopback processes on Windows and Linux; clean shutdown; dependency notices |
 | M5: handoff | Examples, API documentation, measured costs and integration contract | Another model can run the example without a game image; runtime integration prerequisites are listed honestly |
 
-Initial implementation checklist:
+Implementation checklist:
 
-- [ ] M0 contracts and independent crate build.
-- [ ] M1 protocol and lifecycle tests.
-- [ ] M2 simulated host/two-client session.
-- [ ] M3 replication recovery and late join.
-- [ ] M4 authenticated real transport and loopback processes.
-- [ ] M5 documentation, measurements and game-adapter handoff.
+- [x] M0 contracts and independent crate build.
+- [x] M1 protocol and lifecycle tests.
+- [x] M2 simulated host/two-client session.
+- [x] M3 replication recovery and late join.
+- [x] M4 authenticated real transport and loopback processes.
+- [x] M5 documentation, measurements and game-adapter handoff.
+
+The implementing workstream ticked these boxes on its own recorded evidence.
+They are not yet independently validated; see the current handoff above.
 
 ## Test and measurement plan
 
@@ -359,6 +368,86 @@ cargo xtask report
 Run them serially. Include the transport crate's checks once it exists. Follow the
 repository's dependency notice workflow before distributing binaries. Keep the
 workspace's `publish = false` policy; publishing a crate is a separate action.
+
+## Implementation status
+
+This section records what exists and what its evidence is. Counts are of
+authored tests in these two crates. They are not a percentage of the game, of
+this plan or of original multiplayer behaviour.
+
+Changed paths: `crates/ge-net/`, `crates/ge-net-transport/`,
+`docs/networking-wire-format.md`, this document, the two workspace manifests
+and lockfile, one license supplement under `third-party/`, and short pointers
+in `AGENTS.md`, `docs/development.md` and `docs/third-party.md`.
+
+Commands, run serially with two build jobs:
+
+```text
+cargo test --locked -p ge-net -p ge-net-transport
+cargo test --locked -p ge-net --release -- --ignored
+cargo clippy --locked -p ge-net -p ge-net-transport --all-targets -- -D warnings
+cargo run --release -p ge-net --example synthetic_session
+cargo xtask check
+cargo xtask notices
+```
+
+| Milestone | Evidence | Where |
+| --- | --- | --- |
+| M0 | `ge-net` has no dependencies and builds alone. Identities, the required budget with its who-closes table, the transport contract and the lifecycle table are documented in the source. The wire format is specified in [networking-wire-format.md](networking-wire-format.md) | `crates/ge-net/src`, `budget.rs`, `session/mod.rs`, `transport/mod.rs` |
+| M1 | Authored byte fixtures for the envelope, every message and the delta; malformed-input, limit, wrong-lane, wrong-epoch, reliable-order, optional-kind, stale-attempt and sequence-wraparound tests; a seeded decoder and lifecycle fuzz (4,000 mutations in the fast suite, 1.92 million in the ignored long run, seeds 0 to 31) | `tests/protocol.rs`, `src/channel/tests.rs` |
+| M2 | Host and two clients over the seeded link simulator: the 0/1/5/10% loss by 0/50/150/300 ms RTT matrix (seeds 100 to 115), duplication with reordering, burst loss, fragmented updates, a bandwidth bottleneck, a short and a permanent partition, a stalled consumer, handshake and synchronization timeouts, close, cancel, reconnect, shutdown, rejection and command windows | `tests/sessions.rs`, `tests/support/` |
+| M3 | Acknowledged per-peer baselines, an evicted and a dropped baseline, recovery by delta, by datagram and by bulk transfer, a recovery that cannot complete, a delayed update after destroy and reuse, a retired generation, a late joiner beside active clients, a join that cannot catch up, oversized deltas, a blocked datagram lane and partition then rejoin | `tests/replication.rs`, `src/replication/tests.rs` |
+| M4 | QUIC adapter with a pinned host fingerprint. In-process loopback tests of both delivery contracts, backpressure, lane independence, authentication failure, flush on close and joined shutdown. A raw QUIC peer breaks the lane contract on purpose (finished, reset and stopped lanes, a peer that stops reading during a close) and checks the admission limit and a host that stops polling; each ends in bounded time with a typed failure. One host and two clients as separate processes, plus a wrong-fingerprint client process. Passed locally on Linux and in hosted CI on `ubuntu-latest` and `windows-latest`. Windows was observed in CI only | `crates/ge-net-transport` |
+| M5 | Crate READMEs with the driving loop, guarantees, non-goals, measured costs of one named scenario and the integration prerequisites; a runnable example that needs no game image | `crates/ge-net/README.md`, `examples/synthetic_session.rs` |
+
+Each scenario asserts, as applicable: every snapshot a client applied equals
+what the host published for that tick; applied ticks only increase; no command
+executes twice or without having been submitted; commands are released in slot
+order; queues stay within budget; and a connection that cannot continue ends
+with a typed reason. Convergence is asserted only after a loss or partition
+ends. A permanent partition asserts the explicit failure, not convergence.
+
+### Decisions that differ from the suggested design
+
+- **Replication is snapshot based throughout.** The host publishes a complete
+  entity set per tick and the library computes per-peer deltas against
+  acknowledged baselines. Create, update and destroy are explicit operations
+  inside a delta, validated against the baseline, so they apply atomically
+  with their state. They are not separate reliable spawn and despawn messages.
+- **The envelope sequence numbers a logical message.** Fragments of one state
+  update share a sequence, so reordering among them does not lose the update.
+- **The client requests its first snapshot** after it processed the
+  acceptance. The transfer therefore never races the acceptance across the
+  two reliable lanes, and no live update needs buffering during the transfer:
+  the host sends none until the applied acknowledgement arrives.
+- **Recovery reuses that request**, and is bounded by the same timer as the
+  initial synchronization.
+- **The link simulator and synthetic simulation live in `tests/support`**, as
+  suggested. The example and the loopback binary include them by path.
+
+### Limitations that remain
+
+- Windows results for the transport crate come from hosted CI. They were not
+  observed on a local Windows machine.
+- Real-transport tests use the loopback interface only. Loss, latency,
+  reordering and reachability on a real network are unverified, and the link
+  simulator is a model, not evidence about one.
+- Clients are not authenticated individually. The host pins its own identity;
+  it knows a client only as a connection.
+- Both ends must configure the same budget profile. It is not negotiated; a
+  mismatch surfaces as a typed close.
+- The baseline history must exceed the snapshots received during one
+  acknowledgement round trip. Below that the client repeats full-state
+  recovery, rate limited but wasteful.
+- An oversized delta falls back to a whole bulk transfer. There is no partial
+  or prioritized delta.
+- Input datagrams repeat every unacknowledged command, so input bandwidth
+  grows with round-trip time.
+- No optional extension message is defined. Extension identifiers are
+  negotiated and unknown optional kinds are skipped, but nothing sends one.
+- Measured costs come from one scenario on one machine.
+- Prediction, interpolation, lag compensation, NAT traversal, relays,
+  matchmaking, host migration and session resumption do not exist.
 
 ## Deferred game integration
 
