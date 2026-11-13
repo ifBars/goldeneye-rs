@@ -59,6 +59,10 @@ files stay out of Git. Ideas for features beyond the original, such as online
 play, bots and replays, are kept in [native extensions](docs/native-extensions.md)
 and are not part of the parity roadmap.
 
+For parallel multiplayer foundation work, use the
+[networking crate plan](docs/networking-crate-plan.md). It defines crate ownership,
+milestones, tests and the current implementation handoff.
+
 ## License
 
 The rewrite is [MIT licensed](LICENSE). Dependencies retain their own licenses;
