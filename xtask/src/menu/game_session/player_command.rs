@@ -1,19 +1,19 @@
 use super::{closed, count, player_child};
 use anyhow::{Result, ensure};
-use serde_json::Value;
-fn bounded(value: &Value, maximum: u64) -> bool {
-    value.as_u64().is_some_and(|value| value <= maximum)
+use serde_json::{Value, json};
+fn bounded(v: &Value, max: u64) -> bool {
+    v.as_u64().is_some_and(|n| n <= max)
 }
-pub(super) fn validate(state: &Value, action: &Value) -> Result<()> {
-    if state.is_null() {
+pub(super) fn validate(s: &Value, a: &Value) -> Result<()> {
+    if s.is_null() {
         ensure!(
-            action["stage"] == "tp_setter_tail_pending",
-            "TP command body missing before selector return"
+            a["stage"] == "tp_setter_tail_pending" && a["tp_selector"]["commands_executed"] == 0,
+            "command receipt missing after execution"
         );
         return Ok(());
     }
     closed(
-        state,
+        s,
         &[
             "stage",
             "opcode",
@@ -30,36 +30,75 @@ pub(super) fn validate(state: &Value, action: &Value) -> Result<()> {
             "child_divisor",
             "mask",
             "children_created",
+            "children_completed",
+            "children_inserted",
+            "head_copies",
+            "active_slots",
+            "effective_flags_or",
             "child_header",
+            "last_completed_child",
             "command_returned",
             "cleanup_complete",
+            "cleanup_skipped",
             "selector_acknowledged",
             "state_sha256",
             "layers_state_sha256",
         ],
     )?;
-    let opcode = count(state, "opcode")?;
-    let groups = count(state, "groups_visited")?;
+    let op = count(s, "opcode")?;
+    let groups = count(s, "groups_visited")?;
+    let created = count(s, "children_created")?;
+    let completed = count(s, "children_completed")?;
+    let returned = s["stage"] == "command_returned";
     ensure!(
-        action["stage"] == "tp_command_pending"
-            && state["opcode"] == action["tp_selector"]["pending_opcode"]
-            && opcode <= u64::from(u32::MAX)
+        op <= u64::from(u32::MAX)
             && groups <= 4096
-            && count(state, "weight_writes")? <= groups
-            && bounded(&state["children_created"], 1)
-            && state["command_returned"] == false
-            && state["cleanup_complete"] == false
-            && state["selector_acknowledged"] == false
+            && count(s, "weight_writes")? <= groups
+            && created <= 4096
+            && completed <= created
+            && count(s, "children_inserted")? == completed
+            && count(s, "head_copies")? <= created
+            && (1..=4).contains(&count(s, "active_slots")?)
+            && bounded(&s["effective_flags_or"], 65535)
+            && (count(s, "head_copies")? == 0 || count(s, "effective_flags_or")? & 4 != 0)
+            && s["command_returned"] == returned
+            && s["cleanup_complete"] == false
+            && s["cleanup_skipped"] == (returned && count(s, "effective_flags_or")? & 32 != 0)
+            && s["selector_acknowledged"].is_boolean()
             && ["state_sha256", "layers_state_sha256"]
-                .into_iter()
-                .all(
-                    |key| state[key].as_str().is_some_and(|hash| hash.len() == 64
-                        && hash
-                            .bytes()
-                            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)))
-                ),
-        "TP command prefix claims a completed effect or differs from its selector"
+                .iter()
+                .all(|k| s[k].as_str().is_some_and(|h| h.len() == 64
+                    && h.bytes()
+                        .all(|c| c.is_ascii_digit() || (b'a'..=b'f').contains(&c)))),
+        "command counts/return evidence differs"
     );
+    if s["selector_acknowledged"] == true {
+        ensure!(
+            returned
+                && a["stage"] == "tp_setter_tail_pending"
+                && count(&a["tp_selector"], "commands_executed")? > 0,
+            "command acknowledgement differs"
+        );
+    } else {
+        ensure!(
+            a["stage"] == "tp_command_pending" && s["opcode"] == a["tp_selector"]["pending_opcode"],
+            "pending command differs from selector"
+        );
+    }
+    if completed == 0 {
+        ensure!(
+            s["last_completed_child"].is_null(),
+            "completed child invented"
+        );
+    } else {
+        player_child::validate(&s["last_completed_child"], &json!("child_completed"))?;
+        ensure!(
+            count(&s["last_completed_child"], "slot")? < count(s, "active_slots")?
+                && (s["last_completed_child"]["parent_phase_copied"] != true
+                    || count(s, "head_copies")? > 0),
+            "completed child slot/copy differs"
+        );
+    }
     let no_child = [
         "pending_group",
         "pending_slot",
@@ -68,95 +107,114 @@ pub(super) fn validate(state: &Value, action: &Value) -> Result<()> {
         "child_flags",
         "child_divisor",
     ]
-    .into_iter()
-    .all(|key| state[key].is_null());
+    .iter()
+    .all(|k| s[k].is_null());
     let no_set = ["set_reference", "set_index", "set_groups"]
-        .into_iter()
-        .all(|key| state[key].is_null());
-    match state["stage"].as_str() {
+        .iter()
+        .all(|k| s[k].is_null());
+    match s["stage"].as_str() {
         Some(
             "child_factory_pending"
             | "child_initializer_pending"
             | "child_effects_pending"
-            | "cleanup_pending",
+            | "child_wrapper_pending"
+            | "child_continuation_pending"
+            | "cleanup_pending"
+            | "command_returned",
         ) => {
             ensure!(
-                matches!(opcode, 0x0c00_0002 | 0x0c00_0003)
-                    && bounded(&state["set_reference"], u64::from(u32::MAX))
-                    && bounded(&state["set_index"], 32766)
-                    && bounded(&state["set_groups"], u64::from(u32::MAX))
-                    && groups <= count(state, "set_groups")?
-                    && state["mask"].is_null(),
-                "TP set binding or reached groups differ"
+                matches!(op, 0x0c00_0002 | 0x0c00_0003)
+                    && bounded(&s["set_reference"], u64::from(u32::MAX))
+                    && bounded(&s["set_index"], 32766)
+                    && bounded(&s["set_groups"], u64::from(u32::MAX))
+                    && groups <= count(s, "set_groups")?
+                    && s["mask"].is_null(),
+                "set binding differs"
             );
-            if state["stage"] != "cleanup_pending" {
+            if returned || s["stage"] == "cleanup_pending" {
+                ensure!(
+                    no_child
+                        && groups == count(s, "set_groups")?
+                        && created == completed
+                        && s["child_header"].is_null(),
+                    "set return skips a child/group"
+                );
+                ensure!(
+                    if returned {
+                        count(s, "effective_flags_or")? & 32 != 0 && s["cleanup_skipped"] == true
+                    } else {
+                        count(s, "effective_flags_or")? & 32 == 0
+                    },
+                    "cleanup skip gate differs"
+                );
+            } else {
                 ensure!(
                     groups > 0
-                        && state["pending_group"] == groups - 1
-                        && bounded(&state["pending_slot"], 3)
-                        && bounded(&state["child_reference"], u64::from(u32::MAX))
-                        && state["factory_class"]
-                            == ((count(state, "child_reference")? >> 24) & 0x7f)
-                        && bounded(&state["child_flags"], 65535)
-                        && bounded(&state["child_divisor"], u64::from(u32::MAX)),
-                    "TP factory request is absent or contradictory"
+                        && s["pending_group"] == groups - 1
+                        && bounded(&s["pending_slot"], 3)
+                        && bounded(&s["child_reference"], u64::from(u32::MAX))
+                        && s["factory_class"] == ((count(s, "child_reference")? >> 24) & 0x7f)
+                        && bounded(&s["child_flags"], 65535)
+                        && bounded(&s["child_divisor"], u64::from(u32::MAX))
+                        && count(s, "effective_flags_or")? & count(s, "child_flags")?
+                            == count(s, "child_flags")?,
+                    "factory request differs"
                 );
-                if state["stage"] == "child_factory_pending" {
+                if s["stage"] == "child_factory_pending" {
                     ensure!(
-                        state["factory_class"] != 4
-                            && state["children_created"] == 0
-                            && state["child_header"].is_null(),
-                        "supported class04 allocation was skipped"
+                        s["factory_class"] != 4
+                            && created == completed
+                            && s["child_header"].is_null(),
+                        "class04 allocation skipped"
                     );
                 } else {
                     ensure!(
-                        state["factory_class"] == 4 && state["children_created"] == 1,
-                        "retained child header is absent or wrong class"
+                        s["factory_class"] == 4
+                            && created
+                                == completed
+                                    + u64::from(s["stage"] != "child_continuation_pending")
+                            && s["child_header"]["slot"] == s["pending_slot"],
+                        "current child allocation differs"
                     );
-                    player_child::validate(&state["child_header"], &state["stage"])?;
-                    let phase = &state["child_header"]["phase_zero"];
-                    let position = &phase["position"];
-                    if let Some(bits) = position["normalized_position_bits"].as_u64() {
-                        let needs_root =
-                            count(state, "child_flags")? & 2 != 0 && bits & 0x7fff_ffff != 0;
+                    player_child::validate(&s["child_header"], &s["stage"])?;
+                    if s["stage"] == "child_wrapper_pending" {
+                        ensure!(count(s, "child_flags")? & 8 != 0, "wrapper gate differs");
+                    }
+                    let phase = &s["child_header"]["phase_zero"];
+                    if let Some(bits) = phase["position"]["normalized_position_bits"].as_u64() {
+                        let root = count(s, "child_flags")? & 2 != 0 && bits & 0x7fff_ffff != 0;
                         ensure!(
-                            (phase["stage"] == "root_motion_pending") == needs_root,
-                            "child flags contradict position return/root-motion dependency"
+                            (phase["stage"] == "root_motion_pending") == root,
+                            "position root-motion gate differs"
                         );
                     }
                 }
-            } else {
-                ensure!(
-                    no_child
-                        && groups == count(state, "set_groups")?
-                        && state["children_created"] == 0
-                        && state["child_header"].is_null(),
-                    "TP cleanup skipped an unfinished group or factory"
-                );
             }
         }
         Some("mask_control_pending" | "mask_clear_pending") => ensure!(
-            opcode == 0x0c00_0005
-                && state["children_created"] == 0
-                && state["child_header"].is_null()
+            op == 0x0c00_0005
+                && created == 0
+                && s["child_header"].is_null()
                 && no_set
                 && no_child
                 && groups == 0
-                && bounded(&state["mask"], 65535)
-                && (state["mask"] == 0) == (state["stage"] == "mask_clear_pending"),
-            "TP mask dependency differs"
+                && count(s, "effective_flags_or")? == 0
+                && bounded(&s["mask"], 65535)
+                && (s["mask"] == 0) == (s["stage"] == "mask_clear_pending"),
+            "mask boundary differs"
         ),
         Some("opcode_pending") => ensure!(
-            !matches!(opcode, 0x0c00_0002 | 0x0c00_0003 | 0x0c00_0005)
-                && state["children_created"] == 0
-                && state["child_header"].is_null()
+            !matches!(op, 0x0c00_0002 | 0x0c00_0003 | 0x0c00_0005)
+                && created == 0
+                && s["child_header"].is_null()
                 && no_set
                 && no_child
                 && groups == 0
-                && state["mask"].is_null(),
-            "TP pending opcode falsely claims parsed operands"
+                && count(s, "effective_flags_or")? == 0
+                && s["mask"].is_null(),
+            "opcode boundary differs"
         ),
-        _ => anyhow::bail!("TP command effect boundary is unsupported"),
+        _ => anyhow::bail!("unsupported command boundary"),
     }
     Ok(())
 }
@@ -164,10 +222,11 @@ pub(super) fn validate(state: &Value, action: &Value) -> Result<()> {
 pub(super) mod tests {
     use super::*;
     use serde_json::json;
+    pub(in crate::menu::game_session) mod returned;
     pub(in super::super) fn fixture() -> Value {
         json!({"stage":"child_initializer_pending","opcode":0x0c00_0002,"set_reference":0x0a00_00ab,"set_index":0,"set_groups":1,
             "groups_visited":1,"weight_writes":1,"pending_group":0,"pending_slot":1,"child_reference":0x0400_00ab,"factory_class":4,
-            "child_flags":32,"child_divisor":3,"mask":null,"children_created":1,"child_header":player_child::tests::fixture(),"command_returned":false,"cleanup_complete":false,
+            "child_flags":32,"child_divisor":3,"mask":null,"children_created":1,"children_completed":0,"children_inserted":0,"head_copies":0,"active_slots":1,"effective_flags_or":32,"last_completed_child":null,"cleanup_skipped":false,"child_header":player_child::tests::fixture(),"command_returned":false,"cleanup_complete":false,
             "selector_acknowledged":false,"state_sha256":"a".repeat(64),"layers_state_sha256":"b".repeat(64)})
     }
     #[test]
@@ -224,6 +283,7 @@ pub(super) mod tests {
         }
         state["stage"] = json!("cleanup_pending");
         state["children_created"] = json!(0);
+        state["effective_flags_or"] = json!(0);
         state["child_header"] = Value::Null;
         validate(&state, &action).unwrap();
         for key in ["set_reference", "set_index", "set_groups"] {

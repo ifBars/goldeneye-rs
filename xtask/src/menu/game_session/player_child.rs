@@ -10,6 +10,7 @@ pub(super) fn validate(state: &Value, stage: &Value) -> Result<()> {
             "native_header_bytes",
             "resource_reused",
             "context_bound",
+            "slot",
             "generation_observed",
             "cache_generation",
             "metadata_cached",
@@ -20,6 +21,9 @@ pub(super) fn validate(state: &Value, stage: &Value) -> Result<()> {
             "initializer_returned",
             "factory_returned",
             "layer_inserted",
+            "parent_phase_copied",
+            "parent_scalars_initialized",
+            "parent_word_stored",
             "state_sha256",
         ],
     )?;
@@ -32,12 +36,24 @@ pub(super) fn validate(state: &Value, stage: &Value) -> Result<()> {
         state["native_header_bytes"] == 0x90
             && state["resource_reused"] == true
             && state["context_bound"] == true
+            && state["slot"].as_u64().is_some_and(|slot| slot < 4)
             && word("generation_observed")
             && word("cache_generation")
             && state["metadata_cached"].is_boolean()
             && state["body_bound"].is_boolean()
             && state["phase_zero_initialized"].is_boolean()
-            && state["layer_inserted"] == false
+            && [
+                "layer_inserted",
+                "parent_phase_copied",
+                "parent_scalars_initialized",
+                "parent_word_stored"
+            ]
+            .iter()
+            .all(|k| state[k].is_boolean())
+            && (state["layer_inserted"] != true || state["factory_returned"] == true)
+            && (state["parent_phase_copied"] != true || state["factory_returned"] == true)
+            && (state["parent_scalars_initialized"] != true || state["layer_inserted"] == true)
+            && (state["parent_word_stored"] != true || state["parent_scalars_initialized"] == true)
             && state["state_sha256"]
                 .as_str()
                 .is_some_and(|hash| hash.len() == 64
@@ -67,21 +83,36 @@ pub(super) fn validate(state: &Value, stage: &Value) -> Result<()> {
     ensure!(
         if state["body_bound"] == true {
             state["metadata_cached"] == true
-                && stage
-                    == if phase_returned {
-                        "child_effects_pending"
-                    } else {
-                        "child_initializer_pending"
-                    }
+                && (phase_returned || stage == "child_initializer_pending")
                 && state["initializer_returned"] == phase_returned
                 && state["factory_returned"] == phase_returned
         } else {
             phase.is_null()
-                && stage == "child_effects_pending"
                 && state["initializer_returned"] == true
                 && state["factory_returned"] == true
         },
         "TP child initializer return or pending phase differs"
+    );
+    ensure!(
+        match stage.as_str() {
+            Some("child_initializer_pending") =>
+                state["factory_returned"] == false
+                    && state["layer_inserted"] == false
+                    && state["parent_phase_copied"] == false
+                    && state["parent_scalars_initialized"] == false
+                    && state["parent_word_stored"] == false,
+            Some("child_effects_pending" | "child_wrapper_pending") =>
+                state["factory_returned"] == true
+                    && state["layer_inserted"] == false
+                    && state["parent_scalars_initialized"] == false
+                    && state["parent_word_stored"] == false,
+            Some("child_completed" | "child_continuation_pending") =>
+                state["factory_returned"] == true
+                    && state["layer_inserted"] == true
+                    && state["parent_word_stored"] == true,
+            _ => false,
+        },
+        "TP child parent effect boundary differs"
     );
     Ok(())
 }
@@ -91,9 +122,9 @@ pub(super) mod tests {
     use serde_json::json;
     mod position;
     pub(in super::super) fn fixture() -> Value {
-        json!({"native_header_bytes":0x90,"resource_reused":true,"context_bound":true,
+        json!({"native_header_bytes":0x90,"resource_reused":true,"context_bound":true,"slot":1,
         "generation_observed":0,"cache_generation":0,"metadata_cached":true,"descriptor_index":2,"body_bound":true,"phase_zero":phase_zero::fixture(),
-        "phase_zero_initialized":false,"initializer_returned":false,"factory_returned":false,"layer_inserted":false,"state_sha256":"d".repeat(64)})
+        "phase_zero_initialized":false,"initializer_returned":false,"factory_returned":false,"layer_inserted":false,"parent_phase_copied":false,"parent_scalars_initialized":false,"parent_word_stored":false,"state_sha256":"d".repeat(64)})
     }
     #[test]
     fn header_cannot_claim_later_initializer_membership_or_missing_cache_data() {

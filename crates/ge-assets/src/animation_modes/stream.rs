@@ -77,6 +77,9 @@ impl CommandStream {
     pub fn child_reference(&self, view: &View<'_>, ordinal: usize) -> Result<u32> {
         Bytes(view.data).u32(self.child_address(ordinal)?)
     }
+    pub fn child_word(&self, view: &View<'_>, ordinal: usize) -> Result<u32> {
+        Bytes(view.data).u32(add(self.child_address(ordinal)?, 8)?)
+    }
     pub fn next_group(&mut self, children: u16) -> Result<()> {
         ensure!(
             self.children == Some(children as i16) && (children as i16) >= 0,

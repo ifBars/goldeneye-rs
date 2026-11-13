@@ -329,23 +329,26 @@ to zero; otherwise they preserve current weight. The actual layer owner and
 animator bytes retain each write even if the next provider read fails. A negative
 child count remains retained before its unsupported boundary. Child divisor and
 flags honor their distinct override gates, then the actual reference reaches a
-pending factory request. The factory has not returned: child post-word reads,
-allocation, copy/wrapper effects, insertion and initialization remain later work.
+pending factory request. Class-four factories now return through their actual script initializer.
+Parent effects then copy the old head position, insert the child, initialize its
+transition/divisor storage and read its post-word in order. Other factory classes
+and wrapper allocation remain explicit unsupported dependencies.
 Sets without a reached child stop before actual cleanup. Mask commands retain
 their required control-capture or clear dependency. Unhandled opcodes stay pending.
-No command is acknowledged yet. The cursor's protocol requires command effects
+The completed native first set is now acknowledged. The cursor's protocol requires command effects
 to return before reading the next command or trying fallback after source hash
 zero. Provider/command errors preserve the reached prefix and prohibit replay.
 If no command is reached, the selector return stays separate from its pending
-setter tail, including native zero returns. No history words are updated yet.
+setter tail, including native zero returns. No history words are updated yet. The native cursor now returns 0x090006c0
+after its completed first set and permitted zero-hash fallback.
 
 Live directory, count and opcode reads use the same component wrapper's resident
 base, independently of its full cached payload. Reports carry aggregate
 cursor/body state and typed pending factory metadata, never source addresses or
 private payload arrays.
-The dashboard distinguishes a pending command from a pending setter tail. Both
-leave factories and remaining command effects, mode history, callback completion,
-pose and camera work incomplete. Hosted tests use authored malformed pointers, missing targets, zero
+The dashboard distinguishes a pending command from a returned command awaiting
+its setter tail. Mode history, callback completion, pose and camera work remain
+incomplete. Hosted tests use authored malformed pointers, missing targets, zero
 source hashes, ordered command returns and failures; they establish no original
 runtime or numerical parity.
 
@@ -371,10 +374,13 @@ returns with index6 and range30. The selected animation now resolves directory
 index 22 through that same wrapper and updates its cache generation before body
 access. The resident header supplies 30 FPS. Zero timing flags skip curve reads;
 position zero skips root-motion lookup. Phase initialization and the factory now
-return before their parent child/list effects. An unavailable external
+return before their parent child/list effects. Those effects now finish for both
+reached native set groups; two children are inserted and all four slots become
+active. An unavailable external
 file lookup remains pending rather than becoming a missing-file skip. A genuine
-absent script body takes the native early return. No parent copy/wrapper step,
-layer insertion, child scalar initialization or command return is inferred.
+absent script body takes the native early return. The native flags skip wrapper allocation and cleanup. Actual parent position
+copy, child scalar/post-word writes, layer insertion and command return are now
+recorded separately from the TP setter tail and later FP dispatch.
 See [script initialization](animation-script-initialization.md) for the source
 ordering, partial-failure behavior and remaining dependencies.
 

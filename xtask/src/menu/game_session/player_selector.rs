@@ -49,9 +49,10 @@ pub(super) fn validate(state: &Value, action: &Value) -> Result<()> {
             && attempts <= 2
             && count(state, "lookups")? == attempts + 1
             && rows <= 65536
-            && state["commands_executed"] == 0
+            && count(state, "commands_executed")? <= 4096
+            && count(state, "commands_issued")? <= 4096
             && state["base_only"] == true
-            && state["command_effects_complete"] == false
+            && state["command_effects_complete"].is_boolean()
             && state["state_sha256"]
                 .as_str()
                 .is_some_and(|hash| hash.len() == 64
@@ -66,20 +67,27 @@ pub(super) fn validate(state: &Value, action: &Value) -> Result<()> {
                 && !state["target_index"].is_null()
                 && attempts > 0
                 && rows > 0
-                && state["commands_issued"] == 1
-                && state["pending_ordinal"] == 0
+                && count(state, "commands_issued")? == count(state, "commands_executed")? + 1
+                && state["pending_ordinal"]
+                    .as_u64()
+                    .is_some_and(|n| n <= count(state, "commands_executed").unwrap_or(0))
+                && state["command_effects_complete"] == false
                 && word(&state["pending_opcode"])
                 && state["return_word"].is_null(),
             "TP pending command claims an execution or selector return"
         ),
         Some("returned") => ensure!(
             action["stage"] == "tp_setter_tail_pending"
-                && state["commands_issued"] == 0
+                && state["commands_issued"] == state["commands_executed"]
+                && state["command_effects_complete"] == (count(state, "commands_executed")? > 0)
                 && state["pending_ordinal"].is_null()
                 && state["pending_opcode"].is_null()
                 && word(&state["return_word"])
                 && if state["target_index"].is_null() {
-                    attempts == 0 && rows == 0 && state["return_word"] == 0
+                    attempts == 0
+                        && rows == 0
+                        && state["return_word"] == 0
+                        && state["commands_executed"] == 0
                 } else {
                     attempts > 0
                 },

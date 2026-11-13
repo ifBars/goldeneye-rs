@@ -157,6 +157,6 @@ pub(super) fn build(
         callbacks: callbacks::build(player, world, hook)?,
         first_person: first_person::build(player, world, identities, hook)?,
         initial_action: action,
-        scope: "TP selection and reached command operands use the same resident component base. Start-set group weights now update actual TP slots in source order, stopping at the first child factory or cleanup dependency. Mask commands retain their required control/clear dependency; other opcodes remain pending. Class-four headers and their resource cache are now retained before phase-zero interpretation, using the same file generation and node-ID owner as the four controls. No command is acknowledged and active count stays one. Script initialization, later effects, setter tail, mode history, FP dispatch, callback return, pose postprocessing, scheduling, completed player and camera remain incomplete.",
+        scope: "TP selection and command effects use the same resident component base. Returned class-four factories copy the old head position, insert typed list members and apply scalar/post-word writes in source order. The native first set completes two children, raises active count to four and skips cleanup under its actual flags. Only returned bodies are acknowledged before selector continuation. Wrapper allocation, other factory classes and cleanup remain explicit dependencies when reached. TP setter tail, mode history, FP dispatch, callback return, pose postprocessing, scheduling, completed player and camera remain incomplete.",
     }))
 }

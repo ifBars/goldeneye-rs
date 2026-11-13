@@ -102,20 +102,22 @@ Each command needs an exact successful acknowledgement before the next command
 or fallback can run. Failed execution keeps the completed prefix and cannot replay.
 Live asset reads use only the logically resident base; full-file caching grants
 no later-section access. A selector return still awaits the actual setter tail.
-Live command bodies now read set references before optional operands, preserving
-override gates and signed additive divisors. The retained asset stream visits one
-group at a time. Reached weight writes update both the layer owner and the actual
-animator bytes, including prefixes before a later provider failure. Slot zero
-skips its serialized weight; other slots preserve existing weight unless the
-source compares equal to zero. The source-zeroed slot-override globals belong to
-the controller and survive cancellation. The fresh first-action branch stores no
-override. Execution stops at the first child factory or set cleanup dependency;
-mask commands stop before required control capture/clear. No later child word,
-factory return or command acknowledgement is synthesized. Actual factories,
-remaining effects, setter side effects, FP dispatch and the optional second
-request remain required. Pose
-postprocessing and frame dispatch remain unavailable; these constructor and
-mapping operations do not establish player or gameplay readiness.
+Live command bodies read set references before optional operands and visit one
+group at a time. Weight and child writes survive later provider failures. A
+returned class-four factory now continues through old-head virtual position copy,
+typed intrusive head insertion, active-count growth, transition initialization
+and its lazy post-word read. The node owner maintains both previous/next links
+across controls and scripts without native addresses. Child and group cursors
+resume without replaying the operand or weight prefix. Unsupported wrapper
+allocation and cleanup remain distinct boundaries on other paths.
+
+The first native TP set completes both groups and both script children, with
+four active slots after the initial capture retained one. Its actual effective
+flags skip cleanup. The caller acknowledges the completed body before continuing
+selection; a zero source hash then permits the fallback attempt. The retained
+mode cursor returns 0x090006c0 before the TP setter tail. The setter's player mode
+history, FP dispatch, enclosing callback, pose postprocessing and frame scheduling
+remain incomplete. These returns do not establish player or gameplay readiness.
 The first class-four factory now allocates its own retained header before any
 script-provider call. A component-local ID allocator covers both control snapshots
 and script headers, preserving detached allocations without reusing IDs. Factory
@@ -134,7 +136,7 @@ unverified. The native first TP script binds seven local clip references, caches
 the selected animation descriptor through the same generation-bound wrapper and
 reads only the reached body/timing fields. Its actual 30 FPS and zero timing flags
 produce position zero, so no root-motion lookup runs. The initializer and factory
-now return before parent child/list effects. Unrequested animation bodies and
+return before the parent child/list effects described above. Unrequested animation bodies and
 timing curves remain explicit dependencies on other paths. A real missing script
 body returns through the source early-out instead. Neither return inserts a
 layer or completes a command. The separate inspection binder cannot replace this

@@ -1,4 +1,8 @@
 use super::*;
+mod effects;
+pub(crate) fn returned_body() -> Pending {
+    effects::returned_body()
+}
 #[derive(Clone, Copy)]
 struct Row {
     slot: u16,
@@ -73,6 +77,10 @@ impl Source for Fixture {
     fn child_reference(&mut self, _: usize) -> Result<u32> {
         self.read("child_reference")?;
         Ok(0x0400_00ab)
+    }
+    fn child_word(&mut self, _: usize) -> Result<u32> {
+        self.read("post_word")?;
+        Ok(0x7fc0_1234)
     }
     fn next_group(&mut self, _: u16) -> Result<()> {
         self.read("next")?;

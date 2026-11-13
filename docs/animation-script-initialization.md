@@ -7,7 +7,8 @@ seven normal clips from the same resource wrapper. Clip setup returns with
 index 6 and a 30-frame range. The selected animation then resolves descriptor 22
 through the same wrapper, binds a resident header and reads 30 FPS. Zero timing
 flags and position zero let the initializer and factory return. Parent child/list
-effects and the command return are next; the player and camera remain incomplete.
+effects now finish for both native set groups. The command and TP selector return
+before the setter tail; the player and camera remain incomplete.
 
 These operations are independently authored from static investigation of the
 supported SJBE52 revision 0 image. Synthetic tests verify the reconstructed
@@ -96,3 +97,31 @@ A nonzero position with child bit 2 set still needs the source's clip selection
 and root-motion lookup. Position zero skips that branch. Initializer return does
 not sample a pose, insert an intrusive layer node, execute parent post-words or
 acknowledge a mode command. The dashboard keeps those boundaries separate.
+
+
+## Parent effects and command continuation
+
+The existing head's virtual getter reads its normalized position. The class-four
+setter copies that scalar to phase fields `+0x80`/`+0x84` without invoking the initializer.
+Captured controls now retain their common constructor position explicitly; cloning
+constructs a fresh header and copies only its backing.
+
+The shared node owner stores typed previous/next links for controls and scripts.
+Parent insertion raises the actual active count before publishing the list head,
+updates the old head's previous link and preserves the list tail. These typed
+roles replace native pointers. Allocation, factory return and membership remain
+distinct facts.
+
+After insertion, the parent zeroes transition progress and stores one divided by
+the unsigned divisor, with divisor zero selecting one. Only then does it read and
+store the serialized child post-word. That word remains raw, even when its bits
+look like a nonfinite float. A later read failure retains insertion, active count,
+phase copy and scalar writes, and prevents replay.
+
+The child cursor resumes at the next ordinal and group without re-reading the
+command operand prefix or rewriting an existing group weight. Effective flags
+control the final cleanup gate. The native first set uses two groups, inserts two
+script children and raises the actual slot count to four. Its flags skip cleanup,
+so the command returns and is acknowledged before the mode cursor continues.
+The permitted zero-hash fallback then returns 0x090006c0. The TP setter tail still
+needs its own player-history and return effects before FP dispatch.

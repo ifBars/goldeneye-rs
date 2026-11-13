@@ -1041,7 +1041,11 @@ fn validate_player_components(component: &Value, reached: bool) -> Result<()> {
             && component["stage"] == component["initial_action"]["stage"]
             && component["native_component_bytes"] == 0x1b8
             && component["constructed_slots"] == 4
-            && component["active_slots"] == 1
+            && (1..=4).contains(&count(component, "active_slots")?)
+            && count(component, "active_slots")?
+                == component["initial_action"]["tp_command"]["active_slots"]
+                    .as_u64()
+                    .unwrap_or(1)
             && component["third_person_constructed"] == true
             && component["third_person_attached"] == true
             && component["skin_request_resolved"] == true
@@ -1738,7 +1742,8 @@ fn validate_tutorial_world(probe: &Value) -> Result<()> {
         ("guns_resource", 0x0109_000f),
         ("metadata_source_index", 0),
         ("metadata_sorted_index", 23),
-        ("weapon_registry_keys", 69),
+        // Sentinel-terminated supplied registry, distinct from guns metadata.
+        ("weapon_registry_keys", 38),
         ("primary_order_keys", 29),
         ("secondary_order_keys", 7),
         ("inventory_primary_order_index", 27),
@@ -3459,6 +3464,41 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn returned_command_keeps_component_active_count_in_step_with_insertions() {
+        let mut probe = player_probe_fixture();
+        let player = &mut probe["window"]["game_session"]["active"]["world_initialization"]["player_initialization"];
+        player["pending_dependency"] = json!("tp_mode_setter_tail");
+        let component = &mut player["component_initialization"];
+        component["stage"] = json!("tp_setter_tail_pending");
+        component["pending_dependency"] = json!("tp_mode_setter_tail");
+        component["active_slots"] = json!(2);
+        let action = &mut component["initial_action"];
+        action["stage"] = json!("tp_setter_tail_pending");
+        action["tp_command"] = player_command::tests::returned::pair().0;
+        let selector = &mut action["tp_selector"];
+        selector["stage"] = json!("returned");
+        selector["commands_executed"] = json!(1);
+        selector["command_effects_complete"] = json!(true);
+        selector["pending_ordinal"] = Value::Null;
+        selector["pending_opcode"] = Value::Null;
+        selector["return_word"] = json!(0x0900_00ab);
+        let check = Check::Loaded {
+            difficulty: 0,
+            reentry: false,
+        };
+        validate(&probe, check).unwrap();
+        for slots in [0, 1, 3, 4, 5] {
+            let mut bad = probe.clone();
+            bad["window"]["game_session"]["active"]["world_initialization"]["player_initialization"]
+                ["component_initialization"]["active_slots"] = json!(slots);
+            assert!(
+                validate(&bad, check).is_err(),
+                "accepted mismatched slot count {slots}"
+            );
+        }
     }
 
     #[test]

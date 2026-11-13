@@ -19,9 +19,16 @@ pub struct CommandBody {
     pub child_divisor: Option<u32>,
     pub mask: Option<u16>,
     pub children_created: usize,
+    pub children_completed: usize,
+    pub children_inserted: usize,
+    pub head_copies: usize,
+    pub active_slots: u8,
+    pub effective_flags_or: u16,
     pub child_header: Option<super::ChildHeader>,
+    pub last_completed_child: Option<super::ChildHeader>,
     pub command_returned: bool,
     pub cleanup_complete: bool,
+    pub cleanup_skipped: bool,
     pub selector_acknowledged: bool,
     pub state_sha256: String,
     pub layers_state_sha256: String,
@@ -57,6 +64,9 @@ pub(super) fn build(player: &Owned) -> Result<Option<CommandBody>> {
         Stage::MaskControlPending => "mask_control_pending",
         Stage::MaskClearPending => "mask_clear_pending",
         Stage::OpcodePending => "opcode_pending",
+        Stage::ChildWrapperPending => "child_wrapper_pending",
+        Stage::ChildContinuationPending => "child_continuation_pending",
+        Stage::Returned => "command_returned",
         _ => anyhow::bail!("TP command has no reportable effect boundary"),
     };
     let owner = player
@@ -68,7 +78,7 @@ pub(super) fn build(player: &Owned) -> Result<Option<CommandBody>> {
     ensure!(
         !layers.failed()
             && owner.controls().len() == 4
-            && layers.active_count() == 1
+            && owner.byte(0x130) == Some(layers.active_count())
             && layers
                 .slots()
                 .iter()
@@ -92,11 +102,26 @@ pub(super) fn build(player: &Owned) -> Result<Option<CommandBody>> {
         child_flags: child.map(|child| child.effective_flags),
         child_divisor: child.map(|child| child.divisor),
         mask: command.mask(),
-        children_created: usize::from(child_header.is_some()),
+        children_created: command.effects().len(),
+        children_completed: command
+            .effects()
+            .iter()
+            .filter(|e| e.stage == ge_core::animation::layers::command::EffectStage::Complete)
+            .count(),
+        children_inserted: command.effects().iter().filter(|e| e.inserted).count(),
+        head_copies: command
+            .effects()
+            .iter()
+            .filter(|e| e.copied_bits.is_some())
+            .count(),
+        active_slots: layers.active_count(),
+        effective_flags_or: command.flags_or(),
         child_header,
-        command_returned: false,
+        last_completed_child: super::child::completed(player)?,
+        command_returned: command.stage() == Stage::Returned,
         cleanup_complete: false,
-        selector_acknowledged: false,
+        cleanup_skipped: command.stage() == Stage::Returned && command.flags_or() & 0x20 != 0,
+        selector_acknowledged: action.state.command_acknowledged(),
         state_sha256: super::super::words(b"ge_player_tp_command_prefix_v1\0", |emit| {
             command.visit_state_words(emit)
         }),

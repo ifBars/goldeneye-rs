@@ -12,6 +12,7 @@ pub struct ChildHeader {
     pub native_header_bytes: usize,
     pub resource_reused: bool,
     pub context_bound: bool,
+    pub slot: u8,
     pub generation_observed: u32,
     pub cache_generation: u32,
     pub metadata_cached: bool,
@@ -22,6 +23,9 @@ pub struct ChildHeader {
     pub initializer_returned: bool,
     pub factory_returned: bool,
     pub layer_inserted: bool,
+    pub parent_phase_copied: bool,
+    pub parent_scalars_initialized: bool,
+    pub parent_word_stored: bool,
     pub state_sha256: String,
 }
 pub(super) fn build(player: &Owned) -> Result<Option<ChildHeader>> {
@@ -38,6 +42,37 @@ pub(super) fn build(player: &Owned) -> Result<Option<ChildHeader>> {
         return Ok(None);
     };
     let request = command.child().context("TP child factory request absent")?;
+    build_node(player, id, request)
+}
+pub(super) fn completed(player: &Owned) -> Result<Option<ChildHeader>> {
+    let effect = player
+        .action
+        .as_ref()
+        .and_then(|a| a.state.command())
+        .and_then(|c| c.last_completed());
+    let Some(effect) = effect else {
+        return Ok(None);
+    };
+    build_node(player, effect.node, effect.request)
+}
+fn build_node(
+    player: &Owned,
+    id: ge_core::animation::layers::NodeId,
+    request: ge_core::animation::layers::command::ChildRequest,
+) -> Result<Option<ChildHeader>> {
+    use ge_core::animation::layers::command::EffectStage;
+    let command = player
+        .action
+        .as_ref()
+        .context("child effect caller absent")?
+        .state
+        .command()
+        .context("child effect command absent")?;
+    let effect = command
+        .effects()
+        .iter()
+        .find(|e| e.node == id)
+        .context("child effect allocation history absent")?;
     let animator = player
         .components
         .preparation
@@ -48,6 +83,50 @@ pub(super) fn build(player: &Owned) -> Result<Option<ChildHeader>> {
         .get(id)
         .context("retained TP child header absent")?;
     let binding = animator.component().context("TP current resource absent")?;
+    let latest = command
+        .effects()
+        .last()
+        .context("TP latest allocation absent")?;
+    let layers = animator.layers().context("TP child layers absent")?;
+    let link = animator.node_ids().links(id);
+    let inserted = link.is_some();
+    ensure!(
+        inserted == effect.inserted
+            && inserted
+                == layers.slots()[usize::from(request.slot)]
+                    .nodes_head()
+                    .contains(&id)
+            && link.is_none_or(|link| link.slot == request.slot),
+        "TP typed intrusive membership differs"
+    );
+    let scalar = matches!(effect.stage, EffectStage::Scalars | EffectStage::Complete);
+    if scalar {
+        ensure!(
+            header.word(0x34) == Some(0)
+                && header.word(0x3c)
+                    == Some(
+                        if request.divisor == 0 {
+                            1f32
+                        } else {
+                            1f32 / request.divisor as f32
+                        }
+                        .to_bits()
+                    ),
+            "TP child scalar writes differ"
+        );
+    }
+    if let Some(bits) = effect.copied_bits {
+        ensure!(
+            header.word(0x80) == Some(bits) && header.word(0x84) == Some(bits),
+            "TP copied parent phase differs"
+        );
+    }
+    if let Some(word) = effect.post_word {
+        ensure!(
+            header.word(0x24) == Some(word),
+            "TP child post-word differs"
+        );
+    }
     let returned = matches!(
         header.stage(),
         Stage::ReturnedWithoutBody | Stage::ReturnedWithoutPlay | Stage::ReturnedInitialized
@@ -73,22 +152,17 @@ pub(super) fn build(player: &Owned) -> Result<Option<ChildHeader>> {
             && header.word(0x1c).is_none()
             && header.word(0).is_none()
             && header.word(4).is_none()
-            && binding.reference == request.reference
-            && animator.word(0x20) == Some(request.reference)
+            && binding.reference == latest.request.reference
+            && animator.word(0x20) == Some(latest.request.reference)
             && animator.word(0x24) == Some(u32::MAX)
-            && animator.script_children().len() == 1
-            && animator
-                .layers()
-                .context("TP layers absent")?
-                .slots()
-                .iter()
-                .all(|slot| !slot.nodes_head().contains(&id)),
+            && animator.script_children().len() >= command.effects().len(),
         "TP child factory prefix or ownership differs"
     );
     Ok(Some(ChildHeader {
         native_header_bytes: script_child::HEADER_BYTES,
         resource_reused: true,
         context_bound: true,
+        slot: request.slot,
         generation_observed: header
             .observed_generation()
             .context("TP child generation read absent")?,
@@ -107,9 +181,23 @@ pub(super) fn build(player: &Owned) -> Result<Option<ChildHeader>> {
         ),
         initializer_returned: returned,
         factory_returned: returned,
-        layer_inserted: false,
-        state_sha256: super::super::words(b"ge_player_tp_class04_header_v3\0", |emit| {
-            header.visit_state_words(emit)
+        layer_inserted: inserted,
+        parent_phase_copied: effect.copied_bits.is_some(),
+        parent_scalars_initialized: scalar,
+        parent_word_stored: effect.post_word.is_some(),
+        state_sha256: super::super::words(b"ge_player_tp_class04_header_v4\0", |mut emit| {
+            header.visit_state_words(&mut emit);
+            emit(u32::from(link.is_some()));
+            if let Some(link) = link {
+                emit(u32::from(link.slot));
+                for node in [link.previous, link.next] {
+                    emit(u32::from(node.is_some()));
+                    if let Some(node) = node {
+                        emit((node.get() >> 32) as u32);
+                        emit(node.get() as u32);
+                    }
+                }
+            }
         }),
     }))
 }

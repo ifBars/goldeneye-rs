@@ -56,6 +56,7 @@ impl State {
                     .nodes
                     .try_reserve(1)
                     .context("retaining captured physical slot")?;
+                ids.link_head(slot as u8, id, None)?;
                 self.slots[slot].nodes.insert(0, id);
                 inserted = true;
             }

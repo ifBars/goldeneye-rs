@@ -35,20 +35,17 @@ and auxiliary storage into four independent physical-slot controls. Active count
 stays one. The shared fallback stores bracket this capture. TP now qualifies
 through the actual FP wrapper and advances a resumable selector over the logically
 resident base. Its tracked branch preserves the actual preclear and snapshot-head
-comparison. Live command reads now preserve optional-operand gates and apply
-start-set group weights to actual TP slots before stopping at the child factory
-or cleanup dependency. Later child words/groups stay unread. Mask commands retain
-their actual control/clear dependency. Class-four factories now retain a header,
-its slot/flags, the actual animator resource update and a generation-bound script
-metadata/body lookup. Shared component-local node IDs cover controls and scripts.
-Phase-zero selection now scans only reached headers, preserves sign/history
-writes and binds clip references in source order. The native fresh TP script
-selects offset zero after four records, binds seven local clip references and
-returns clip setup with index6/range30. Its selected animation now caches directory
-index 22 through the same generation-bound wrapper, binds a resident header and
-uses its actual 30 FPS with zero timing flags. Position zero skips root-motion
-lookup and returns the initializer/factory. Parent child/list effects and the
-setter tail are next, before FP dispatch. No command has returned yet. Pose postprocess targets
+comparison. Live command reads preserve optional gates and group weights, then resume
+through real class-four factories and their parent effects. Controls and scripts
+share one ID allocator and typed intrusive links. The native first set now
+initializes two scripts through the same generation-bound wrapper, copies each
+old head's normalized position into the new phase fields, inserts both children
+and applies transition/divisor/post-word writes. Source order and failure prefixes
+stay retained. Capture preserves its initial active count of one; this command
+raises the actual count to four. Both groups return with cleanup skipped by the
+actual effective flags. The caller acknowledges the body before the mode cursor
+tries its zero-hash fallback. TP selection now returns 0x090006c0. Its setter tail
+and player mode-history writes remain next, before FP dispatch. Pose postprocess targets
 are assigned, but their body and frame scheduling remain unavailable.
 Later initialization and gameplay remain
 incomplete. docs/player-creation.md describes the reached boundary.

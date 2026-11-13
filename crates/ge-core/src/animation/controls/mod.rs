@@ -30,6 +30,7 @@ pub struct Control {
     transition_bits: u32,
     rate_bits: u32,
     flags: u32,
+    position_bits: u32,
 }
 #[derive(Debug)]
 pub struct Store {
@@ -66,6 +67,7 @@ impl Store {
                 transition_bits: 1f32.to_bits(),
                 rate_bits: 0,
                 flags: 0,
+                position_bits: 0,
             },
         );
         Ok(id)
@@ -128,7 +130,7 @@ impl Store {
         self.controls.is_empty()
     }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(2);
+        emit(3);
         self.component.visit_state_words(&mut emit);
         emit(self.controls.len() as u32);
         for (id, control) in &self.controls {
@@ -139,6 +141,11 @@ impl Store {
     }
 }
 impl Control {
+    /// Inherited virtual +10 reads common header+28. Capture and cloning do
+    /// not replace this fresh constructor word with pose or transition data.
+    pub fn position_bits(&self) -> u32 {
+        self.position_bits
+    }
     pub fn component(&self) -> OwnerId {
         self.component
     }
@@ -163,6 +170,7 @@ impl Control {
         emit(self.transition_bits);
         emit(self.rate_bits);
         emit(self.flags);
+        emit(self.position_bits);
         emit(u32::from(self.locals.is_some()));
         if let Some(locals) = &self.locals {
             emit(locals.len() as u32);

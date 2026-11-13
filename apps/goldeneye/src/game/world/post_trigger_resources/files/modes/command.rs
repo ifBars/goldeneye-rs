@@ -53,6 +53,9 @@ impl Source for CommandSource<'_> {
     fn child_reference(&mut self, ordinal: usize) -> Result<u32> {
         self.stream.child_reference(&self.view, ordinal)
     }
+    fn child_word(&mut self, ordinal: usize) -> Result<u32> {
+        self.stream.child_word(&self.view, ordinal)
+    }
     fn next_group(&mut self, children: u16) -> Result<()> {
         self.stream.next_group(children)
     }

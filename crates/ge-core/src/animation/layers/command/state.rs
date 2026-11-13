@@ -11,7 +11,7 @@ impl Pending {
                 emit(value);
             }
         }
-        emit(2);
+        emit(3);
         emit(self.opcode);
         emit(self.stage as u32);
         optional(&mut emit, self.set_reference);
@@ -50,6 +50,26 @@ impl Pending {
         if let Some(id) = self.factory_node {
             emit((id.get() >> 32) as u32);
             emit(id.get() as u32);
+        }
+        wide(&mut emit, self.effects.len());
+        for effect in &self.effects {
+            emit((effect.node.get() >> 32) as u32);
+            emit(effect.node.get() as u32);
+            wide(&mut emit, effect.request.group);
+            wide(&mut emit, effect.request.ordinal);
+            emit(u32::from(effect.request.slot));
+            emit(effect.request.reference);
+            emit(u32::from(effect.request.effective_flags));
+            emit(effect.request.divisor);
+            emit(effect.stage as u32);
+            emit(u32::from(effect.inserted));
+            emit(u32::from(effect.copied_head.is_some()));
+            if let Some(id) = effect.copied_head {
+                emit((id.get() >> 32) as u32);
+                emit(id.get() as u32);
+            }
+            optional(&mut emit, effect.copied_bits);
+            optional(&mut emit, effect.post_word);
         }
     }
 }

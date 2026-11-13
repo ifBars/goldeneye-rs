@@ -19,10 +19,19 @@ impl OwnerId {
         emit(self.0 as u32);
     }
 }
+
+#[cfg(test)]
+mod tests;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
     Control,
     Script,
+}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Links {
+    pub slot: u8,
+    pub previous: Option<NodeId>,
+    pub next: Option<NodeId>,
 }
 #[derive(Debug)]
 pub struct Ids {
@@ -30,6 +39,7 @@ pub struct Ids {
     next: u64,
     maximum: usize,
     allocated: BTreeMap<NodeId, Kind>,
+    links: BTreeMap<NodeId, Links>,
 }
 impl Ids {
     pub fn from_constructor(owner: OwnerId, maximum: usize) -> Self {
@@ -38,6 +48,7 @@ impl Ids {
             next: 0,
             maximum,
             allocated: BTreeMap::new(),
+            links: BTreeMap::new(),
         }
     }
     pub fn owner(&self) -> OwnerId {
@@ -60,8 +71,42 @@ impl Ids {
     pub fn kind(&self, id: NodeId) -> Option<Kind> {
         self.allocated.get(&id).copied()
     }
+    pub fn links(&self, id: NodeId) -> Option<Links> {
+        self.links.get(&id).copied()
+    }
+    pub(crate) fn link_head(&mut self, slot: u8, new: NodeId, old: Option<NodeId>) -> Result<()> {
+        ensure!(
+            slot < 4 && self.kind(new).is_some() && !self.links.contains_key(&new),
+            "new animation list member differs or replays"
+        );
+        if let Some(old) = old {
+            let link = self
+                .links
+                .get(&old)
+                .context("previous animation head links absent")?;
+            ensure!(
+                old != new && link.slot == slot && link.previous.is_none(),
+                "previous animation head ownership differs"
+            );
+        }
+        self.links.insert(
+            new,
+            Links {
+                slot,
+                previous: None,
+                next: old,
+            },
+        );
+        if let Some(old) = old {
+            self.links
+                .get_mut(&old)
+                .expect("validated old head")
+                .previous = Some(new);
+        }
+        Ok(())
+    }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(1);
+        emit(2);
         self.owner.visit_state_words(&mut emit);
         emit((self.next >> 32) as u32);
         emit(self.next as u32);
@@ -75,6 +120,17 @@ impl Ids {
                 Kind::Control => 0,
                 Kind::Script => 1,
             });
+            emit(u32::from(self.links.contains_key(id)));
+            if let Some(link) = self.links.get(id) {
+                emit(u32::from(link.slot));
+                for target in [link.previous, link.next] {
+                    emit(u32::from(target.is_some()));
+                    if let Some(target) = target {
+                        emit((target.get() >> 32) as u32);
+                        emit(target.get() as u32);
+                    }
+                }
+            }
         }
     }
 }

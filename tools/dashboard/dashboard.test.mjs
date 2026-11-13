@@ -2294,9 +2294,9 @@ function tpCapturePlayerFixture() {
     refresh:{...refreshPlayerFixture(),refresh_ordinal:3,allocation_ordinal:3},state_sha256:'c'.repeat(64)};
 }
 function tpChildPlayerFixture() {
-  return {native_header_bytes:0x90,resource_reused:true,context_bound:true,generation_observed:0,cache_generation:0,
+  return {native_header_bytes:0x90,resource_reused:true,context_bound:true,slot:1,generation_observed:0,cache_generation:0,
     metadata_cached:true,descriptor_index:2,body_bound:true,phase_zero:tpPhaseZeroFixture(),phase_zero_initialized:false,initializer_returned:false,
-    factory_returned:false,layer_inserted:false,state_sha256:'d'.repeat(64)};
+    factory_returned:false,layer_inserted:false,parent_phase_copied:false,parent_scalars_initialized:false,parent_word_stored:false,state_sha256:'d'.repeat(64)};
 }
 function tpPhaseZeroFixture() {
   return {stage:'frame_count_pending',delta_bits:0x3f800000,duration_raw:60,frame_bits:0,entries_visited:2,
@@ -2315,6 +2315,51 @@ function withInitializedScript(report) {
   }
   return report;
 }
+function withReturnedMode(report) {
+  withInitializedScript(report);
+  for(const probe of [...report.menu.details.game_session.difficulty_probes,report.menu.details.game_session.cancel_reentry]) {
+    const player=probe.window.game_session.active.world_initialization.player_initialization,component=player.component_initialization,a=component.initial_action,b=a.tp_command,h=b.child_header;
+    player.pending_dependency='tp_mode_setter_tail';component.stage='tp_setter_tail_pending';component.pending_dependency=player.pending_dependency;a.stage=component.stage;
+    Object.assign(a.tp_selector,{stage:'returned',commands_issued:1,commands_executed:1,pending_ordinal:null,pending_opcode:null,return_word:0x090006c0,command_effects_complete:true});
+    Object.assign(h,{layer_inserted:true,parent_phase_copied:true,parent_scalars_initialized:true,parent_word_stored:true});
+    component.active_slots=2;
+    Object.assign(b,{stage:'command_returned',children_completed:1,children_inserted:1,head_copies:1,active_slots:2,effective_flags_or:36,
+      pending_group:null,pending_slot:null,child_reference:null,factory_class:null,child_flags:null,child_divisor:null,
+      child_header:null,last_completed_child:h,command_returned:true,cleanup_skipped:true,selector_acknowledged:true});
+  }
+  return report;
+}
+test('returned mode acknowledges real inserted children while leaving setter history and gameplay pending',async()=>{
+  const report=withReturnedMode(withPlayerPrelude(gameSessionFixture()));
+  await inspect(embed(report),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.match(text,/Selector returned; its setter tail is pending/);
+    assert.match(text,/returned and acknowledged by the selector/);
+    assert.match(text,/1 child inserted and initialized; 2 slots active/);
+    assert.match(text,/Mode history and setter completion remain pending/);
+    assert.doesNotMatch(text,/has not been recorded completely|undefined/);
+    assert.equal(d.querySelector('#parity-count').textContent,'0 of 3 tracked criteria verified');
+  });
+});
+test('command completion receipts reject missing insertion, post-word, cleanup gate and acknowledgement',async()=>{
+  const changes=[];
+  for(const [key,value] of Object.entries({children_completed:0,children_inserted:0,head_copies:2,active_slots:1,effective_flags_or:0,
+    last_completed_child:null,command_returned:false,cleanup_complete:true,cleanup_skipped:false,selector_acknowledged:false})) changes.push(a=>{a.tp_command[key]=value;});
+  for(const [key,value] of Object.entries({layer_inserted:false,parent_scalars_initialized:false,parent_word_stored:false,slot:2})) changes.push(a=>{a.tp_command.last_completed_child[key]=value;});
+  changes.push(a=>{a.tp_selector.commands_executed=0;});changes.push(a=>{a.tp_selector.command_effects_complete=false;});
+  for(const change of changes) {
+    const report=withReturnedMode(withPlayerPrelude(gameSessionFixture()));
+    change(report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization.initial_action);
+    await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+  }
+});
+test('component active count follows returned command insertions',async()=>{
+  for(const slots of [0,1,3,4,5]) {
+    const report=withReturnedMode(withPlayerPrelude(gameSessionFixture()));
+    report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization.active_slots=slots;
+    await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+  }
+});
 test('completed script position stays separate from layer insertion and parent command return',async()=>{
   await inspect(embed(withInitializedScript(withPlayerPrelude(gameSessionFixture()))),d=>{
     const text=d.querySelector('#game-session-summary').textContent;
@@ -2332,7 +2377,7 @@ test('pending animation providers retain cache progress without claiming an init
         child=body.child_header, phase=child.phase_zero,p=phase.position;
       body.stage='child_initializer_pending';phase.stage=stage;
       Object.assign(child,{phase_zero_initialized:false,initializer_returned:false,factory_returned:false});
-      if(stage==='root_motion_pending') {body.child_flags|=2;p.frame_bits=0x41f00000;p.normalized_position_bits=0x3f800000;p.root_motion_pending=true;}
+      if(stage==='root_motion_pending') {body.child_flags|=2;body.effective_flags_or|=2;p.frame_bits=0x41f00000;p.normalized_position_bits=0x3f800000;p.root_motion_pending=true;}
       else {
         for(const key of ['timing_flags','animation_fps','script_fps_bits','frame_bits','previous_position_bits','normalized_position_bits']) p[key]=null;
         if(stage==='timing_curve_pending') p.timing_flags=1; else p.body_bound=null;
@@ -2395,7 +2440,7 @@ test('phase-zero evidence rejects missing fields, invalid counts and premature r
 function tpCommandPlayerFixture() {
   return {stage:'child_initializer_pending',opcode:0x0c000002,set_reference:0x0a0000ab,set_index:0,set_groups:1,
     groups_visited:1,weight_writes:1,pending_group:0,pending_slot:1,child_reference:0x040000ab,factory_class:4,
-    child_flags:32,child_divisor:3,mask:null,children_created:1,child_header:tpChildPlayerFixture(),command_returned:false,cleanup_complete:false,
+    child_flags:32,child_divisor:3,mask:null,children_created:1,children_completed:0,children_inserted:0,head_copies:0,active_slots:1,effective_flags_or:32,last_completed_child:null,cleanup_skipped:false,child_header:tpChildPlayerFixture(),command_returned:false,cleanup_complete:false,
     selector_acknowledged:false,state_sha256:'a'.repeat(64),layers_state_sha256:'b'.repeat(64)};
 }
 function tpSelectorPlayerFixture() {
@@ -2665,11 +2710,11 @@ test('TP skeleton binding keeps shared refresh attachment and FP explicit',async
     const text=d.querySelector('#game-session-summary').textContent;
     assert.match(text,/Third-person constructor retained: 4 animation slots, 1 active/);
     assert.match(text,/skin request retains 1,024 file bytes and 256 logical section bytes/);
-    assert.match(text,/Initial action selected and all three mappings resolved through the retained inventory and supplied tables. TP captured four independent controls from primary locals and auxiliary storage; the active slot count remains one/);
+    assert.match(text,/Initial action selected and all three mappings resolved through the retained inventory and supplied tables. TP captured four independent controls from primary locals and auxiliary storage; capture preserved the initial active slot count of one/);
     assert.match(text,/First command opcode 0xc000002 retained; execution pending/);
     assert.match(text,/Command body retained 1 group weight write; awaiting phase-zero initialization/);
     assert.match(text,/One child header retained; no layer insertion or command return/);
-    assert.match(text,/Mode history and command return remain pending. Pose postprocessing and frame scheduling remain incomplete/);
+    assert.match(text,/Mode history and setter completion remain pending. Pose postprocessing and frame scheduling remain incomplete/);
   });
   const changes=[state=>{state.third_person_constructed=false;},state=>{state.third_person_attached=false;},
     state=>{state.first_person_constructed=false;},state=>{state.texture_dependencies_enumerated=false;},
@@ -2769,7 +2814,7 @@ test('live selector returns report only the pending setter tail and unknown opco
     await inspect(embed(report),d=>{
       const text=d.querySelector('#game-session-summary').textContent;
       assert.match(text,/Selector returned; its setter tail is pending/);
-      assert.match(text,/Mode history and command return remain pending/);
+      assert.match(text,/Mode history and setter completion remain pending/);
       assert.doesNotMatch(text,/First command opcode|has not been recorded completely/);
       assert.equal(d.querySelector('#parity-count').textContent,'0 of 3 tracked criteria verified');
     });
@@ -2781,14 +2826,14 @@ test('live selector returns report only the pending setter tail and unknown opco
     const action=probe.window.game_session.active.world_initialization.player_initialization.component_initialization.initial_action;
     action.tp_selector.pending_opcode=0x0c0000ff;
     action.tp_command={...tpCommandPlayerFixture(),stage:'opcode_pending',opcode:0x0c0000ff,set_reference:null,set_index:null,set_groups:null,
-      groups_visited:0,weight_writes:0,pending_group:null,pending_slot:null,child_reference:null,factory_class:null,child_flags:null,child_divisor:null,child_header:null,children_created:0};
+      groups_visited:0,weight_writes:0,pending_group:null,pending_slot:null,child_reference:null,factory_class:null,child_flags:null,child_divisor:null,child_header:null,children_created:0,effective_flags_or:0};
   }
   await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/First command opcode 0xc0000ff retained; execution pending/));
 });
 
 
 test('command cleanup and mask boundaries stay pending without factory or selector completion',async()=>{
-  const noChild={pending_group:null,pending_slot:null,child_reference:null,factory_class:null,child_flags:null,child_divisor:null,child_header:null,children_created:0};
+  const noChild={pending_group:null,pending_slot:null,child_reference:null,factory_class:null,child_flags:null,child_divisor:null,child_header:null,children_created:0,effective_flags_or:0};
   const noSet={set_reference:null,set_index:null,set_groups:null,groups_visited:0,weight_writes:0};
   for(const [body,dependency] of [
     [{...tpCommandPlayerFixture(),...noChild,stage:'cleanup_pending'},'set cleanup'],

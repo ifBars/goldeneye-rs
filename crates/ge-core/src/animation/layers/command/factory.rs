@@ -20,6 +20,16 @@ impl Pending {
         );
         self.factory_node = Some(id);
         layers.register_node(id)?;
+        self.effects.try_reserve(1)?;
+        self.effects.push(Effects {
+            request: self.child.context("factory child request absent")?,
+            node: id,
+            stage: EffectStage::AwaitingFactory,
+            copied_head: None,
+            copied_bits: None,
+            inserted: false,
+            post_word: None,
+        });
         Ok(())
     }
     pub(crate) fn fail_factory(&mut self, layers: &mut State) {

@@ -48,9 +48,9 @@ pub(super) fn initialize(player: &mut Player, hook: &world_hooks::Attempt) -> Re
         available,
     )?;
     let mut source = tp_source.mode_source()?;
-    let invocation = owner.state.advance_third_person_selector(&mut source)?;
+    let mut next_invocation = owner.state.advance_third_person_selector(&mut source)?;
     hook.ensure_current()?;
-    if let Some(invocation) = invocation {
+    while let Some(invocation) = next_invocation {
         match tp_source.mode_command_location(invocation) {
             Ok(command) => owner.tp_command = Some(command),
             Err(error) => {
@@ -74,7 +74,7 @@ pub(super) fn initialize(player: &mut Player, hook: &world_hooks::Attempt) -> Re
             hook.animation_slot_override()?,
         )?;
         hook.ensure_current()?;
-        if owner
+        while owner
             .state
             .command()
             .and_then(|command| command.child())
@@ -133,7 +133,55 @@ pub(super) fn initialize(player: &mut Player, hook: &world_hooks::Attempt) -> Re
                     hook.ensure_current()?;
                 }
             }
+            let header = owner
+                .state
+                .command()
+                .and_then(|c| c.factory_node())
+                .and_then(|id| {
+                    player
+                        .components
+                        .preparation
+                        .animator()?
+                        .script_children()
+                        .get(id)
+                })
+                .context("TP child effect header absent")?;
+            if !header.initializer_returned() {
+                break;
+            }
+            let mut source = tp_source.mode_command_source(
+                owner
+                    .tp_command_stream
+                    .as_mut()
+                    .context("TP continued command stream absent")?,
+            )?;
+            owner.state.finish_third_person_child_effects(
+                &mut player.components.preparation,
+                &mut source,
+                hook.animation_slot_override()?,
+            )?;
+            hook.ensure_current()?;
+            if owner.state.command().is_none_or(|c| {
+                c.stage() != ge_core::animation::layers::command::Stage::ChildFactoryPending
+            }) {
+                break;
+            }
         }
+        if owner
+            .state
+            .command()
+            .is_some_and(|c| c.stage() == ge_core::animation::layers::command::Stage::Returned)
+        {
+            owner.state.acknowledge_third_person_command()?;
+            hook.ensure_current()?;
+        } else {
+            break;
+        }
+        let mut next_source = tp_source.mode_source()?;
+        next_invocation = owner
+            .state
+            .advance_third_person_selector(&mut next_source)?;
+        hook.ensure_current()?;
     }
     // The real operand/weight prefix is retained before its factory/cleanup
     // dependency. No command return or mode-history update is fabricated.

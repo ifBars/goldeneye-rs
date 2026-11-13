@@ -5,6 +5,7 @@ use super::{
 };
 use anyhow::{Result, ensure};
 use std::sync::Arc;
+mod child_effects;
 mod child_factory;
 mod control_capture;
 mod mode_command;
@@ -30,6 +31,7 @@ pub struct Animator {
     script_children: crate::animation::script_child::Store,
     layers: Option<crate::animation::layers::State>,
     capture_refresh: Option<crate::animation::scratch::Refresh>,
+    capture_active_count: Option<u8>,
 }
 impl Animator {
     pub(super) fn from_constructor(identity: Identity) -> Self {
@@ -60,6 +62,7 @@ impl Animator {
             ),
             layers: None,
             capture_refresh: None,
+            capture_active_count: None,
         };
         for offset in [
             0, 4, 8, 0x10, 0x14, 0x1c, 0x20, 0x28, 0x5c, 0x60, 0x94, 0x114, 0x118, 0x11c, 0x120,
@@ -382,6 +385,10 @@ impl Animator {
             layers.visit_state_words(&mut emit);
         }
         emit(u32::from(self.capture_refresh.is_some()));
+        emit(u32::from(self.capture_active_count.is_some()));
+        if let Some(count) = self.capture_active_count {
+            emit(u32::from(count));
+        }
         if let Some(refresh) = &self.capture_refresh {
             refresh.visit_state_words(emit);
         }

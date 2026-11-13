@@ -1,10 +1,13 @@
 //! Reached command body up to its next real allocation/cleanup dependency.
 //! Reads and weight writes precede child factories. No factory result, later
 //! child word or command return is invented by this preparation.
+mod effects;
 mod factory;
+mod groups;
 mod state;
 use super::{SlotOverride, State, execute::charge};
 use anyhow::{Context, Result, ensure};
+pub use effects::{EffectStage, Effects};
 
 pub trait Source {
     fn set_reference(&mut self) -> Result<u32>;
@@ -20,6 +23,9 @@ pub trait Source {
     fn child_divisor(&mut self, ordinal: usize) -> Result<u16>;
     fn child_flags(&mut self, ordinal: usize) -> Result<u16>;
     fn child_reference(&mut self, ordinal: usize) -> Result<u32>;
+    fn child_word(&mut self, _ordinal: usize) -> Result<u32> {
+        anyhow::bail!("reached child post-word provider unavailable")
+    }
     fn next_group(&mut self, children: u16) -> Result<()>;
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,6 +37,9 @@ pub enum Stage {
     MaskClearPending,
     OpcodePending,
     Failed,
+    ChildWrapperPending,
+    ChildContinuationPending,
+    Returned,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ChildRequest {
@@ -64,6 +73,7 @@ pub struct Pending {
     flags_or: u16,
     factory_started: bool,
     factory_node: Option<super::NodeId>,
+    effects: Vec<Effects>,
 }
 impl Pending {
     pub fn new(opcode: u32) -> Self {
@@ -82,6 +92,7 @@ impl Pending {
             flags_or: 0,
             factory_started: false,
             factory_node: None,
+            effects: Vec::new(),
         }
     }
     pub fn opcode(&self) -> u32 {
@@ -185,73 +196,9 @@ impl Pending {
         self.flags = Some(flags);
         let count = source.begin_set(self.set_index.context("reached animation set is absent")?)?;
         self.group_count = Some(count);
-        for ordinal in 0..count {
-            charge(&mut layers.work.groups, layers.budget.groups, "group")?;
-            let source_slot = source.group_slot()?;
-            let slot = if slot_override.enabled_raw != 0 {
-                slot_override.slot_raw
-            } else {
-                u32::from(source_slot)
-            };
-            self.groups.try_reserve(1)?;
-            self.groups.push(Group {
-                source_slot,
-                effective_slot: slot,
-                weight_write: None,
-                child_count: None,
-            });
-            let slot = usize::try_from(slot)?;
-            ensure!(slot < 4, "unsupported reached effective animation slot");
-            let weight = if slot == 0 {
-                Some(1f32.to_bits())
-            } else if f32::from_bits(source.group_weight()?) == 0.0 {
-                Some(0)
-            } else {
-                None
-            };
-            if let Some(weight) = weight {
-                layers.slots[slot].weight_bits = weight;
-                self.groups[ordinal].weight_write = Some(weight);
-            }
-            let children = source.child_count()?;
-            self.groups[ordinal].child_count = Some(children);
-            ensure!(
-                children >= 0,
-                "unsupported negative reached animation child count"
-            );
-            if children > 0 {
-                charge(&mut layers.work.children, layers.budget.children, "child")?;
-                let child_divisor = if self.opcode == 0x0c00_0003 {
-                    divisor.wrapping_add(u32::from(source.child_divisor(0)?))
-                } else if divisor != 0 {
-                    divisor
-                } else {
-                    u32::from(source.child_divisor(0)?)
-                };
-                let effective_flags = if flags != 0 {
-                    flags
-                } else {
-                    source.child_flags(0)?
-                };
-                let reference = source.child_reference(0)?;
-                self.flags_or |= effective_flags;
-                self.child = Some(ChildRequest {
-                    group: ordinal,
-                    ordinal: 0,
-                    slot: slot as u8,
-                    reference,
-                    effective_flags,
-                    divisor: child_divisor,
-                });
-                self.stage = Stage::ChildFactoryPending;
-                return Ok(());
-            }
-            source.next_group(children as u16)?;
-        }
-        self.stage = Stage::CleanupPending;
-        Ok(())
+        self.prepare_groups(source, layers, slot_override, 0)
     }
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

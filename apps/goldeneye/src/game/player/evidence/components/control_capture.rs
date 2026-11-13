@@ -48,8 +48,8 @@ pub(super) fn build(player: &Owned, hook: &world_hooks::Attempt) -> Result<Third
     ensure!(
         owner.controls().len() == 4
             && !layers.failed()
-            && layers.active_count() == 1
-            && owner.byte(0x130) == Some(1)
+            && owner.capture_active_count() == Some(1)
+            && owner.byte(0x130) == Some(layers.active_count())
             && owner.byte(0xc) == Some(0)
             && owner.byte(0xd) == Some(3)
             && owner.byte(0x135) == Some(0)
@@ -63,14 +63,23 @@ pub(super) fn build(player: &Owned, hook: &world_hooks::Attempt) -> Result<Third
     let mut ids = std::collections::BTreeSet::new();
     for (slot, start) in layers.slots().iter().zip([0x138, 0x158, 0x178, 0x198]) {
         ensure!(
-            slot.nodes_head().len() == 1
+            slot.nodes_head()
+                .iter()
+                .filter(|id| owner.controls().get(**id).is_some())
+                .count()
+                == 1
                 && owner.word(start).is_none()
                 && owner.word(start + 4).is_none()
                 && slot.flags_raw() == 1
                 && owner.word(start + 12) == Some(slot.weight_bits()),
             "TP physical capture membership differs"
         );
-        let id = slot.nodes_head()[0];
+        let id = slot
+            .nodes_head()
+            .iter()
+            .copied()
+            .find(|id| owner.controls().get(*id).is_some())
+            .context("original captured control absent")?;
         ensure!(ids.insert(id), "TP physical slots share a control identity");
         let control = owner
             .controls()

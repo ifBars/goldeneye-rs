@@ -10,6 +10,7 @@ use super::{
 };
 use anyhow::{Context, Result, ensure};
 mod capture;
+mod child_effects;
 mod command;
 mod factory;
 mod selector;
@@ -62,6 +63,7 @@ pub struct Pending {
     tracks_player_modes: Option<bool>,
     primary_head: Option<(Option<crate::animation::layers::NodeId>, u32)>,
     command: Option<crate::animation::layers::command::Pending>,
+    completed_commands: Vec<crate::animation::layers::command::Pending>,
 }
 impl Pending {
     pub fn begin(base: &base_handler::Owner, reset: &mut PendingReset) -> Result<Self> {
@@ -80,6 +82,7 @@ impl Pending {
             tracks_player_modes: None,
             primary_head: None,
             command: None,
+            completed_commands: Vec::new(),
         })
     }
     pub fn stage(&self) -> Stage {
@@ -278,7 +281,11 @@ impl Pending {
         }
         emit(u32::from(self.command.is_some()));
         if let Some(command) = &self.command {
-            command.visit_state_words(emit);
+            command.visit_state_words(&mut emit);
+        }
+        emit(self.completed_commands.len() as u32);
+        for command in &self.completed_commands {
+            command.visit_state_words(&mut emit);
         }
     }
 }
