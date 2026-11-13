@@ -17,6 +17,7 @@ files are local output and are not committed.
 | Navigation changes | `cargo xtask navigation <disc>` / `cargo xtask paths <disc>` | Sampled geometric/runtime diagnostics |
 | Rendering changes | `cargo xtask render <disc>` / `cargo xtask viewer <disc>` | Explicit GPU and hidden-window checks |
 | Frontend changes | `cargo xtask menu <disc>` / `cargo xtask startup <disc>` | Native menu, startup media/audio, mesh GPU fixtures, source-title loop and outro checks |
+| Networking changes | `cargo test --locked -p ge-net -p ge-net-transport` | Synthetic sessions over a seeded link simulator and loopback QUIC; no game image, no public host |
 | Distribution | `cargo xtask package` | Asset-free native file allowlist and checksums |
 
 Run Cargo tasks serially. They share build output and coverage profiles. Each

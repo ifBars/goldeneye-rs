@@ -75,6 +75,11 @@ incomplete. docs/player-creation.md describes the reached boundary.
 - crates/ge-core: pure runtime rules. No file I/O, rendering or wall-clock reads.
   Keep each domain and its tests in focused subdirectories.
 - crates/ge-render: GPU rendering, upload, presentation and readback.
+- crates/ge-net: networking session core. No game crate, socket, runtime or
+  wall-clock dependency. Not wired into the game; see
+  docs/networking-crate-plan.md.
+- crates/ge-net-transport: the QUIC backend for ge-net. Owns its socket,
+  worker thread and TLS identity.
 - apps/goldeneye: native lifecycle, worker ownership, local settings and I/O.
 - apps/goldeneye/src/game: retained mission, player and provider bindings.
 - apps/goldeneye/src/menu and crates/ge-core/src/frontend: frontend work.

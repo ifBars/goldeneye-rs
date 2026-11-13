@@ -50,3 +50,8 @@ pub use time::NetInstant;
 pub use transport::{
     SendOutcome, Transport, TransportCapabilities, TransportEvent, TransportFailure,
 };
+
+/// Compiles the example in the crate README.
+#[cfg(doctest)]
+#[doc = include_str!("../README.md")]
+struct ReadmeDoctests;
