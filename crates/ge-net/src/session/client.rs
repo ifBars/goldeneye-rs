@@ -76,6 +76,7 @@ pub enum ClientEvent {
 struct IncomingTransfer {
     snapshot: SnapshotId,
     tick: Tick,
+    acks: Vec<CommandAck>,
     total_bytes: usize,
     chunk_count: usize,
     next_chunk: usize,
@@ -106,6 +107,9 @@ struct Attempt {
     next_input: NetInstant,
     recovery_requested: Option<NetInstant>,
     close_reason: Option<CloseReason>,
+    /// The slot that packs first into the next input datagram. It rotates,
+    /// so when one datagram holds few commands every slot still gets turns.
+    input_cursor: usize,
 }
 
 /// A client's session state machine.
@@ -167,6 +171,13 @@ impl ClientSession {
         if self.last_attempt.is_some_and(|last| attempt <= last) {
             return Err(StateError::AttemptNotIncreasing);
         }
+        // Events carry no attempt identity, so a new attempt starts only once
+        // the previous one's events, its `Closed` included, have been polled
+        // and its disconnect instruction handed to the transport. Nothing of
+        // one attempt can then be mistaken for the next.
+        if !self.events.is_empty() || self.disconnect.is_some() {
+            return Err(StateError::EventQueueFull);
+        }
         self.last_attempt = Some(attempt);
         self.phase = Phase::Connecting;
         self.attempt = Some(Attempt {
@@ -191,6 +202,7 @@ impl ClientSession {
             activation_tick: None,
             next_input: self.now,
             recovery_requested: None,
+            input_cursor: 0,
             close_reason: None,
         });
         Ok(())
@@ -722,6 +734,7 @@ impl ClientSession {
         state.incoming = Some(IncomingTransfer {
             snapshot: begin.snapshot,
             tick,
+            acks: begin.acks,
             total_bytes,
             chunk_count,
             next_chunk: 0,
@@ -755,7 +768,13 @@ impl ClientSession {
         self.diagnostics.full_transfer_bytes += incoming.total_bytes as u64;
         let snapshot = apply_delta(None, &incoming.bytes, &self.limits.replication)
             .map_err(Violation::Delta)?;
-        self.accept_snapshot(incoming.snapshot, incoming.tick, snapshot, None, Vec::new())
+        self.accept_snapshot(
+            incoming.snapshot,
+            incoming.tick,
+            snapshot,
+            None,
+            incoming.acks,
+        )
     }
 
     fn on_state_update(
@@ -936,12 +955,18 @@ impl ClientSession {
             return;
         };
 
-        // Take one command per slot in turn so no slot starves another.
+        // Take one command per slot in turn, starting at a slot that rotates
+        // between datagrams, so no slot starves another within or across
+        // datagrams.
         let mut remaining = input_capacity(&self.limits) - 6;
-        let mut counts = vec![0usize; state.outboxes.len()];
+        let slots = state.outboxes.len();
+        let mut counts = vec![0usize; slots];
+        let first = state.input_cursor % slots.max(1);
+        state.input_cursor = state.input_cursor.wrapping_add(1);
         loop {
             let mut progressed = false;
-            for (index, outbox) in state.outboxes.iter().enumerate() {
+            for index in (0..slots).map(|step| (first + step) % slots) {
+                let outbox = &state.outboxes[index];
                 let Some(command) = outbox.pending().get(counts[index]) else {
                     continue;
                 };

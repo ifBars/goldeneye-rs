@@ -154,22 +154,27 @@ impl Snapshot {
     }
 
     /// Check every size limit; returns the full encoded length.
+    ///
+    /// The record count and each state length must also fit their 16-bit
+    /// wire fields, whatever larger limits a caller passes.
     pub fn check(&self, limits: &ReplicationLimits) -> Result<usize, SnapshotError> {
-        if self.records.len() > limits.max_entities {
+        let max_entities = limits.max_entities.min(usize::from(u16::MAX));
+        let max_entity_bytes = limits.max_entity_bytes.min(usize::from(u16::MAX));
+        if self.records.len() > max_entities {
             return Err(SnapshotError::TooManyEntities {
                 count: self.records.len(),
-                max: limits.max_entities,
+                max: max_entities,
             });
         }
         for record in &self.records {
             if usize::from(record.id.index) >= limits.max_entities {
                 return Err(SnapshotError::IndexOutOfRange(record.id.index));
             }
-            if record.state.len() > limits.max_entity_bytes {
+            if record.state.len() > max_entity_bytes {
                 return Err(SnapshotError::EntityTooLarge {
                     id: record.id,
                     len: record.state.len(),
-                    max: limits.max_entity_bytes,
+                    max: max_entity_bytes,
                 });
             }
         }

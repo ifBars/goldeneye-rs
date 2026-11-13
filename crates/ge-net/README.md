@@ -40,9 +40,12 @@ use ge_net::transport::pump_host;
 use ge_net::session::host::HostEvent;
 use ge_net::{DrainLimit, HostConfig, HostSession, NetInstant, SessionBudget, Tick};
 # fn example(mut transport: impl ge_net::Transport, descriptor: ge_net::CompatibilityDescriptor,
-#            mut world: World, mut clock: impl FnMut() -> u64) -> Result<(), Box<dyn std::error::Error>> {
-// Session randomness comes from the application, never a gameplay RNG.
-let mut entropy = || 0x5eed_u64;
+#            mut world: World, mut clock: impl FnMut() -> u64,
+#            secure_random_u64: impl FnMut() -> u64) -> Result<(), Box<dyn std::error::Error>> {
+// Session randomness comes from the application: an operating-system or
+// cryptographic source such as `ge_net_transport::secure_seed`, never a
+// gameplay RNG and never a constant. Only tests use fixed seeds.
+let mut entropy = secure_random_u64;
 let mut host = HostSession::new(
     HostConfig {
         budget: SessionBudget::small_session(),
@@ -106,6 +109,11 @@ snapshot: `acknowledge_applied`. Until it applies the first full snapshot and
 then one at or after the host's accepted tick, it is not active and cannot
 submit commands. Received bytes never stand in for that work.
 
+Client events carry no attempt identity. A client therefore starts a new
+attempt only after the previous one's events, its `Closed` included, have
+been polled and its disconnect instruction drained; `begin` returns
+`StateError::EventQueueFull` until then.
+
 ## What your application supplies
 
 - **A transport.** Implement `ge_net::Transport`, or use `ge-net-transport`
@@ -135,6 +143,9 @@ submit commands. Received bytes never stand in for that work.
 - A destroyed or replaced entity cannot be resurrected by a delayed message.
 - A closed or cancelled attempt is invalid immediately; its later events are
   rejected as stale. A reconnect is a new attempt, epoch and peer.
+- A closing peer's buffered commands are discarded, never released.
+- Full transfers carry command acknowledgements, so a client that only ever
+  receives full state still retires its commands.
 - Every limit in the budget ends in a typed error, a counted drop or an
   explicit close with a reason. The table in `src/budget.rs` says which.
 
@@ -158,18 +169,19 @@ with integer positions.
 ## Measured cost of one scenario
 
 One run of the example above, release profile, on the development container.
+Bandwidth counts only the measured ticks, after every client was active.
 These figures describe that scenario, seed, build and machine. They are not a
 performance promise and say nothing about a real network or a real game.
 
 | Measure | Value |
 | --- | --- |
 | Scenario | seed 7, host and 2 clients, 1800 ticks at 60 Hz, 150 ms RTT, 5% datagram loss, 16 actors changing per tick |
-| Host state sent | about 57 kB/s for both clients, in 3621 datagrams |
-| Host input received | about 12 kB/s for both clients, in 3428 datagrams |
-| Control, bulk and probe traffic | under 250 B/s combined |
+| Host state sent | about 57 kB/s for both clients, in 3600 datagrams |
+| Host input received | about 12 kB/s for both clients, in 3408 datagrams |
+| Control, bulk and probe traffic | under 300 B/s combined |
 | Largest outbound queue on one connection | 557 bytes |
-| Processing, host plus both clients plus simulator | about 20 µs and 179 allocations per tick |
-| One 388-byte state update | encode 0.2 µs with 3 allocations; decode and apply 0.8 µs with 18 allocations |
+| Processing, host plus both clients plus simulator | about 14 µs and 183 allocations per tick |
+| One 388-byte state update | encode 0.2 µs with 3 allocations; decode and apply 0.6 µs with 18 allocations |
 
 Input traffic is dominated by redundancy: every input datagram repeats all
 commands the host has not yet acknowledged, so its size grows with round-trip

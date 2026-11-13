@@ -89,10 +89,12 @@ Command sequences and snapshot identifiers use the same comparison.
 
 ### Fragments
 
-Only `StateUpdate` may be fragmented. Its fragments share one sequence and one
-tick, and each carries a slice of the logical payload in index order. A
-receiver accepts fragments of the newest sequence in any order, ignores
-repeats, and abandons an incomplete message when a newer sequence arrives.
+Only `StateUpdate` may be fragmented. A fragmented envelope of any other
+kind, including an unknown optional one, closes the connection. The fragments
+of one update share one sequence and one tick, and each carries a slice of the
+logical payload in index order. A receiver accepts fragments of the newest
+sequence in any order, ignores repeats, and abandons an incomplete message
+when a newer sequence arrives.
 Fragment count and reassembled size are bounded by the session budget.
 
 ### Unknown kinds
@@ -113,7 +115,7 @@ channel, or with the wrong tick presence, is an error.
 | Accept | `0x02` | Control | host to client | `u16` peer, `u8` slot count, `u8` slots ascending, extensions, `u32` command origin |
 | Reject | `0x03` | Control | host to client | `u8` reason, `u8` field, `u64` detail |
 | SnapshotRequest | `0x04` | Control | client to host | optional snapshot held |
-| SyncBegin `[tick]` | `0x05` | Bulk | host to client | `u32` snapshot, `u32` total bytes, `u16` chunk count |
+| SyncBegin `[tick]` | `0x05` | Bulk | host to client | `u32` snapshot, `u32` total bytes, `u16` chunk count, command acknowledgements (as in `StateUpdate`) |
 | SyncChunk | `0x06` | Bulk | host to client | `u32` snapshot, `u16` chunk index, data |
 | SyncApplied | `0x07` | Control | client to host | `u32` snapshot |
 | Activate `[tick]` | `0x08` | Control | host to client | empty; the tick is the accepted tick |
@@ -197,6 +199,11 @@ delta
 ```
 
 The host only names a baseline that the client acknowledged holding.
+
+`SyncBegin` carries the same acknowledgement list, as of the moment the
+transfer starts, so a client that only ever receives full transfers still
+learns which commands to stop resending. The client applies it when the
+transfer completes.
 
 ### Delta and full snapshot
 

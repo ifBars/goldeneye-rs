@@ -29,8 +29,8 @@ use crate::protocol::message::{
     SyncChunk, decode_payload,
 };
 use crate::replication::{
-    CommandInbox, GenerationFloors, ReceivedCommand, Snapshot, SnapshotError, SnapshotHistory,
-    StoredSnapshot, encode_delta,
+    CommandAck, CommandInbox, GenerationFloors, ReceivedCommand, Snapshot, SnapshotError,
+    SnapshotHistory, StoredSnapshot, encode_delta,
 };
 use crate::time::NetInstant;
 use crate::transport::{SendOutcome, TransportCapabilities, TransportFailure};
@@ -149,9 +149,10 @@ struct HostPeer {
     transfer: Option<Transfer>,
     /// A fully queued transfer that the peer has not acknowledged yet.
     transferred: Option<StoredSnapshot>,
-    /// When a full-state recovery for a replicating peer must have been
-    /// acknowledged.
-    recovery_deadline: Option<NetInstant>,
+    /// An outstanding full-state recovery for a replicating peer: the
+    /// snapshot it sends, and when an acknowledgement at or after that
+    /// snapshot must have arrived.
+    recovery: Option<(SnapshotId, NetInstant)>,
     /// Bulk allowance in byte-microseconds.
     bulk_credit: u64,
     bulk_refilled: NetInstant,
@@ -178,6 +179,9 @@ impl HostPeer {
         self.transfer = None;
         self.transferred = None;
         self.baseline = None;
+        self.recovery = None;
+        // A closing peer's commands are never released.
+        self.inboxes.clear();
         for channel in [
             ChannelId::Bulk,
             ChannelId::Input,
@@ -224,6 +228,9 @@ impl HostPeer {
             // Publishing bounded both values by the budget.
             total_bytes: bytes.len() as u32,
             chunk_count: chunk_count as u16,
+            // Full transfers carry acknowledgements too, so a peer that only
+            // ever receives full state still retires its commands.
+            acks: self.command_acks(),
         });
         self.link.send(
             &begin,
@@ -241,9 +248,10 @@ impl HostPeer {
         });
         if self.stage == Stage::AwaitingSnapshot {
             self.stage = Stage::Transferring;
-        } else if self.recovery_deadline.is_none() {
-            // Recovery is bounded like the initial synchronization.
-            self.recovery_deadline = Some(shared.now.after(shared.budget.sync_timeout));
+        } else if self.recovery.is_none() {
+            // Recovery is bounded like the initial synchronization. Only an
+            // acknowledgement at or after this snapshot satisfies it.
+            self.recovery = Some((snapshot.id, shared.now.after(shared.budget.sync_timeout)));
         }
         self.pump_transfer(shared)
     }
@@ -271,6 +279,9 @@ impl HostPeer {
             if transfer.next_chunk == transfer.chunk_count {
                 let finished = self.transfer.take().expect("transfer present");
                 self.transferred = Some(finished.snapshot);
+                // A smaller update may have overtaken it and been
+                // acknowledged already; the peer will discard it as stale.
+                self.discard_obsolete_transfer();
                 shared.diagnostics.full_transfers_completed += 1;
                 if self.stage == Stage::Transferring {
                     self.stage = Stage::AwaitingApplied;
@@ -307,11 +318,7 @@ impl HostPeer {
             &latest.state,
             &mut delta,
         );
-        let acks: Vec<_> = self
-            .inboxes
-            .iter()
-            .map(|(slot, inbox)| inbox.ack(*slot))
-            .collect();
+        let acks = self.command_acks();
         // Snapshot id, optional baseline, ack count and nine bytes per ack.
         let body = 4 + 5 + 1 + acks.len() * 9 + delta.len();
         if body <= shared.limits.max_update_bytes {
@@ -335,8 +342,29 @@ impl HostPeer {
         self.start_transfer(latest, shared)
     }
 
+    fn command_acks(&self) -> Vec<CommandAck> {
+        self.inboxes
+            .iter()
+            .map(|(slot, inbox)| inbox.ack(*slot))
+            .collect()
+    }
+
+    /// A completed transfer at or before the acknowledged baseline will never
+    /// be acknowledged: the peer discards it as stale. Keeping it would hold
+    /// back every later full transfer.
+    fn discard_obsolete_transfer(&mut self) {
+        let obsolete = match (&self.transferred, &self.baseline) {
+            (Some(transferred), Some(baseline)) => !transferred.id.is_newer_than(baseline.id),
+            _ => false,
+        };
+        if obsolete {
+            self.transferred = None;
+        }
+    }
+
     fn note_ack(&mut self, id: SnapshotId, history: &SnapshotHistory, shared: &mut Shared<'_>) {
         if self.baseline.as_ref().is_some_and(|stored| stored.id == id) {
+            self.discard_obsolete_transfer();
             return;
         }
         let candidate = self
@@ -357,15 +385,16 @@ impl HostPeer {
             shared.diagnostics.drop(DropReason::Stale);
             return;
         }
+        // Recovery is satisfied only by its own snapshot or a newer one; an
+        // older acknowledgement arriving late does not end it.
         if self
-            .transferred
-            .as_ref()
-            .is_some_and(|stored| !stored.id.is_newer_than(candidate.id))
+            .recovery
+            .is_some_and(|(target, _)| !target.is_newer_than(candidate.id))
         {
-            self.transferred = None;
+            self.recovery = None;
         }
         self.baseline = Some(candidate);
-        self.recovery_deadline = None;
+        self.discard_obsolete_transfer();
     }
 }
 
@@ -455,6 +484,13 @@ impl HostSession {
         if negotiating >= usize::from(self.budget.max_handshakes) || self.peers.len() >= capacity {
             return Err(StateError::TooManyAttempts);
         }
+        // Every admitted attempt ends with an event. Admission waits for the
+        // application to drain them, so connection turnover cannot grow the
+        // queue: it stays within the event budget plus one terminal event
+        // per live attempt.
+        if self.events.len() >= self.budget.max_pending_events as usize {
+            return Err(StateError::EventQueueFull);
+        }
         let link = Link::new(
             attempt,
             self.now,
@@ -474,7 +510,7 @@ impl HostSession {
                 baseline: None,
                 transfer: None,
                 transferred: None,
-                recovery_deadline: None,
+                recovery: None,
                 bulk_credit: u64::from(self.budget.bulk_burst_bytes)
                     .saturating_mul(MICROS_PER_SECOND),
                 bulk_refilled: self.now,
@@ -548,6 +584,10 @@ impl HostSession {
             let Some(peer_id) = peer.peer else {
                 continue;
             };
+            // Only an active member's commands run; a closing one's never do.
+            if peer.stage != Stage::Active {
+                continue;
+            }
             for (slot, inbox) in &mut peer.inboxes {
                 let missed = inbox.take(tick, |command| {
                     commands.push(ReceivedCommand {
@@ -671,10 +711,7 @@ impl HostSession {
                 _ if peer.link.is_idle(now, shared.budget.idle_timeout) => {
                     Some(CloseReason::IdleTimeout)
                 }
-                _ if peer
-                    .recovery_deadline
-                    .is_some_and(|deadline| now >= deadline) =>
-                {
+                _ if peer.recovery.is_some_and(|(_, deadline)| now >= deadline) => {
                     Some(CloseReason::SyncTimeout)
                 }
                 _ => None,
@@ -1107,7 +1144,7 @@ impl HostSession {
             return Err(Violation::Transfer("applied acknowledgement"));
         }
         peer.baseline = peer.transferred.take();
-        peer.recovery_deadline = None;
+        peer.recovery = None;
         peer.stage = Stage::CatchingUp;
         let latest = latest.expect("a transfer implies a published snapshot");
         let result = peer

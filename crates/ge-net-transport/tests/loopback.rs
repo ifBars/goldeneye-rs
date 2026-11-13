@@ -473,16 +473,39 @@ fn configuration_limits_are_checked_before_a_socket_is_opened() {
 fn an_oversized_reliable_message_fails_the_connection_explicitly() {
     let mut link = link(QuicConfig::default());
     let limit = link.host.capabilities().max_reliable_message_bytes as usize;
+    // A message arrives for the host before the failure, and is not polled.
+    send_all(
+        &mut link.client,
+        link.client_attempt,
+        Lane::Control,
+        b"first",
+    );
+    std::thread::sleep(Duration::from_millis(200));
     let outcome = link
         .host
         .send(link.host_attempt, Lane::Control, &vec![0; limit + 1]);
     assert_eq!(outcome, SendOutcome::Closed);
+    // The failed attempt takes nothing more.
+    assert_eq!(
+        link.host.send(link.host_attempt, Lane::Control, b"after"),
+        SendOutcome::Closed
+    );
+    // `Closed` is the last event for the attempt: what already arrived
+    // comes first, and nothing follows.
+    assert_eq!(message(&mut link.host, Lane::Control), b"first");
     assert_eq!(
         closed(&mut link.host),
         (link.host_attempt, TransportFailure::ReliableDeliveryFailed)
     );
+    std::thread::sleep(Duration::from_millis(100));
+    assert_eq!(link.host.poll(), None);
+    // The peer learns that reliable delivery failed, not that the host
+    // closed in an orderly way.
     assert_eq!(
         closed(&mut link.client),
-        (link.client_attempt, TransportFailure::RemoteClosed)
+        (
+            link.client_attempt,
+            TransportFailure::ReliableDeliveryFailed
+        )
     );
 }

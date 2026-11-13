@@ -120,6 +120,42 @@ pub fn encode_delta(base: Option<&Snapshot>, target: &Snapshot, out: &mut Vec<u8
     }
 }
 
+/// Running size of a snapshot under reconstruction.
+struct Reconstruction<'a> {
+    limits: &'a ReplicationLimits,
+    entities: usize,
+    bytes: usize,
+}
+
+impl<'a> Reconstruction<'a> {
+    fn new(limits: &'a ReplicationLimits) -> Self {
+        Self {
+            limits,
+            entities: 0,
+            bytes: FULL_OVERHEAD,
+        }
+    }
+
+    /// Account for one more record of `len` state bytes, or refuse it.
+    fn admit(&mut self, len: usize) -> Result<(), DeltaError> {
+        self.entities += 1;
+        self.bytes += UPSERT_OVERHEAD + len;
+        if self.entities > self.limits.max_entities {
+            return Err(DeltaError::Snapshot(SnapshotError::TooManyEntities {
+                count: self.entities,
+                max: self.limits.max_entities,
+            }));
+        }
+        if self.bytes > self.limits.max_snapshot_bytes {
+            return Err(DeltaError::Snapshot(SnapshotError::SnapshotTooLarge {
+                bytes: self.bytes,
+                max: self.limits.max_snapshot_bytes,
+            }));
+        }
+        Ok(())
+    }
+}
+
 struct Upsert<'a> {
     operation: u8,
     id: EntityId,
@@ -184,9 +220,16 @@ pub fn apply_delta(
         Vec::with_capacity((base.len() + upserts.len()).min(limits.max_entities));
     let mut destroyed = destroyed.into_iter().peekable();
     let mut upserts = upserts.into_iter().peekable();
-    let create = |upsert: &Upsert<'_>| EntityRecord {
-        id: upsert.id,
-        state: upsert.state.to_vec(),
+    // The reconstruction is checked against the snapshot limits before each
+    // state is copied, so a delta can never make this allocate more than one
+    // snapshot's worth, whatever its baseline holds.
+    let mut used = Reconstruction::new(limits);
+    let create = |used: &mut Reconstruction<'_>, upsert: &Upsert<'_>| {
+        used.admit(upsert.state.len())?;
+        Ok::<_, DeltaError>(EntityRecord {
+            id: upsert.id,
+            state: upsert.state.to_vec(),
+        })
     };
 
     for old in base {
@@ -195,7 +238,7 @@ pub fn apply_delta(
             if upsert.operation != OP_CREATE {
                 return Err(DeltaError::UpdateMissing(upsert.id));
             }
-            records.push(create(&upsert));
+            records.push(create(&mut used, &upsert)?);
         }
         if let Some(stray) = destroyed.next_if(|id| id.index < old.id.index) {
             return Err(DeltaError::DestroyMissing(stray));
@@ -213,16 +256,19 @@ pub fn apply_delta(
                 if upsert.id.generation <= old.id.generation {
                     return Err(DeltaError::CreateNotNewer(upsert.id));
                 }
-                records.push(create(&upsert));
+                records.push(create(&mut used, &upsert)?);
             }
             Some(upsert) => {
                 if removed || upsert.id != old.id {
                     return Err(DeltaError::UpdateMissing(upsert.id));
                 }
-                records.push(create(&upsert));
+                records.push(create(&mut used, &upsert)?);
             }
             None if removed => {}
-            None => records.push(old.clone()),
+            None => {
+                used.admit(old.state.len())?;
+                records.push(old.clone());
+            }
         }
     }
     if let Some(stray) = destroyed.next() {
@@ -232,7 +278,7 @@ pub fn apply_delta(
         if upsert.operation != OP_CREATE {
             return Err(DeltaError::UpdateMissing(upsert.id));
         }
-        records.push(create(&upsert));
+        records.push(create(&mut used, &upsert)?);
     }
 
     let snapshot = Snapshot::from_sorted(records);

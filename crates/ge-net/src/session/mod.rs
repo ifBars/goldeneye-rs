@@ -227,6 +227,9 @@ pub enum StateError {
     UnknownSnapshot,
     /// A reliable message did not fit the outbound queue.
     QueueOverflow,
+    /// Undrained events or disconnect instructions fill their budget. Poll
+    /// events and drain outbound work, then retry.
+    EventQueueFull,
 }
 
 impl fmt::Display for StateError {
@@ -238,6 +241,7 @@ impl fmt::Display for StateError {
             Self::TooManyAttempts => write!(f, "attempt budget exhausted"),
             Self::UnknownSnapshot => write!(f, "snapshot is not awaiting acknowledgement"),
             Self::QueueOverflow => write!(f, "reliable outbound queue overflowed"),
+            Self::EventQueueFull => write!(f, "undrained events or instructions; drain first"),
         }
     }
 }

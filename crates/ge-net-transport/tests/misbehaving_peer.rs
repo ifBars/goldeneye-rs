@@ -231,7 +231,9 @@ fn a_peer_that_finishes_one_lane_but_stays_connected_is_closed_promptly() {
             elapsed < FLUSH * 2 + Duration::from_secs(1),
             "took {elapsed:?}"
         );
-        let reason = peer.connection.closed().await;
+        let reason = tokio::time::timeout(DEADLINE, peer.connection.closed())
+            .await
+            .expect("the host closed the connection");
         assert_eq!(application_code(&reason), Some(3), "{reason:?}");
     });
 }

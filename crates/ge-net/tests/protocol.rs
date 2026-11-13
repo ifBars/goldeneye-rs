@@ -14,8 +14,9 @@ use ge_net::replication::{DeltaError, ReplicationLimits, apply_delta, encode_del
 use ge_net::session::host::HostEvent;
 use ge_net::{
     AttemptId, ChannelId, ClientEvent, CloseReason, CommandAck, CommandSeq, ConfigError,
-    DropReason, EntityId, EntityRecord, IngestError, Ingested, Lane, PeerId, Phase, PlayerSlot,
-    SessionBudget, SessionEpoch, Snapshot, SnapshotId, Tick, Violation,
+    DrainLimit, DropReason, EntityId, EntityRecord, IngestError, Ingested, Lane, Outbound, PeerId,
+    Phase, PlayerSlot, SendOutcome, SessionBudget, SessionEpoch, Snapshot, SnapshotId, Tick,
+    Violation,
 };
 use support::harness::descriptor;
 use support::pipe::{CODEC, Pair, Wire};
@@ -160,8 +161,22 @@ fn control_payload_fixtures_round_trip() {
             snapshot: SnapshotId::new(0x2a),
             total_bytes: 3_000,
             chunk_count: 3,
+            acks: Vec::new(),
         }),
-        "0000002A 00000BB8 0003",
+        "0000002A 00000BB8 0003 | 00",
+    );
+    assert_payload_fixture(
+        Message::SyncBegin(SyncBegin {
+            snapshot: SnapshotId::new(0x2a),
+            total_bytes: 3_000,
+            chunk_count: 3,
+            acks: vec![CommandAck {
+                slot: PlayerSlot::new(1),
+                received_next: CommandSeq::new(9),
+                processed_next: CommandSeq::new(8),
+            }],
+        }),
+        "0000002A 00000BB8 0003 | 01 | 01 00000009 00000008",
     );
     assert_payload_fixture(
         Message::SyncChunk(SyncChunk {
@@ -507,6 +522,14 @@ fn kinds_are_bound_to_their_channel_tick_and_fragment_rules() {
     );
     unknown.kind = 0x80;
     assert_eq!(classify(&unknown), Ok(KindClass::UnknownOptional));
+    // An unknown kind may not be fragmented: its partial assemblies would
+    // never be counted against the skip budget.
+    unknown.channel = ChannelId::State;
+    unknown.fragment = Some(Fragment { index: 0, count: 2 });
+    assert_eq!(
+        classify(&unknown),
+        Err(DecodeError::FragmentNotAllowed { kind: 0x80 })
+    );
 }
 
 #[test]
@@ -1432,6 +1455,43 @@ fn every_failure_explains_itself_without_payloads_or_addresses() {
         CloseReason::Violation(Violation::LaneMismatch).wire_code(),
         3
     );
+}
+
+#[test]
+fn a_new_attempt_waits_until_the_old_one_is_drained() {
+    let mut pair = established(0, 14);
+    // Cancel without polling events or draining outbound work.
+    pair.client.cancel().unwrap();
+    let next = AttemptId::new(78);
+    // Its `Closed` event is still queued: events carry no attempt, so a
+    // new attempt's events must not follow it into the same queue.
+    assert_eq!(
+        pair.client.begin(next),
+        Err(ge_net::session::StateError::EventQueueFull)
+    );
+    assert!(matches!(
+        pair.client.poll_event(),
+        Some(ClientEvent::Closed {
+            reason: CloseReason::Cancelled
+        })
+    ));
+    assert_eq!(pair.client.poll_event(), None);
+    // The transport has not yet been told to drop the old connection.
+    assert_eq!(
+        pair.client.begin(next),
+        Err(ge_net::session::StateError::EventQueueFull)
+    );
+    let mut disconnected = Vec::new();
+    pair.client
+        .drain_outbound(DrainLimit::UNLIMITED, |outbound| {
+            if let Outbound::Disconnect { attempt } = outbound {
+                disconnected.push(attempt);
+            }
+            SendOutcome::Sent
+        });
+    assert_eq!(disconnected, vec![pair.client_attempt]);
+    assert_eq!(pair.client.begin(next), Ok(()));
+    assert_eq!(pair.client.phase(), Phase::Connecting);
 }
 
 #[test]

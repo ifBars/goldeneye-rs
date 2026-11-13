@@ -103,10 +103,16 @@ pub fn pump_host<T: Transport + ?Sized>(
     transport: &mut T,
     limit: DrainLimit,
 ) -> DrainReport {
-    while host.inbound_credit() > 0 {
+    // Every polled event spends one credit, whether or not it reaches the
+    // session, so stale messages and refused admissions cannot make one call
+    // do unbounded work. Rechecking the session's own credit keeps `ingest`
+    // from refusing a message after it has been taken from the transport.
+    let mut credit = host.inbound_credit();
+    while credit > 0 && host.inbound_credit() > 0 {
         let Some(event) = transport.poll() else {
             break;
         };
+        credit -= 1;
         match event {
             TransportEvent::Connected { attempt } => {
                 if host.admit(attempt).is_err() {
@@ -136,10 +142,16 @@ pub fn pump_client<T: Transport + ?Sized>(
     transport: &mut T,
     limit: DrainLimit,
 ) -> DrainReport {
-    while client.inbound_credit() > 0 {
+    // Every polled event spends one credit, whether or not it reaches the
+    // session, so stale messages and refused admissions cannot make one call
+    // do unbounded work. Rechecking the session's own credit keeps `ingest`
+    // from refusing a message after it has been taken from the transport.
+    let mut credit = client.inbound_credit();
+    while credit > 0 && client.inbound_credit() > 0 {
         let Some(event) = transport.poll() else {
             break;
         };
+        credit -= 1;
         match event {
             TransportEvent::Connected { attempt } => {
                 if client.transport_connected(attempt).is_err() {

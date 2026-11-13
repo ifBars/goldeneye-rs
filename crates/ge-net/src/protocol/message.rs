@@ -110,6 +110,11 @@ pub enum KindClass {
 pub fn classify(header: &Header) -> Result<KindClass, DecodeError> {
     let Some(kind) = MessageKind::from_wire(header.kind) else {
         return if header.kind & OPTIONAL_KIND_BIT != 0 {
+            // Only `StateUpdate` may be fragmented. An unknown kind must not
+            // be, or partial assemblies would bypass the skip budget.
+            if header.fragment.is_some() {
+                return Err(DecodeError::FragmentNotAllowed { kind: header.kind });
+            }
             Ok(KindClass::UnknownOptional)
         } else {
             Err(DecodeError::UnknownMandatoryKind(header.kind))
@@ -170,11 +175,14 @@ pub struct SnapshotRequest {
     pub held: Option<SnapshotId>,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SyncBegin {
     pub snapshot: SnapshotId,
     pub total_bytes: u32,
     pub chunk_count: u16,
+    /// What the host had done with this client's commands when the transfer
+    /// started. Strictly ascending by slot.
+    pub acks: Vec<CommandAck>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -315,6 +323,7 @@ impl Message<'_> {
                 put_u32(out, begin.snapshot.get());
                 put_u32(out, begin.total_bytes);
                 put_u16(out, begin.chunk_count);
+                put_acks(out, &begin.acks)?;
             }
             Self::SyncChunk(chunk) => {
                 put_u32(out, chunk.snapshot.get());
@@ -349,14 +358,7 @@ impl Message<'_> {
             Self::StateUpdate(update) => {
                 put_u32(out, update.snapshot.get());
                 put_optional_snapshot(out, update.baseline);
-                let acks = u8::try_from(update.acks.len())
-                    .map_err(|_| EncodeError::CountTooLarge("command acks"))?;
-                put_u8(out, acks);
-                for ack in &update.acks {
-                    put_u8(out, ack.slot.get());
-                    put_u32(out, ack.received_next.get());
-                    put_u32(out, ack.processed_next.get());
-                }
+                put_acks(out, &update.acks)?;
                 out.extend_from_slice(update.delta);
             }
             Self::Ping(stamp) | Self::Pong(stamp) => put_u64(out, *stamp),
@@ -420,6 +422,7 @@ pub fn decode_payload<'a>(
             snapshot: SnapshotId::new(reader.u32()?),
             total_bytes: reader.u32()?,
             chunk_count: reader.u16()?,
+            acks: decode_acks(&mut reader)?,
         }),
         MessageKind::SyncChunk => Message::SyncChunk(SyncChunk {
             snapshot: SnapshotId::new(reader.u32()?),
@@ -488,12 +491,35 @@ fn decode_input_batch<'a>(
 fn decode_state_update<'a>(reader: &mut Reader<'a>) -> Result<StateUpdate<'a>, DecodeError> {
     let snapshot = SnapshotId::new(reader.u32()?);
     let baseline = optional_snapshot(reader)?;
-    let ack_count = usize::from(reader.u8()?);
-    if ack_count * 9 > reader.remaining() {
+    let acks = decode_acks(reader)?;
+    Ok(StateUpdate {
+        snapshot,
+        baseline,
+        acks,
+        delta: reader.rest(),
+    })
+}
+
+/// `u8` count, then slot, received-next and processed-next per entry.
+fn put_acks(out: &mut Vec<u8>, acks: &[CommandAck]) -> Result<(), EncodeError> {
+    let count = u8::try_from(acks.len()).map_err(|_| EncodeError::CountTooLarge("command acks"))?;
+    put_u8(out, count);
+    for ack in acks {
+        put_u8(out, ack.slot.get());
+        put_u32(out, ack.received_next.get());
+        put_u32(out, ack.processed_next.get());
+    }
+    Ok(())
+}
+
+fn decode_acks(reader: &mut Reader<'_>) -> Result<Vec<CommandAck>, DecodeError> {
+    let count = usize::from(reader.u8()?);
+    // Nine bytes each, checked before allocating.
+    if count * 9 > reader.remaining() {
         return Err(DecodeError::Truncated);
     }
-    let mut acks: Vec<CommandAck> = Vec::with_capacity(ack_count);
-    for _ in 0..ack_count {
+    let mut acks: Vec<CommandAck> = Vec::with_capacity(count);
+    for _ in 0..count {
         let slot = PlayerSlot::new(reader.u8()?);
         if acks.last().is_some_and(|last| last.slot >= slot) {
             return Err(DecodeError::InvalidField("command ack order"));
@@ -504,10 +530,5 @@ fn decode_state_update<'a>(reader: &mut Reader<'a>) -> Result<StateUpdate<'a>, D
             processed_next: CommandSeq::new(reader.u32()?),
         });
     }
-    Ok(StateUpdate {
-        snapshot,
-        baseline,
-        acks,
-        delta: reader.rest(),
-    })
+    Ok(acks)
 }

@@ -158,11 +158,10 @@ fn random_snapshot_pairs_round_trip_through_deltas() {
             Ok(&next),
             "round {round}"
         );
-        // The same delta against the wrong baseline never yields `next`
-        // silently: it either fails or the baselines were equivalent.
-        if let Ok(other) = apply_delta(None, &delta, &limits) {
-            assert_eq!(other, next, "round {round}: delta carried the whole state");
-        }
+        // Against the wrong baseline the delta may fail or may yield some
+        // other state: deltas carry no baseline identity, which the session
+        // checks instead. Either way it must not panic.
+        let _ = apply_delta(None, &delta, &limits);
         let mut full = Vec::new();
         encode_delta(None, &next, &mut full);
         assert_eq!(apply_delta(None, &full, &limits).as_ref(), Ok(&next));
@@ -861,6 +860,14 @@ fn oversized_deltas_fall_back_to_repeated_full_transfers() {
         assert!(harness.clients[client].closed.is_empty());
         let lag = harness.lag_ticks(client).unwrap();
         assert!(lag <= 6, "seed {seed}: client {client} lags {lag} ticks");
+        // Full transfers carry command acknowledgements, so a client that
+        // never gets a delta still retires its commands instead of filling
+        // its outbox.
+        let node = &harness.clients[client];
+        assert_eq!(node.submit_refused, 0, "client {client} outbox filled");
+        let slot = node.session.slots()[0];
+        let pending = node.session.pending_commands(slot);
+        assert!(pending < 64, "client {client} has {pending} unacknowledged");
     }
 }
 
@@ -1003,4 +1010,230 @@ fn a_blocked_datagram_lane_stays_bounded_and_recovers() {
     pair.publish(401, filled(100, 78));
     let (_, tick, state) = pair.applied.clone().unwrap();
     assert_eq!((tick, &*state), (Tick::new(401), &filled(100, 78)));
+}
+
+/// Negotiate and synchronize, allowing a slow bulk lane many updates.
+fn activate(pair: &mut Pair, snapshot: Snapshot) {
+    pair.settle();
+    pair.host.publish_snapshot(Tick::new(1), snapshot).unwrap();
+    for _ in 0..200 {
+        if pair.client.phase() == Phase::Active
+            && pair.host.phase(pair.host_attempt) == Some(Phase::Active)
+        {
+            return;
+        }
+        pair.advance(16_666);
+        pair.settle();
+    }
+    panic!("pair did not become active");
+}
+
+/// One datagram per update, and a bulk lane that needs several updates to
+/// carry a full snapshot of sixty entities.
+fn slow_bulk_budget() -> SessionBudget {
+    let mut budget = SessionBudget::small_session();
+    budget.max_update_fragments = 1;
+    budget.snapshot_chunk_bytes = 512;
+    budget.bulk_burst_bytes = 1_100;
+    budget.bulk_bytes_per_second = 16 * 1024;
+    budget
+}
+
+/// Sixty entities; `changed` of them carry `value`, the rest zero.
+fn partly(changed: u16, value: u8) -> Snapshot {
+    world(
+        (0..60)
+            .map(|i| record(i, 0, &[if i < changed { value } else { 0 }; 16]))
+            .collect(),
+    )
+}
+
+#[test]
+fn a_full_transfer_overtaken_by_a_newer_update_does_not_stall_later_ones() {
+    let mut pair = Pair::new(slow_bulk_budget(), 0, 66);
+    activate(&mut pair, partly(0, 0));
+
+    // A: every entity changes, which no single datagram carries, so a slow
+    // full transfer starts.
+    pair.host
+        .publish_snapshot(Tick::new(2), partly(60, 1))
+        .unwrap();
+    pair.advance(16_666);
+    pair.settle();
+    assert!(
+        pair.host
+            .peer_diagnostics(pair.host_attempt)
+            .unwrap()
+            .sync_progress
+            .is_some(),
+        "the transfer of A is still running"
+    );
+    // B: one entity changes from the acknowledged baseline. Its delta fits
+    // a datagram, overtakes A and is acknowledged first.
+    pair.host
+        .publish_snapshot(Tick::new(3), partly(1, 2))
+        .unwrap();
+    for _ in 0..30 {
+        pair.advance(16_666);
+        pair.settle();
+    }
+    assert_eq!(pair.applied.as_ref().unwrap().1, Tick::new(3));
+    assert_eq!(
+        pair.host
+            .peer_diagnostics(pair.host_attempt)
+            .unwrap()
+            .sync_progress,
+        None,
+        "A finished, and the client discarded it as stale"
+    );
+
+    // Later states that again need full transfers must still arrive.
+    for tick in 4..60 {
+        pair.publish(tick, partly(60, tick as u8));
+    }
+    for _ in 0..60 {
+        pair.advance(16_666);
+        pair.settle();
+    }
+    let (_, tick, state) = pair.applied.clone().unwrap();
+    assert_eq!(tick, Tick::new(59), "the client kept receiving full state");
+    assert!(*state == partly(60, 59));
+    assert_eq!(pair.client.phase(), Phase::Active);
+}
+
+#[test]
+fn a_late_acknowledgement_of_an_older_update_does_not_end_recovery() {
+    let mut budget = slow_bulk_budget();
+    budget.sync_timeout = Duration::from_secs(2);
+    let mut pair = Pair::new(budget, 0, 67);
+    activate(&mut pair, partly(0, 0));
+
+    // B: a small update; the client applies it, but its acknowledgement is
+    // held back in the network.
+    pair.host
+        .publish_snapshot(Tick::new(2), partly(1, 1))
+        .unwrap();
+    pair.advance(16_666);
+    pair.flush_host();
+    pair.deliver_to_client();
+    pair.advance(16_666);
+    pair.flush_client();
+    let late_ack: Vec<Wire> = pair.to_host.drain(..).collect();
+    assert!(!late_ack.is_empty());
+
+    // C: needs a full transfer, which bounds the recovery by the timeout.
+    pair.host
+        .publish_snapshot(Tick::new(3), partly(60, 2))
+        .unwrap();
+    // B's acknowledgement arrives now. It predates C, so C's recovery must
+    // stay bounded.
+    for wire in &late_ack {
+        pair.give_host(wire).unwrap();
+    }
+
+    // The bulk lane never moves again, while probes keep the peer alive.
+    for _ in 0..240 {
+        pair.advance(16_666);
+        let wires = &mut pair.to_client;
+        pair.host
+            .drain_outbound(DrainLimit::UNLIMITED, |outbound| match outbound {
+                Outbound::Message {
+                    lane: Lane::Bulk, ..
+                } => SendOutcome::Blocked,
+                Outbound::Message { lane, bytes, .. } => {
+                    wires.push_back(Wire {
+                        lane,
+                        bytes: bytes.to_vec(),
+                    });
+                    SendOutcome::Sent
+                }
+                Outbound::Disconnect { .. } => SendOutcome::Sent,
+            });
+        pair.deliver_to_client();
+        pair.flush_client();
+        pair.deliver_to_host();
+        if pair.host.phase(pair.host_attempt).is_none() {
+            break;
+        }
+    }
+    assert!(
+        matches!(
+            pair.host_events.last(),
+            Some(HostEvent::PeerClosed {
+                reason: CloseReason::SyncTimeout,
+                ..
+            })
+        ),
+        "recovery stayed bounded: {:?}",
+        pair.host_events.last()
+    );
+    assert!(pair.now < 3_000_000, "closed at {} µs", pair.now);
+}
+
+#[test]
+fn delta_reconstruction_stops_at_the_snapshot_limit_before_copying() {
+    let limits = ge_net::replication::ReplicationLimits {
+        max_entities: 64,
+        max_entity_bytes: 1_024,
+        max_snapshot_bytes: 1_024,
+    };
+    // Sixty-four creates of a kilobyte each: every one passes the parsing
+    // limits, together they are sixty times the snapshot limit.
+    let target = world((0..64).map(|i| record(i, 0, &[7; 1_024])).collect());
+    let mut delta = Vec::new();
+    encode_delta(None, &target, &mut delta);
+    assert!(matches!(
+        apply_delta(None, &delta, &limits),
+        Err(DeltaError::Snapshot(SnapshotError::SnapshotTooLarge { bytes, max: 1_024 }))
+            if bytes <= 2 * 1_024 + 64
+    ));
+    // Unchanged baseline records count too: an empty delta over a baseline
+    // larger than the limit is refused in the same way.
+    let mut empty = Vec::new();
+    encode_delta(Some(&target), &target, &mut empty);
+    assert!(matches!(
+        apply_delta(Some(&target), &empty, &limits),
+        Err(DeltaError::Snapshot(SnapshotError::SnapshotTooLarge { .. }))
+    ));
+    let few = ge_net::replication::ReplicationLimits {
+        max_entities: 3,
+        max_entity_bytes: 1_024,
+        max_snapshot_bytes: 1 << 20,
+    };
+    assert!(matches!(
+        apply_delta(Some(&target), &empty, &few),
+        Err(DeltaError::Snapshot(SnapshotError::TooManyEntities {
+            count: 4,
+            max: 3
+        }))
+    ));
+}
+
+#[test]
+fn snapshots_are_held_to_their_sixteen_bit_wire_fields() {
+    let generous = ge_net::replication::ReplicationLimits {
+        max_entities: 1 << 20,
+        max_entity_bytes: 1 << 20,
+        max_snapshot_bytes: 1 << 30,
+    };
+    let large = world(vec![record(0, 0, &vec![0; 65_536])]);
+    assert_eq!(
+        large.check(&generous),
+        Err(SnapshotError::EntityTooLarge {
+            id: EntityId::new(0, 0),
+            len: 65_536,
+            max: 65_535,
+        })
+    );
+    let many = world((0..=u16::MAX).map(|i| record(i, 0, &[])).collect());
+    assert_eq!(
+        many.check(&generous),
+        Err(SnapshotError::TooManyEntities {
+            count: 65_536,
+            max: 65_535,
+        })
+    );
+    // Just inside both widths is accepted.
+    let edge = world(vec![record(0, 0, &vec![0; 65_535])]);
+    assert!(edge.check(&generous).is_ok());
 }

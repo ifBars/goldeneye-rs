@@ -94,6 +94,21 @@ impl Pair {
         sequence_origin: u32,
         seed: u64,
     ) -> Self {
+        Self::build(host_budget, budget, sequence_origin, seed, 1)
+    }
+
+    /// As [`Pair::new`], with a client that asks for several player slots.
+    pub fn with_slots(budget: SessionBudget, slots: u8, seed: u64) -> Self {
+        Self::build(budget.clone(), budget, 0, seed, slots)
+    }
+
+    fn build(
+        host_budget: SessionBudget,
+        budget: SessionBudget,
+        sequence_origin: u32,
+        seed: u64,
+        slots: u8,
+    ) -> Self {
         let mut entropy = SeededRng::new(seed);
         let mut host = HostSession::new(
             HostConfig {
@@ -110,7 +125,7 @@ impl Pair {
             ClientConfig {
                 budget,
                 descriptor: descriptor(),
-                requested_slots: 1,
+                requested_slots: slots,
                 sequence_origin,
             },
             CAPABILITIES,

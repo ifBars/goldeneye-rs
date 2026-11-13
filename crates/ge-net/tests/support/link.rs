@@ -268,6 +268,70 @@ impl SimNetwork {
             let at = from + connection.profile.failure_after_micros;
             connection.fail_at = Some(connection.fail_at.map_or(at, |old| old.min(at)));
         }
+        self.reconcile(index);
+    }
+
+    /// Apply the connection's partitions to messages already in flight:
+    /// datagrams due during one are lost, and reliable messages wait for it
+    /// to heal without overtaking each other.
+    fn reconcile(&mut self, index: usize) {
+        let client = self.connections[index].client;
+        let mut pending = Vec::new();
+        for side in 0..2 {
+            let inbox = if side == 1 {
+                &mut self.host_inbox
+            } else {
+                &mut self.client_inboxes[client]
+            };
+            let (mine, rest): (Vec<_>, Vec<_>) = std::mem::take(inbox)
+                .into_iter()
+                .partition(|Reverse(item)| item.connection == index);
+            *inbox = rest.into_iter().collect();
+            pending.extend(mine.into_iter().map(|Reverse(item)| item));
+        }
+        pending.sort_by_key(|item| (item.at, item.order));
+
+        let profile = self.connections[index].profile.clone();
+        // Latest arrival per receiving side and reliable lane.
+        let mut last = [[0u64; 2]; 2];
+        for mut item in pending {
+            let partitioned = self.partition_end(index, item.at);
+            match item.reliable {
+                Some((lane, _)) => {
+                    let mut at = item.at;
+                    if let Some(end) = partitioned {
+                        at = end + profile.retransmit_micros + profile.latency_micros;
+                    }
+                    at = at.max(last[item.side][lane]);
+                    last[item.side][lane] = at;
+                    // The sender's direction feeds this side.
+                    let direction = &mut self.connections[index].directions[1 - item.side];
+                    direction.last_arrival[lane] = direction.last_arrival[lane].max(at);
+                    item.at = at;
+                }
+                None if partitioned.is_some()
+                    && matches!(
+                        item.event,
+                        TransportEvent::Message {
+                            lane: Lane::Datagram,
+                            ..
+                        }
+                    ) =>
+                {
+                    let connection = &mut self.connections[index];
+                    connection.directions[1 - item.side].unconsumed_datagram -= item.datagram_len;
+                    connection.stats.datagrams_lost += 1;
+                    continue;
+                }
+                None => {}
+            }
+            let inbox = if item.side == 1 {
+                &mut self.host_inbox
+            } else {
+                &mut self.client_inboxes[client]
+            };
+            inbox.push(Reverse(item));
+        }
     }
 
     /// Replace the profile of the client's newest connection.
@@ -450,6 +514,19 @@ impl SimNetwork {
             while self.rng.chance(profile.loss_per_mille) {
                 delay += profile.retransmit_micros;
                 delayed = true;
+                if delay > profile.failure_after_micros {
+                    // The backend gives up retransmitting: the connection
+                    // fails for both ends, and nothing later on this lane
+                    // may arrive before that failure.
+                    let at = departure + profile.failure_after_micros;
+                    let connection = &mut self.connections[index];
+                    connection.fail_at = Some(connection.fail_at.map_or(at, |old| old.min(at)));
+                    let last = &mut connection.directions[side].last_arrival[lane_slot];
+                    *last = (*last).max(at + 1);
+                    connection.stats.reliable_messages += 1;
+                    connection.stats.reliable_delayed += 1;
+                    return SendOutcome::Sent;
+                }
             }
             let mut arrival = departure + delay;
             // A partition holds reliable data until it heals.

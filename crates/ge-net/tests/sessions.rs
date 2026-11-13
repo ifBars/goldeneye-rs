@@ -1002,3 +1002,241 @@ fn a_transport_that_reports_closed_on_send_ends_the_attempt() {
     );
     assert_eq!(harness.clients[1].session.phase(), Phase::Active);
 }
+
+#[test]
+fn every_slot_gets_turns_when_one_datagram_holds_one_command() {
+    let mut budget = SessionBudget::small_session();
+    // Exactly one largest command fits each input datagram.
+    budget.max_datagram_bytes = 14 + 8 + 6 + 6 + 4 + 64;
+    budget.command_future_ticks = 1_000;
+    let mut pair = Pair::with_slots(budget, 2, 47);
+    pair.establish(1, empty());
+    let slots = pair.client.slots();
+    assert_eq!(slots.len(), 2);
+
+    // Both slots always have work queued; all of it is for one far tick.
+    for tick in 2..42 {
+        for slot in &slots {
+            pair.client
+                .submit_command(*slot, Tick::new(500), &[slot.get() + 1; 64])
+                .unwrap();
+        }
+        pair.publish(tick, empty());
+    }
+    let released = pair.host.take_commands(Tick::new(500)).unwrap();
+    let per_slot = |slot: PlayerSlot| {
+        released
+            .iter()
+            .filter(|command| command.slot == slot)
+            .count()
+    };
+    // One command crosses per datagram. The first slot packed rotates, so
+    // neither slot starves; without rotation the second never gets a turn.
+    for slot in &slots {
+        assert!(
+            per_slot(*slot) >= 15,
+            "{slot} got {} turns",
+            per_slot(*slot)
+        );
+    }
+}
+
+#[test]
+fn a_closing_peer_never_has_its_commands_released() {
+    let mut pair = Pair::new(SessionBudget::small_session(), 0, 48);
+    pair.establish(1, empty());
+    let slot = PlayerSlot::new(0);
+    pair.client
+        .submit_command(slot, Tick::new(5), &command(1))
+        .unwrap();
+    pair.advance(16_666);
+    pair.settle();
+    assert_eq!(pair.host.diagnostics().commands_accepted, 1);
+    // The command is buffered for tick 5 when the host starts closing.
+    pair.host.close_peer(pair.host_attempt).unwrap();
+    assert_eq!(pair.host.phase(pair.host_attempt), Some(Phase::Closing));
+    assert!(pair.host.take_commands(Tick::new(5)).unwrap().is_empty());
+}
+
+#[test]
+fn connection_turnover_cannot_grow_the_event_queue() {
+    let mut budget = SessionBudget::small_session();
+    budget.max_pending_events = 4;
+    let mut entropy = support::rng::SeededRng::new(49);
+    let mut host = ge_net::HostSession::new(
+        ge_net::HostConfig {
+            budget,
+            descriptor: descriptor(),
+            sequence_origin: 0,
+        },
+        support::pipe::CAPABILITIES,
+        &mut entropy,
+        NetInstant::ZERO,
+    )
+    .unwrap();
+    // The application never polls; attempts come and go.
+    let mut refused = 0;
+    for attempt in 1..10_000u64 {
+        match host.admit(AttemptId::new(attempt)) {
+            Ok(()) => {
+                host.transport_closed(AttemptId::new(attempt), TransportFailure::RemoteClosed)
+            }
+            Err(error) => {
+                assert_eq!(error, StateError::EventQueueFull);
+                refused += 1;
+            }
+        }
+    }
+    assert!(refused > 9_000);
+    let mut queued = 0;
+    while host.poll_event().is_some() {
+        queued += 1;
+    }
+    assert!(queued <= 4, "{queued} events queued");
+    // Once drained, admission works again.
+    assert_eq!(host.admit(AttemptId::new(20_000)), Ok(()));
+}
+
+/// A backend that always has another event, none of which reaches a session.
+struct Endless {
+    polled: usize,
+}
+
+impl ge_net::Transport for Endless {
+    fn capabilities(&self) -> ge_net::TransportCapabilities {
+        support::pipe::CAPABILITIES
+    }
+
+    fn poll(&mut self) -> Option<ge_net::TransportEvent> {
+        // Ends eventually, so an unbounded pump fails instead of hanging.
+        if self.polled == 1_000_000 {
+            return None;
+        }
+        self.polled += 1;
+        Some(if self.polled.is_multiple_of(2) {
+            ge_net::TransportEvent::Message {
+                attempt: AttemptId::new(999),
+                lane: Lane::Datagram,
+                bytes: vec![1],
+            }
+        } else {
+            ge_net::TransportEvent::Closed {
+                attempt: AttemptId::new(998),
+                failure: TransportFailure::RemoteClosed,
+            }
+        })
+    }
+
+    fn send(&mut self, _: AttemptId, _: Lane, _: &[u8]) -> SendOutcome {
+        SendOutcome::Sent
+    }
+
+    fn close(&mut self, _: AttemptId) {}
+}
+
+#[test]
+fn one_pump_does_bounded_work_however_many_stale_events_arrive() {
+    let budget = SessionBudget::small_session();
+    let limit = budget.max_inbound_messages_per_update as usize;
+    let mut pair = Pair::new(budget, 0, 50);
+    let mut endless = Endless { polled: 0 };
+    ge_net::transport::pump_host(&mut pair.host, &mut endless, DrainLimit::UNLIMITED);
+    assert!(
+        endless.polled <= limit,
+        "host pump polled {}",
+        endless.polled
+    );
+    let mut endless = Endless { polled: 0 };
+    ge_net::transport::pump_client(&mut pair.client, &mut endless, DrainLimit::UNLIMITED);
+    assert!(
+        endless.polled <= limit,
+        "client pump polled {}",
+        endless.polled
+    );
+}
+
+#[test]
+fn a_partition_registered_later_still_holds_messages_already_in_flight() {
+    use ge_net::Transport;
+    use support::link::SimNetwork;
+    let mut net = SimNetwork::new(51, 1);
+    let profile = LinkProfile {
+        latency_micros: 100_000,
+        ..LinkProfile::ideal()
+    };
+    let client_attempt = net.connect(0, profile.clone());
+    net.set_now(100_000);
+    assert!(matches!(
+        net.endpoint(Endpoint::Host).poll(),
+        Some(ge_net::TransportEvent::Connected { .. })
+    ));
+    // Sent at 100 ms, due at 200 ms.
+    let mut client = net.endpoint(Endpoint::Client(0));
+    assert!(matches!(
+        client.poll(),
+        Some(ge_net::TransportEvent::Connected { .. })
+    ));
+    client.send(client_attempt, Lane::Control, b"first");
+    client.send(client_attempt, Lane::Datagram, b"lost");
+    // The partition is registered after they left.
+    net.partition(0, 150_000, 600_000);
+    net.set_now(160_000);
+    net.endpoint(Endpoint::Client(0))
+        .send(client_attempt, Lane::Control, b"second");
+
+    net.set_now(590_000);
+    assert_eq!(
+        net.endpoint(Endpoint::Host).poll(),
+        None,
+        "nothing crosses it"
+    );
+    // After it heals, reliable messages arrive in order; the datagram is gone.
+    net.set_now(600_000 + profile.retransmit_micros + profile.latency_micros + 1);
+    let mut host = net.endpoint(Endpoint::Host);
+    let mut received = Vec::new();
+    while let Some(event) = host.poll() {
+        match event {
+            ge_net::TransportEvent::Message { lane, bytes, .. } => {
+                assert_eq!(lane, Lane::Control);
+                received.push(bytes);
+            }
+            other => panic!("unexpected {other:?}"),
+        }
+    }
+    assert_eq!(received, vec![b"first".to_vec(), b"second".to_vec()]);
+    assert!(net.stats(0).datagrams_lost >= 1);
+}
+
+#[test]
+fn total_reliable_loss_ends_the_connection_instead_of_hanging() {
+    let mut config = HarnessConfig::new(52, 1);
+    config.profile = LinkProfile {
+        loss_per_mille: 1_000,
+        ..LinkProfile::ideal()
+    };
+    let mut harness = Harness::new(config);
+    harness.connect(0);
+    harness.run_ticks(60 * 12);
+    // Nothing gets through; the attempt ends with a typed reason.
+    assert_eq!(harness.clients[0].closed.len(), 1);
+    assert!(matches!(
+        harness.clients[0].closed[0],
+        CloseReason::HandshakeTimeout | CloseReason::Transport(TransportFailure::TimedOut)
+    ));
+    assert!(harness.clients[0].activated.is_empty());
+}
+
+#[test]
+fn the_same_seed_gives_the_same_random_sequence() {
+    use support::rng::SeededRng;
+    for seed in [0, 1, 7, u64::MAX] {
+        let mut first = SeededRng::new(seed);
+        let mut second = SeededRng::new(seed);
+        let a: Vec<u64> = (0..64).map(|_| first.next()).collect();
+        let b: Vec<u64> = (0..64).map(|_| second.next()).collect();
+        assert_eq!(a, b, "seed {seed}");
+        let mut other = SeededRng::new(seed.wrapping_add(1));
+        let c: Vec<u64> = (0..64).map(|_| other.next()).collect();
+        assert_ne!(a, c, "seed {seed}");
+    }
+}

@@ -68,6 +68,9 @@ struct Handle {
     control: mpsc::Sender<Vec<u8>>,
     bulk: mpsc::Sender<Vec<u8>>,
     connection: Connection,
+    /// Shared with the connection's tasks: a failure recorded here ends the
+    /// attempt through the same ordered teardown as any other.
+    failure: Failure,
     _closing: oneshot::Sender<()>,
 }
 
@@ -214,7 +217,7 @@ impl Backend {
     }
 
     pub(crate) fn send(&mut self, attempt: AttemptId, lane: Lane, message: &[u8]) -> SendOutcome {
-        let mut connections = self
+        let connections = self
             .shared
             .connections
             .lock()
@@ -222,6 +225,10 @@ impl Backend {
         let Some(Entry::Open(handle)) = connections.get(&attempt.get()) else {
             return SendOutcome::Closed;
         };
+        // A failed attempt takes nothing more; its `Closed` is on the way.
+        if handle.failure.get().is_some() {
+            return SendOutcome::Closed;
+        }
         let queue = match lane {
             Lane::Control => &handle.control,
             Lane::Bulk => &handle.bulk,
@@ -246,11 +253,14 @@ impl Backend {
         if message.len() > self.config.max_reliable_message_bytes as usize {
             // A reliable message that cannot be carried breaks the lane's
             // contract; fail the connection explicitly instead of dropping it.
-            connections.remove(&attempt.get());
-            self.local_events.push_back(TransportEvent::Closed {
-                attempt,
-                failure: TransportFailure::ReliableDeliveryFailed,
-            });
+            // The worker reports `Closed` after every event already received
+            // for this attempt, so nothing follows it.
+            handle.failure.close(
+                &handle.connection,
+                TransportFailure::ReliableDeliveryFailed,
+                CLOSE_RELIABLE,
+                b"message too large",
+            );
             return SendOutcome::Closed;
         }
         match queue.try_send(message.to_vec()) {
@@ -432,8 +442,16 @@ fn run(
             .lock()
             .expect("connection table lock")
             .clear();
-        let _ = timeout(flush, endpoint.wait_idle()).await;
-        endpoint.close(VarInt::from_u32(CLOSE_NORMAL), b"shutdown");
+        // Connections that flushed in time have closed normally by now. Any
+        // still open could not deliver what they accepted, and their peers
+        // are told so rather than seeing an orderly close.
+        let drained = timeout(flush, endpoint.wait_idle()).await.is_ok();
+        let code = if drained {
+            CLOSE_NORMAL
+        } else {
+            CLOSE_RELIABLE
+        };
+        endpoint.close(VarInt::from_u32(code), b"shutdown");
         let _ = timeout(Duration::from_millis(250), endpoint.wait_idle()).await;
     });
 }
@@ -492,7 +510,7 @@ async fn accept_loop(endpoint: Endpoint, context: Arc<Context>) {
                 // order. The wait is bounded: an application that stops
                 // polling cannot hold the lock, and its new connections are
                 // turned away instead of piling up.
-                if !report_connected(&context, attempt, &connection).await {
+                if !report_connected(&context, attempt, &connection, true).await {
                     return;
                 }
                 attempt
@@ -504,16 +522,27 @@ async fn accept_loop(endpoint: Endpoint, context: Arc<Context>) {
 
 /// Queue `Connected` for an attempt already in the connection table. On
 /// failure the attempt is removed and its connection closed.
-async fn report_connected(context: &Context, attempt: u64, connection: &Connection) -> bool {
+///
+/// A host bounds the wait by `connect_timeout` and turns the connection
+/// away, so an application that stops polling cannot hold the attempt lock.
+/// A client waits: its application asked for this attempt and must learn
+/// how it ended; the wait ends at the latest when the endpoint shuts down.
+async fn report_connected(
+    context: &Context,
+    attempt: u64,
+    connection: &Connection,
+    bounded: bool,
+) -> bool {
     let connected = TransportEvent::Connected {
         attempt: AttemptId::new(attempt),
     };
-    match timeout(
-        context.config.connect_timeout,
-        context.events.send(connected),
-    )
-    .await
-    {
+    let send = context.events.send(connected);
+    let outcome = if bounded {
+        timeout(context.config.connect_timeout, send).await
+    } else {
+        Ok(send.await)
+    };
+    match outcome {
         Ok(Ok(())) => true,
         Ok(Err(_)) => {
             context.shared.remove(attempt);
@@ -584,7 +613,9 @@ async fn connect(
             }
         }
     }
-    if !report_connected(&context, attempt, &connection).await {
+    // A client attempt always ends in `Connected` or `Closed`, so its
+    // report waits for the application rather than giving up.
+    if !report_connected(&context, attempt, &connection, false).await {
         return;
     }
     drive(attempt, connection, lanes, parts, context).await;
@@ -596,22 +627,26 @@ struct HandleParts {
     bulk: mpsc::Receiver<Vec<u8>>,
     /// Resolves when the handle is removed, for any reason.
     closing: oneshot::Receiver<()>,
+    failure: Failure,
 }
 
 fn handle_for(connection: &Connection, config: &QuicConfig) -> (Handle, HandleParts) {
     let (control, control_rx) = mpsc::channel(config.send_queue_messages);
     let (bulk, bulk_rx) = mpsc::channel(config.send_queue_messages);
     let (closing, closing_rx) = oneshot::channel();
+    let failure = Failure::default();
     let handle = Handle {
         control,
         bulk,
         connection: connection.clone(),
+        failure: failure.clone(),
         _closing: closing,
     };
     let parts = HandleParts {
         control: control_rx,
         bulk: bulk_rx,
         closing: closing_rx,
+        failure,
     };
     (handle, parts)
 }
@@ -678,7 +713,7 @@ async fn drive(
     context: Arc<Context>,
 ) {
     let flush = context.config.close_flush_timeout;
-    let failure = Failure::default();
+    let failure = parts.failure.clone();
     let (control_send, control_recv) = lanes.control;
     let (bulk_send, bulk_recv) = lanes.bulk;
     let writers = [

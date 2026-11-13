@@ -133,6 +133,9 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
     let joined_tick = harness.tick;
+    // Bandwidth covers only the measured interval, not the handshake and
+    // initial synchronization that happened before it.
+    let channels_before = ChannelId::ALL.map(|channel| harness.host.diagnostics().channel(channel));
     let allocations_before = ALLOCATIONS.load(Ordering::Relaxed);
     let bytes_before = ALLOCATED_BYTES.load(Ordering::Relaxed);
     let started = Instant::now();
@@ -170,14 +173,14 @@ fn main() -> ExitCode {
     let seconds = options.ticks as f64 * tick_micros as f64 / 1_000_000.0;
     let host = harness.host.diagnostics();
     println!("\nbandwidth over {seconds:.1} simulated seconds (host side, all clients)");
-    for channel in ChannelId::ALL {
-        let counters = host.channel(channel);
+    for (channel, before) in ChannelId::ALL.into_iter().zip(channels_before) {
+        let now = host.channel(channel);
         println!(
             "  {channel:?}: sent {:.0} B/s in {} messages, received {:.0} B/s in {} messages",
-            counters.bytes_sent as f64 / seconds,
-            counters.messages_sent,
-            counters.bytes_received as f64 / seconds,
-            counters.messages_received,
+            (now.bytes_sent - before.bytes_sent) as f64 / seconds,
+            now.messages_sent - before.messages_sent,
+            (now.bytes_received - before.bytes_received) as f64 / seconds,
+            now.messages_received - before.messages_received,
         );
     }
     println!(
