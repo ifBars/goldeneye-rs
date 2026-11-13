@@ -5,9 +5,10 @@ Windows. The long-term goal is to reproduce the original game's behavior.
 
 ## Playability at a glance
 
-> **0 playable missions. Startup and menus work; gameplay is not available yet.**
+> **Playable now: startup, menus, settings and Extras navigation.**
 >
-> Choosing **New Game** loads the Tutorial world and stops at **Preparing player**.
+> **Playable missions: 0.** Choosing **New Game** loads Tutorial world data
+> and stops at **Preparing player**. Movement and combat are not available yet.
 
 <!-- Keep this summary aligned with what the native build can actually run. -->
 
@@ -16,14 +17,20 @@ Windows. The long-term goal is to reproduce the original game's behavior.
 | Startup and title screen | **Working**: startup screens, logo movies and title animation. |
 | Main menu | **Working**: navigation and menu audio. |
 | Settings and Extras | Sound/screen settings and Extras navigation work. |
-| New Game / Tutorial loading | **Partial**: the world loads; player initialization is unfinished. |
+| New Game / Tutorial loading | **Partial**: world data loads; player initialization is unfinished. |
 | Player, camera, movement and combat | **Not playable yet.** |
 | Campaign missions and multiplayer | **Unavailable.** |
 
+**Road to the first playable Tutorial:**
+
+- [x] Open the game and use startup, menus and settings.
+- [x] Load Tutorial world data through New Game.
+- [ ] Finish player initialization and pose setup. **Current work.**
+- [ ] Enable the gameplay camera and player controls.
+- [ ] Play and complete the Tutorial.
+
 **Latest checkpoint:** both player startup animation actions and their callback
-now complete.
-**Next:** finish the remaining player constructor and pose setup, then continue
-toward the gameplay camera and a playable Tutorial.
+now complete. The player still needs more initialization before gameplay can start.
 
 A reliable whole-game completion percentage isn't available yet. Progress is
 tracked by working features and playable missions; test coverage is separate.
