@@ -387,10 +387,27 @@ recorded separately from the TP setter tail and later FP dispatch. The native
 setter now returns and its dispatch tail writes the two script heads' blend
 coordinates. Both scripts re-enter with initflag1, query a rate of 0.5 from their
 30 FPS animations and the retained baseline60, reuse unchanged clip selections
-and return position preparation. TP dispatch then returns before the still
-pending FP dispatch. Re-entry uses the same file generation and caches; it
+and return position preparation. TP dispatch then returns before FP dispatch.
+Re-entry uses the same file generation and caches; it
 neither recreates the children nor overwrites their factory receipts. See
 [script updates](animation-script-updates.md) for the retained update boundary.
+
+FP now qualifies directly through its actual component resource and uses the
+tracked primary branch. It has no dispatcher-entry control capture. Its first
+reached command requests mask3, performs an ordinary empty refresh and captures
+the actual FP locals/auxiliary storage into one control. The mask helper visits
+only the current active slot zero, preserving the other headers and active count.
+Its second command initializes a script in slot one through the same file owner:
+one inline clip, range76, animation directory11 and FPS30. Insertion raises active
+count to two without an old-head copy in that previously empty slot.
+
+Both FP commands return before the cursor returns 0x0900000b. The setter stores
+the requested generic and mapped modes, both 0x0900071e, rather than that returned
+word. Comparing the saved NULL primary head with the new control clears secondary
+history. A final slot-one blend-coordinate helper returns before FP dispatch.
+The initial-action callback still awaits its actual mask-attribute and parameter
+suffix. See [FP dispatch](first-person-mode-dispatch.md) for retained history,
+failure prefixes and the current native checkpoint.
 See [script initialization](animation-script-initialization.md) for the source
 ordering, partial-failure behavior and remaining dependencies.
 

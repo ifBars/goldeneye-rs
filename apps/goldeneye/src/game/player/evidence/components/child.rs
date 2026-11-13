@@ -1,4 +1,3 @@
-use super::super::super::Owned;
 use anyhow::{Context, Result, ensure};
 use ge_core::animation::{
     nodes::Kind,
@@ -28,56 +27,37 @@ pub struct ChildHeader {
     pub parent_word_stored: bool,
     pub state_sha256: String,
 }
-pub(super) fn build(player: &Owned) -> Result<Option<ChildHeader>> {
-    let command = player
-        .action
-        .as_ref()
-        .context("TP action absent")?
-        .state
-        .command();
-    let Some(command) = command else {
-        return Ok(None);
-    };
+pub(super) fn current(
+    animator: &ge_core::mission::player::components::Animator,
+    command: &ge_core::animation::layers::command::Pending,
+) -> Result<Option<ChildHeader>> {
     let Some(id) = command.factory_node() else {
         return Ok(None);
     };
-    let request = command.child().context("TP child factory request absent")?;
-    build_node(player, id, request)
+    let request = command.child().context("child factory request absent")?;
+    build_node(animator, command, id, request)
 }
-pub(super) fn completed(player: &Owned) -> Result<Option<ChildHeader>> {
-    let effect = player
-        .action
-        .as_ref()
-        .and_then(|a| a.state.command())
-        .and_then(|c| c.last_completed());
-    let Some(effect) = effect else {
+pub(super) fn completed_for(
+    animator: &ge_core::mission::player::components::Animator,
+    command: &ge_core::animation::layers::command::Pending,
+) -> Result<Option<ChildHeader>> {
+    let Some(effect) = command.last_completed() else {
         return Ok(None);
     };
-    build_node(player, effect.node, effect.request)
+    build_node(animator, command, effect.node, effect.request)
 }
 fn build_node(
-    player: &Owned,
+    animator: &ge_core::mission::player::components::Animator,
+    command: &ge_core::animation::layers::command::Pending,
     id: ge_core::animation::layers::NodeId,
     request: ge_core::animation::layers::command::ChildRequest,
 ) -> Result<Option<ChildHeader>> {
     use ge_core::animation::layers::command::EffectStage;
-    let command = player
-        .action
-        .as_ref()
-        .context("child effect caller absent")?
-        .state
-        .command()
-        .context("child effect command absent")?;
     let effect = command
         .effects()
         .iter()
         .find(|e| e.node == id)
         .context("child effect allocation history absent")?;
-    let animator = player
-        .components
-        .preparation
-        .animator()
-        .context("TP child animator absent")?;
     let header = animator
         .script_children()
         .get(id)
@@ -99,6 +79,13 @@ fn build_node(
             && link.is_none_or(|link| link.slot == request.slot),
         "TP typed intrusive membership differs"
     );
+    if inserted {
+        let start = 0x138 + usize::from(request.slot) * 0x20;
+        ensure!(
+            animator.word(start).is_none() && animator.word(start + 4).is_none(),
+            "typed script membership contradicts raw NULL list head/tail"
+        );
+    }
     let scalar = matches!(effect.stage, EffectStage::Scalars | EffectStage::Complete);
     if scalar {
         ensure!(

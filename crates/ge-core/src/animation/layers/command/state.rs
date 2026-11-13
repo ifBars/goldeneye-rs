@@ -11,7 +11,7 @@ impl Pending {
                 emit(value);
             }
         }
-        emit(3);
+        emit(4);
         emit(self.opcode);
         emit(self.stage as u32);
         optional(&mut emit, self.set_reference);
@@ -70,6 +70,10 @@ impl Pending {
             }
             optional(&mut emit, effect.copied_bits);
             optional(&mut emit, effect.post_word);
+        }
+        emit(u32::from(self.mask_effects.is_some()));
+        if let Some(effects) = &self.mask_effects {
+            effects.visit_state_words(&mut emit);
         }
     }
 }

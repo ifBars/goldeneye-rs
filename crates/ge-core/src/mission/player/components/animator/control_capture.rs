@@ -126,7 +126,11 @@ impl Animator {
         }
         result
     }
-    fn refresh_for_capture(&mut self, context: &mut Scratch, arena: &mut Arena) -> Result<Refresh> {
+    pub(super) fn refresh_for_capture(
+        &mut self,
+        context: &mut Scratch,
+        arena: &mut Arena,
+    ) -> Result<Refresh> {
         self.bytes[0x135] = Some(0);
         let flags = u16::from_be_bytes([
             self.byte(0xc).context("TP update flags unknown")?,
@@ -135,7 +139,7 @@ impl Animator {
         self.half_store(0xc, flags & !8);
         context.refresh_empty(arena)
     }
-    fn invalidate_control_header(&mut self, start: usize) {
+    pub(super) fn invalidate_control_header(&mut self, start: usize) {
         self.bytes[start..start + 8].fill(None);
     }
 }

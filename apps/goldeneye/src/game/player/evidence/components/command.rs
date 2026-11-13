@@ -18,6 +18,7 @@ pub struct CommandBody {
     pub child_flags: Option<u16>,
     pub child_divisor: Option<u32>,
     pub mask: Option<u16>,
+    pub mask_effects: Option<super::mask::MaskEffects>,
     pub children_created: usize,
     pub children_completed: usize,
     pub children_inserted: usize,
@@ -49,7 +50,24 @@ pub(super) fn build(player: &Owned) -> Result<Option<CommandBody>> {
             && action.tp_command_stream.is_some(),
         "TP command source binding differs"
     );
-    let child_header = super::child::build(player)?;
+    let owner = player
+        .components
+        .preparation
+        .animator()
+        .context("TP command animator absent")?;
+    ensure!(owner.controls().len() == 4, "TP capture controls differ");
+    Ok(Some(build_for(
+        owner,
+        command,
+        action.state.command_acknowledged(),
+    )?))
+}
+pub(super) fn build_for(
+    owner: &ge_core::mission::player::components::Animator,
+    command: &ge_core::animation::layers::command::Pending,
+    acknowledged: bool,
+) -> Result<CommandBody> {
+    let child_header = super::child::current(owner, command)?;
     let stage = match command.stage() {
         Stage::ChildFactoryPending
             if child_header
@@ -63,21 +81,19 @@ pub(super) fn build(player: &Owned) -> Result<Option<CommandBody>> {
         Stage::CleanupPending => "cleanup_pending",
         Stage::MaskControlPending => "mask_control_pending",
         Stage::MaskClearPending => "mask_clear_pending",
+        Stage::MaskRefreshPending => "mask_refresh_pending",
+        Stage::MaskBackingPending => "mask_backing_pending",
+        Stage::MaskEffectsPending => "mask_effects_pending",
+        Stage::MaskDestroyPending => "mask_destroy_pending",
         Stage::OpcodePending => "opcode_pending",
         Stage::ChildWrapperPending => "child_wrapper_pending",
         Stage::ChildContinuationPending => "child_continuation_pending",
         Stage::Returned => "command_returned",
         _ => anyhow::bail!("TP command has no reportable effect boundary"),
     };
-    let owner = player
-        .components
-        .preparation
-        .animator()
-        .context("TP command animator absent")?;
     let layers = owner.layers().context("TP command layer owner absent")?;
     ensure!(
         !layers.failed()
-            && owner.controls().len() == 4
             && owner.byte(0x130) == Some(layers.active_count())
             && layers
                 .slots()
@@ -87,7 +103,7 @@ pub(super) fn build(player: &Owned) -> Result<Option<CommandBody>> {
         "TP command weight prefix differs from actual owner"
     );
     let child = command.child();
-    Ok(Some(CommandBody {
+    Ok(CommandBody {
         stage,
         opcode: command.opcode(),
         set_reference: command.set_reference(),
@@ -102,6 +118,7 @@ pub(super) fn build(player: &Owned) -> Result<Option<CommandBody>> {
         child_flags: child.map(|child| child.effective_flags),
         child_divisor: child.map(|child| child.divisor),
         mask: command.mask(),
+        mask_effects: super::mask::build(owner, command)?,
         children_created: command.effects().len(),
         children_completed: command
             .effects()
@@ -117,16 +134,16 @@ pub(super) fn build(player: &Owned) -> Result<Option<CommandBody>> {
         active_slots: layers.active_count(),
         effective_flags_or: command.flags_or(),
         child_header,
-        last_completed_child: super::child::completed(player)?,
+        last_completed_child: super::child::completed_for(owner, command)?,
         command_returned: command.stage() == Stage::Returned,
         cleanup_complete: false,
         cleanup_skipped: command.stage() == Stage::Returned && command.flags_or() & 0x20 != 0,
-        selector_acknowledged: action.state.command_acknowledged(),
+        selector_acknowledged: acknowledged,
         state_sha256: super::super::words(b"ge_player_tp_command_prefix_v1\0", |emit| {
             command.visit_state_words(emit)
         }),
         layers_state_sha256: super::super::words(b"ge_player_tp_command_layers_v1\0", |emit| {
             layers.visit_state_words(emit)
         }),
-    }))
+    })
 }

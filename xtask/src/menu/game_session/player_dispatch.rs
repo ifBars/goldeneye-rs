@@ -64,7 +64,6 @@ pub(super) fn validate(s: &Value, action: &Value) -> Result<()> {
         s["captured_position_bits"] == 0
             && s["history_updated"].is_boolean()
             && (s["primary_changed"].is_null() || s["primary_changed"].is_boolean())
-            && s["history_updated"] == action["mode_history_updated"]
             && count(s, "scalar_visits")? <= 3
             && count(s, "scalar_writes")? <= count(s, "scalar_visits")?
             && count(s, "updates_started")? <= 2
@@ -139,8 +138,16 @@ pub(super) fn validate(s: &Value, action: &Value) -> Result<()> {
             "TP pending script update claims a dispatcher return or skips a slot"
         ),
         Some("returned") => ensure!(
-            action["stage"] == "fp_dispatch_pending"
-                && s["updates_started"] == 2
+            matches!(
+                action["stage"].as_str(),
+                Some(
+                    "fp_dispatch_pending"
+                        | "fp_command_pending"
+                        | "fp_setter_tail_pending"
+                        | "fp_dispatch_tail_pending"
+                        | "initial_action_suffix_pending"
+                )
+            ) && s["updates_started"] == 2
                 && s["updates_completed"] == 2
                 && s["pending_slot"].is_null()
                 && s["pending_dependency"].is_null(),

@@ -13,6 +13,7 @@ trait Source {
 }
 struct Owners<'a> {
     player: PlayerId,
+    receiver: Identity,
     reset: &'a mut PendingReset,
     preparation: &'a Preparation,
 }
@@ -21,10 +22,7 @@ impl Source for Owners<'_> {
         self.reset.store_action_history(self.player, offset, word)
     }
     fn primary(&mut self) -> Result<(Option<NodeId>, u32)> {
-        let owner = self
-            .preparation
-            .animator()
-            .context("TP setter head owner absent")?;
+        let owner = self.preparation.mode_animator(self.receiver)?;
         ensure!(
             owner.player() == self.player,
             "TP setter head player differs"
@@ -122,6 +120,7 @@ impl Pending {
         let result = finish(
             &mut Owners {
                 player: self.player,
+                receiver: self.resolved[1].request.component,
                 reset,
                 preparation,
             },
@@ -141,6 +140,34 @@ impl Pending {
         }
         result
     }
+}
+
+pub(super) struct Inputs {
+    pub player: PlayerId,
+    pub receiver: Identity,
+    pub saved: Option<(Option<NodeId>, u32)>,
+    pub generic: u32,
+    pub mapped: u32,
+}
+pub(super) fn finish_tracked(
+    inputs: Inputs,
+    reset: &mut PendingReset,
+    preparation: &Preparation,
+    trace: &mut SetterReturn,
+) -> Result<()> {
+    finish(
+        &mut Owners {
+            player: inputs.player,
+            receiver: inputs.receiver,
+            reset,
+            preparation,
+        },
+        trace,
+        true,
+        inputs.saved,
+        inputs.generic,
+        inputs.mapped,
+    )
 }
 
 #[cfg(test)]

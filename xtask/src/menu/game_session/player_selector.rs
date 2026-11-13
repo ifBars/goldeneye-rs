@@ -13,10 +13,44 @@ pub(super) fn dependency(stage: &Value) -> Option<&'static str> {
         "tp_setter_tail_pending" => Some("tp_mode_setter_tail"),
         "tp_dispatch_pending" => Some("tp_animation_update"),
         "fp_dispatch_pending" => Some("fp_mode_dispatch"),
+        "fp_command_pending" => Some("fp_animation_command"),
+        "fp_setter_tail_pending" => Some("fp_mode_setter_tail"),
+        "fp_dispatch_tail_pending" => Some("fp_dispatch_tail"),
+        "initial_action_suffix_pending" => Some("initial_action_suffix"),
         _ => None,
     }
 }
 pub(super) fn validate(state: &Value, action: &Value) -> Result<()> {
+    let pending = action["stage"] == "tp_command_pending";
+    ensure!(
+        pending
+            || matches!(
+                action["stage"].as_str(),
+                Some(
+                    "tp_setter_tail_pending"
+                        | "tp_dispatch_pending"
+                        | "fp_dispatch_pending"
+                        | "fp_command_pending"
+                        | "fp_setter_tail_pending"
+                        | "fp_dispatch_tail_pending"
+                        | "initial_action_suffix_pending"
+                )
+            ),
+        "TP selector parent stage differs"
+    );
+    validate_for(
+        state,
+        &action["tp_mapped"],
+        &action["tp_capture"]["fallback"],
+        pending,
+    )
+}
+pub(super) fn validate_for(
+    state: &Value,
+    requested: &Value,
+    fallback: &Value,
+    pending: bool,
+) -> Result<()> {
     closed(
         state,
         &[
@@ -43,9 +77,9 @@ pub(super) fn validate(state: &Value, action: &Value) -> Result<()> {
     let rows = count(state, "transition_rows")?;
     ensure!(
         word(&state["requested"])
-            && state["requested"] == action["tp_mapped"]
+            && state["requested"] == *requested
             && state["previous"] == 0
-            && state["fallback"] == action["tp_capture"]["fallback"]
+            && state["fallback"] == *fallback
             && state["tracks_player_modes"].is_boolean()
             && (state["target_index"].is_null() || word(&state["target_index"]))
             && attempts <= 2
@@ -65,7 +99,7 @@ pub(super) fn validate(state: &Value, action: &Value) -> Result<()> {
     );
     match state["stage"].as_str() {
         Some("command_pending") => ensure!(
-            action["stage"] == "tp_command_pending"
+            pending
                 && !state["target_index"].is_null()
                 && attempts > 0
                 && rows > 0
@@ -79,10 +113,8 @@ pub(super) fn validate(state: &Value, action: &Value) -> Result<()> {
             "TP pending command claims an execution or selector return"
         ),
         Some("returned") => ensure!(
-            matches!(
-                action["stage"].as_str(),
-                Some("tp_setter_tail_pending" | "tp_dispatch_pending" | "fp_dispatch_pending")
-            ) && state["commands_issued"] == state["commands_executed"]
+            !pending
+                && state["commands_issued"] == state["commands_executed"]
                 && state["command_effects_complete"] == (count(state, "commands_executed")? > 0)
                 && state["pending_ordinal"].is_null()
                 && state["pending_opcode"].is_null()

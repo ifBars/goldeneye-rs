@@ -67,7 +67,7 @@ impl State {
         }
         result
     }
-    fn charge_capture_node(&mut self) -> Result<()> {
+    pub(super) fn charge_capture_node(&mut self) -> Result<()> {
         let next = self
             .work
             .nodes

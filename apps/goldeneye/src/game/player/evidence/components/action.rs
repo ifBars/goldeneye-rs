@@ -27,6 +27,7 @@ pub struct InitialAction {
     pub tp_selector: super::ThirdPersonSelector,
     pub tp_command: Option<super::CommandBody>,
     pub tp_dispatch: super::dispatch::ThirdPersonDispatch,
+    pub fp_dispatch: Option<super::fp_dispatch::FirstPersonDispatch>,
 }
 pub(super) fn build(
     player: &Owned,
@@ -49,9 +50,10 @@ pub(super) fn build(
         .context("initial action FP owner is absent")?
         .animator();
     ensure!(
-        [0x138, 0x158, 0x178, 0x198]
-            .into_iter()
-            .all(|at| fp.word(at) == Some(0) && fp.word(at + 4) == Some(0)),
+        state.first_person_dispatch().is_some()
+            || [0x138, 0x158, 0x178, 0x198]
+                .into_iter()
+                .all(|at| fp.word(at) == Some(0) && fp.word(at + 4) == Some(0)),
         "FP controls were reached before TP selector return"
     );
     ensure!(
@@ -61,6 +63,8 @@ pub(super) fn build(
                 | Stage::AwaitingThirdPersonSetterTail
                 | Stage::AwaitingThirdPersonDispatchTail
                 | Stage::AwaitingFirstPersonDispatch
+                | Stage::FirstPersonDispatch
+                | Stage::AwaitingActionSuffix
         ) && state.player() == player.base.player()
             && state.resolved().len() == 3
             && owner.mappings.len() == 3
@@ -114,7 +118,19 @@ pub(super) fn build(
         }
     }
     let tp_dispatch = super::dispatch::build(player)?;
-    if tp_dispatch.history_updated {
+    let fp_dispatch = super::fp_dispatch::build(player)?;
+    if let Some(fp) = state
+        .first_person_dispatch()
+        .filter(|fp| fp.setter().is_some_and(|s| s.history_updated))
+    {
+        let setter = fp.setter().expect("checked history receipt");
+        ensure!(
+            player.reset.word(0x70c) == Some(fp.generic())
+                && player.reset.word(0x714) == Some(fp.requested())
+                && (setter.primary_changed != Some(true) || player.reset.word(0x710) == Some(0)),
+            "FP setter history differs from actual player writes"
+        );
+    } else if tp_dispatch.history_updated {
         ensure!(
             player.reset.word(0x70c) == Some(state.generic())
                 && player.reset.word(0x714) == Some(state.resolved()[1].output)
@@ -131,7 +147,7 @@ pub(super) fn build(
         );
     }
     Ok(InitialAction {
-        stage: super::selector::boundary(state.stage())?.0,
+        stage: super::selector::boundary(state)?.0,
         generic_request: state.generic(),
         parameter_bits: 0,
         direction_raw: 0xff,
@@ -148,7 +164,8 @@ pub(super) fn build(
         tp_secondary_mapped: state.resolved()[2].output,
         source_tables_reused: true,
         mode_controls_created: tp.controls().len(),
-        mode_history_updated: tp_dispatch.history_updated,
+        mode_history_updated: tp_dispatch.history_updated
+            || fp_dispatch.as_ref().is_some_and(|fp| fp.history_updated),
         callback_returned: false,
         state_sha256: super::super::words(b"ge_player_initial_action_v2\0", |emit| {
             state.visit_state_words(emit)
@@ -158,5 +175,6 @@ pub(super) fn build(
         tp_selector: super::selector::build(player)?,
         tp_command: super::command::build(player)?,
         tp_dispatch,
+        fp_dispatch,
     })
 }

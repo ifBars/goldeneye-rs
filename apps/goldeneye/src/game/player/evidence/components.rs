@@ -13,6 +13,8 @@ mod command;
 mod control_capture;
 mod dispatch;
 mod first_person;
+mod fp_dispatch;
+mod mask;
 mod postbind;
 mod refresh;
 mod selector;
@@ -116,14 +118,8 @@ pub(super) fn build(
         "TP owner, source or attachment boundary differs"
     );
     let action = action::build(player, hook)?;
-    let (stage, pending_dependency) = selector::boundary(
-        player
-            .action
-            .as_ref()
-            .context("TP action absent")?
-            .state
-            .stage(),
-    )?;
+    let (stage, pending_dependency) =
+        selector::boundary(&player.action.as_ref().context("TP action absent")?.state)?;
     Ok(Some(ComponentInitialization {
         stage,
         pending_dependency,

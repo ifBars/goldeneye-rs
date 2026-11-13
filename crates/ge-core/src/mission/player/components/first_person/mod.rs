@@ -31,6 +31,13 @@ pub struct FirstPerson {
     refresh: Option<Refresh>,
 }
 impl FirstPerson {
+    pub(super) fn animator_mut_for_modes(&mut self) -> Result<&mut Animator> {
+        ensure!(
+            self.stage == FirstPersonStage::Returned,
+            "FP mode mutation precedes helper return"
+        );
+        Ok(&mut self.animator)
+    }
     pub(super) fn new(identity: Identity, character: CharacterBinding, skin_file: u32) -> Self {
         Self {
             animator: Animator::from_constructor(identity),

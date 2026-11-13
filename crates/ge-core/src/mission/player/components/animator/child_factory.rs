@@ -7,11 +7,19 @@ impl super::super::Preparation {
         command: &mut command::Pending,
         source: &mut impl script_child::position::Source,
     ) -> Result<()> {
-        ensure!(
-            self.stage() == super::super::Stage::AwaitingInitialModes,
-            "position continuation precedes component helper return"
-        );
-        let owner = self.animator_mut_for_capture()?;
+        let receiver = self
+            .animator()
+            .context("TP position owner absent")?
+            .identity();
+        self.prepare_mode_child_position(receiver, command, source)
+    }
+    pub fn prepare_mode_child_position(
+        &mut self,
+        receiver: Identity,
+        command: &mut command::Pending,
+        source: &mut impl script_child::position::Source,
+    ) -> Result<()> {
+        let owner = self.mode_animator_mut(receiver)?;
         let result = (|| {
             ensure!(
                 command.stage() == command::Stage::ChildFactoryPending,
@@ -25,7 +33,7 @@ impl super::super::Preparation {
                 .prepare_phase_zero_position(id, source)
         })();
         if result.is_err() {
-            command.fail_factory(owner.layers.as_mut().context("TP layers absent")?);
+            command.fail_factory(owner.layers.as_mut().context("mode layers absent")?);
         }
         result
     }
@@ -36,11 +44,27 @@ impl super::super::Preparation {
         scaled_step_bits: u32,
         maximum_entries: usize,
     ) -> Result<()> {
-        ensure!(
-            self.stage() == super::super::Stage::AwaitingInitialModes,
-            "phase-zero initializer precedes component helper return"
-        );
-        let owner = self.animator_mut_for_capture()?;
+        let receiver = self
+            .animator()
+            .context("TP phase-zero owner absent")?
+            .identity();
+        self.initialize_mode_child_phase_zero(
+            receiver,
+            command,
+            source,
+            scaled_step_bits,
+            maximum_entries,
+        )
+    }
+    pub fn initialize_mode_child_phase_zero(
+        &mut self,
+        receiver: Identity,
+        command: &mut command::Pending,
+        source: &mut impl script_child::initialization::Source,
+        scaled_step_bits: u32,
+        maximum_entries: usize,
+    ) -> Result<()> {
+        let owner = self.mode_animator_mut(receiver)?;
         let result = (|| {
             ensure!(
                 command.stage() == command::Stage::ChildFactoryPending,
@@ -59,7 +83,7 @@ impl super::super::Preparation {
                 .initialize_phase_zero(id, source, inputs)
         })();
         if result.is_err() {
-            command.fail_factory(owner.layers.as_mut().context("TP layers absent")?);
+            command.fail_factory(owner.layers.as_mut().context("mode layers absent")?);
         }
         result
     }
@@ -68,23 +92,33 @@ impl super::super::Preparation {
         command: &mut command::Pending,
         source: &mut impl script_child::Provider,
     ) -> Result<()> {
-        ensure!(
-            self.stage() == super::super::Stage::AwaitingInitialModes,
-            "child factory precedes component helper return"
-        );
-        let owner = self.animator_mut_for_capture()?;
+        let receiver = self
+            .animator()
+            .context("TP child factory owner absent")?
+            .identity();
+        self.initialize_mode_child_prefix(receiver, command, source)
+    }
+    pub fn initialize_mode_child_prefix(
+        &mut self,
+        receiver: Identity,
+        command: &mut command::Pending,
+        source: &mut impl script_child::Provider,
+    ) -> Result<()> {
+        let owner = self.mode_animator_mut(receiver)?;
         let result = (|| {
             let request = command.begin_factory(
                 owner
                     .layers
                     .as_mut()
-                    .context("TP child factory layers absent")?,
+                    .context("mode child factory layers absent")?,
             )?;
             ensure!(
                 ((request.reference >> 24) & 0x7f) == 4,
                 "unsupported reached child factory class"
             );
-            let binding = owner.component.context("TP child source wrapper absent")?;
+            let binding = owner
+                .component
+                .context("mode child source wrapper absent")?;
             let id = owner.script_children.allocate(
                 &mut owner.node_ids,
                 binding.file,
@@ -104,8 +138,10 @@ impl super::super::Preparation {
             owner.word_store(0x24, u32::MAX);
             owner.script_children.initialize_prefix(id, source)
         })();
-        if result.is_err() {
-            command.fail_factory(owner.layers.as_mut().expect("retained layers"));
+        if result.is_err()
+            && let Some(layers) = owner.layers.as_mut()
+        {
+            command.fail_factory(layers);
         }
         result
     }

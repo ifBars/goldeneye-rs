@@ -64,11 +64,15 @@ pub(super) fn build(
             && source.file() == player.loadout.selected_character().fp_skin_file()
             && fp.skin_file() == source.file()
             && component.file() == 0x0102_0016
-            && animator.component()
-                == Some(ResourceBinding {
-                    file: component.file(),
-                    reference: 0
-                })
+            && animator
+                .component()
+                .is_some_and(|b| b.file == component.file()
+                    && (player
+                        .action
+                        .as_ref()
+                        .and_then(|a| a.state.first_person_dispatch())
+                        .is_some()
+                        || b.reference == 0))
             && animator.identity() != tp.identity()
             && animator.player() == player.base.player()
             && identities.resolve(animator.identity().id()) == Some(animator.identity())
@@ -81,7 +85,8 @@ pub(super) fn build(
             && animator.word(4) == Some(0)
             && animator.byte(0x8e) == Some(0)
             && animator.byte(0x8c) == Some(0x11)
-            && animator.byte(0x130) == Some(1)
+            && animator.byte(0x130)
+                == Some(animator.layers().map_or(1, |layers| layers.active_count()))
             && animator.byte(0x131) == Some(0xfb)
             && animator.byte(0x136) == Some(0xfb)
             && animator

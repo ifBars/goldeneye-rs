@@ -3,6 +3,17 @@ use crate::mission::player::components::{FirstPerson, callbacks::Table};
 use std::sync::Arc;
 
 impl Preparation {
+    pub(in crate::mission::player::components) fn first_person_mut_for_modes(
+        &mut self,
+    ) -> Result<&mut FirstPerson> {
+        ensure!(
+            self.stage == Stage::AwaitingInitialModes,
+            "FP mode mutation precedes component helper returns"
+        );
+        self.first_person
+            .as_mut()
+            .context("actual FP mode owner absent")
+    }
     pub fn begin_first_person(
         &mut self,
         identity: Identity,

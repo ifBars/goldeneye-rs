@@ -11,6 +11,8 @@ mod player_child;
 mod player_command;
 mod player_dispatch;
 mod player_first_person;
+mod player_fp;
+mod player_mask;
 mod player_postbind;
 mod player_refresh;
 mod player_selector;
@@ -1458,12 +1460,21 @@ fn validate_tutorial_dispatch(player: &Value) -> Result<()> {
     let command = &action["tp_command"];
     let dispatch = &action["tp_dispatch"];
     ensure!(
-        player["pending_dependency"] == "fp_mode_dispatch"
-            && component["stage"] == "fp_dispatch_pending"
-            && component["pending_dependency"] == "fp_mode_dispatch"
+        player_selector::dependency(&action["stage"])
+            .is_some_and(|dependency| player["pending_dependency"] == dependency
+                && component["pending_dependency"] == dependency)
+            && component["stage"] == action["stage"]
             && component["active_slots"] == 4
-            && action["stage"] == "fp_dispatch_pending"
-            && action["mode_history_updated"] == false
+            && matches!(
+                action["stage"].as_str(),
+                Some(
+                    "fp_dispatch_pending"
+                        | "fp_command_pending"
+                        | "fp_setter_tail_pending"
+                        | "fp_dispatch_tail_pending"
+                        | "initial_action_suffix_pending"
+                )
+            )
             && action["callback_returned"] == false
             && selector["stage"] == "returned"
             && selector["tracks_player_modes"] == false
@@ -1500,6 +1511,100 @@ fn validate_tutorial_dispatch(player: &Value) -> Result<()> {
             && dispatch["pending_dependency"].is_null()
             && dispatch["rate_bits"] == json!([0.5f32.to_bits(), 0.5f32.to_bits()]),
         "Tutorial TP dispatcher did not return through its two retained script updates"
+    );
+    Ok(())
+}
+fn validate_tutorial_fp(player: &Value) -> Result<()> {
+    let component = &player["component_initialization"];
+    let action = &component["initial_action"];
+    let fp = &action["fp_dispatch"];
+    let selector = &fp["selector"];
+    let command = &fp["command"];
+    let child = &command["last_completed_child"];
+    let phase = &child["phase_zero"];
+    let position = &phase["position"];
+    let mask = &fp["mask_capture"];
+    ensure!(
+        player["pending_dependency"] == "initial_action_suffix"
+            && component["stage"] == "initial_action_suffix_pending"
+            && component["pending_dependency"] == "initial_action_suffix"
+            && action["stage"] == "initial_action_suffix_pending"
+            && action["mode_history_updated"] == true
+            && action["callback_returned"] == false
+            && fp["stage"] == "returned"
+            && fp["component_file"] == 0x0102_0016u32
+            && fp["qualification_skipped"] == true
+            && fp["capture_performed"] == false
+            && fp["initial_heads_empty"] == true
+            && fp["fallback"] == 0x0900_065eu32
+            && count(fp, "fallback_writes")? > count(&action["tp_capture"], "fallback_writes")?
+            && selector["stage"] == "returned"
+            && selector["requested"] == 0x0900_071eu32
+            && selector["previous"] == 0
+            && selector["target_index"] == 13
+            && selector["attempts"] == 1
+            && selector["lookups"] == 2
+            && selector["transition_rows"] == 5
+            && selector["commands_issued"] == 2
+            && selector["commands_executed"] == 2
+            && selector["return_word"] == 0x0900_000bu32
+            && selector["tracks_player_modes"] == true
+            && selector["command_effects_complete"] == true
+            && fp["setter_return_word"] == 0x0900_000bu32
+            && fp["history_updated"] == true
+            && fp["primary_changed"] == true
+            && fp["coordinate_written"] == true
+            && fp["mask_commands_returned"] == 1
+            && mask["mask_raw"] == 3
+            && mask["active_slots_before"] == 1
+            && mask["slots_visited"] == 1
+            && mask["selected_mask"] == 3
+            && mask["clear_mask"] == 251
+            && mask["controls_allocated"] == 1
+            && mask["controls_inserted"] == 1
+            && mask["capture_returned"] == true
+            && mask["refresh"].is_object()
+            && command["stage"] == "command_returned"
+            && command["opcode"] == 0x0c00_0002u32
+            && command["set_reference"] == 9
+            && command["set_index"] == 9
+            && [
+                "set_groups",
+                "groups_visited",
+                "weight_writes",
+                "children_created",
+                "children_completed",
+                "children_inserted"
+            ]
+            .iter()
+            .all(|k| command[k] == 1)
+            && command["head_copies"] == 0
+            && command["active_slots"] == 2
+            && command["effective_flags_or"] == 39
+            && command["cleanup_skipped"] == true
+            && command["selector_acknowledged"] == true
+            && child["slot"] == 1
+            && child["descriptor_index"] == 187
+            && child["body_bound"] == true
+            && child["parent_phase_copied"] == false
+            && child["parent_scalars_initialized"] == true
+            && child["parent_word_stored"] == true
+            && phase["stage"] == "initialized"
+            && phase["normal_requested"] == 1
+            && phase["normal_bound"] == 1
+            && phase["secondary_requested"] == 0
+            && phase["secondary_bound"] == 0
+            && phase["clip_records"] == 1
+            && phase["heap_allocated"] == false
+            && phase["initial_index_raw"] == 0
+            && phase["initial_index_clamped"] == 0
+            && phase["frame_range"] == 76
+            && position["selected_index"] == 0
+            && position["descriptor_index"] == 11
+            && position["animation_fps"] == 30
+            && position["normalized_position_bits"] == 0
+            && position["root_motion_pending"] == false,
+        "Tutorial FP dispatcher did not return through its real mask, set and tracked setter"
     );
     Ok(())
 }
@@ -1738,6 +1843,7 @@ fn validate_tutorial_world(probe: &Value) -> Result<()> {
     );
     validate_player_initialization(player, world, &probe["window"]["game_session"]["active"])?;
     validate_tutorial_dispatch(player)?;
+    validate_tutorial_fp(player)?;
     let flag = &player["constructor_flag"];
     let virtual_init = &player["virtual_initialization"];
     ensure!(
@@ -3599,6 +3705,38 @@ mod tests {
             bad["component_initialization"]["initial_action"]["tp_dispatch"][key] = value;
             assert!(validate_tutorial_dispatch(&bad).is_err(), "accepted {key}");
         }
+    }
+    #[test]
+    fn tutorial_fp_gate_preserves_mask_history_after_the_following_set() {
+        let action = player_fp::tests::native_action();
+        player_action::validate(&action).unwrap();
+        let player = json!({"pending_dependency":"initial_action_suffix","component_initialization":{"stage":"initial_action_suffix_pending","pending_dependency":"initial_action_suffix","active_slots":4,"initial_action":action}});
+        validate_tutorial_fp(&player).unwrap();
+        for (key, value) in [
+            ("mask_capture", Value::Null),
+            ("mask_commands_returned", json!(0)),
+            ("coordinate_written", json!(false)),
+            ("primary_changed", json!(false)),
+        ] {
+            let mut bad = player.clone();
+            bad["component_initialization"]["initial_action"]["fp_dispatch"][key] = value;
+            assert!(validate_tutorial_fp(&bad).is_err(), "accepted {key}");
+        }
+        let mut bad = player.clone();
+        let fp = &mut bad["component_initialization"]["initial_action"]["fp_dispatch"];
+        fp["selector"]["return_word"] = fp["fallback"].clone();
+        fp["setter_return_word"] = fp["fallback"].clone();
+        assert!(
+            validate_tutorial_fp(&bad).is_err(),
+            "replaced actual source hash with fallback"
+        );
+        let mut bad = player;
+        bad["component_initialization"]["initial_action"]["fp_dispatch"]["mask_capture"]["active_slots_before"] =
+            json!(2);
+        assert!(
+            validate_tutorial_fp(&bad).is_err(),
+            "replaced historical active count with current set count"
+        );
     }
 
     #[test]

@@ -16,6 +16,24 @@ pub struct BindRefresh {
     pub scope_released: bool,
     pub state_sha256: String,
 }
+pub(super) fn from_refresh(
+    refresh: &ge_core::animation::scratch::Refresh,
+    tag: &[u8],
+) -> BindRefresh {
+    BindRefresh {
+        arena_bytes: ge_core::animation::scratch::ARENA_BYTES,
+        reserved_bytes: 0x2200,
+        reservation_start: refresh.reservation_start(),
+        cursor_after: refresh.cursor_after(),
+        live_reservations_after: refresh.live_after(),
+        refresh_ordinal: refresh.ordinal(),
+        allocation_ordinal: refresh.allocation_ordinal(),
+        regions_bound: 4,
+        flags_after: 0,
+        scope_released: true,
+        state_sha256: super::super::words(tag, |emit| refresh.visit_state_words(emit)),
+    }
+}
 pub(super) fn build(player: &Owned) -> Result<BindRefresh> {
     let receipt = player
         .components
