@@ -9,9 +9,8 @@ a complete player, run a complete match or
 restore a complete simulation snapshot. Networking must not report those
 capabilities before the game supplies them.
 
-Status: `crates/ge-net` and `crates/ge-net-transport` exist. Milestones M0 to
-M3 and M5 have their evidence. M4 is verified on Linux; its Windows evidence
-comes from hosted CI. See [implementation status](#implementation-status).
+Status: `crates/ge-net` and `crates/ge-net-transport` exist and milestones M0
+to M5 have their evidence. See [implementation status](#implementation-status).
 Nothing is wired into the game. This is a networking foundation, not
 multiplayer.
 
@@ -297,8 +296,7 @@ Implementation checklist:
 - [x] M1 protocol and lifecycle tests.
 - [x] M2 simulated host/two-client session.
 - [x] M3 replication recovery and late join.
-- [ ] M4 authenticated real transport and loopback processes. Linux passes
-  locally; the box stays open until hosted CI passes the same tests on Windows.
+- [x] M4 authenticated real transport and loopback processes.
 - [x] M5 documentation, measurements and game-adapter handoff.
 
 ## Test and measurement plan
@@ -370,7 +368,7 @@ cargo xtask notices
 | M1 | Authored byte fixtures for the envelope, every message and the delta; malformed-input, limit, wrong-lane, wrong-epoch, reliable-order, optional-kind, stale-attempt and sequence-wraparound tests; a seeded decoder and lifecycle fuzz (4,000 mutations in the fast suite, 1.92 million in the ignored long run, seeds 0 to 31) | `tests/protocol.rs`, `src/channel/tests.rs` |
 | M2 | Host and two clients over the seeded link simulator: the 0/1/5/10% loss by 0/50/150/300 ms RTT matrix (seeds 100 to 115), duplication with reordering, burst loss, fragmented updates, a bandwidth bottleneck, a short and a permanent partition, a stalled consumer, handshake and synchronization timeouts, close, cancel, reconnect, shutdown, rejection and command windows | `tests/sessions.rs`, `tests/support/` |
 | M3 | Acknowledged per-peer baselines, an evicted and a dropped baseline, recovery by delta, by datagram and by bulk transfer, a recovery that cannot complete, a delayed update after destroy and reuse, a retired generation, a late joiner beside active clients, a join that cannot catch up, oversized deltas, a blocked datagram lane and partition then rejoin | `tests/replication.rs`, `src/replication/tests.rs` |
-| M4 | QUIC adapter with a pinned host fingerprint. In-process loopback tests of both delivery contracts, backpressure, lane independence, authentication failure, flush on close and joined shutdown. One host and two clients as separate processes, plus a wrong-fingerprint client process. Verified locally on Linux only | `crates/ge-net-transport` |
+| M4 | QUIC adapter with a pinned host fingerprint. In-process loopback tests of both delivery contracts, backpressure, lane independence, authentication failure, flush on close and joined shutdown. One host and two clients as separate processes, plus a wrong-fingerprint client process. Passed locally on Linux and in hosted CI on `ubuntu-latest` and `windows-latest`. Windows was observed in CI only | `crates/ge-net-transport` |
 | M5 | Crate READMEs with the driving loop, guarantees, non-goals, measured costs of one named scenario and the integration prerequisites; a runnable example that needs no game image | `crates/ge-net/README.md`, `examples/synthetic_session.rs` |
 
 Each scenario asserts, as applicable: every snapshot a client applied equals
@@ -400,7 +398,8 @@ ends. A permanent partition asserts the explicit failure, not convergence.
 
 ### Limitations that remain
 
-- Windows results for the transport crate have not been observed locally.
+- Windows results for the transport crate come from hosted CI. They were not
+  observed on a local Windows machine.
 - Real-transport tests use the loopback interface only. Loss, latency,
   reordering and reachability on a real network are unverified, and the link
   simulator is a model, not evidence about one.

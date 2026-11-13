@@ -1234,6 +1234,174 @@ fn stale_attempts_and_cancelled_attempts_reject_later_events() {
 }
 
 #[test]
+fn every_failure_explains_itself_without_payloads_or_addresses() {
+    use ge_net::protocol::message::RejectReason;
+    use ge_net::replication::{SnapshotError, SubmitError};
+    use ge_net::session::host::PublishError;
+    use ge_net::session::{StateError, TimeRegression};
+
+    let entity = EntityId::new(3, 1);
+    let decode = [
+        DecodeError::Truncated,
+        DecodeError::TrailingBytes,
+        DecodeError::UnsupportedVersion(9),
+        DecodeError::UnknownChannel(9),
+        DecodeError::ReservedFlags(4),
+        DecodeError::MessageTooLarge { len: 9, max: 8 },
+        DecodeError::LengthMismatch {
+            declared: 9,
+            actual: 8,
+        },
+        DecodeError::InvalidFragment { index: 2, count: 2 },
+        DecodeError::UnknownMandatoryKind(0x7f),
+        DecodeError::WrongChannel {
+            kind: 1,
+            channel: 4,
+        },
+        DecodeError::TickPresence { kind: 1 },
+        DecodeError::FragmentNotAllowed { kind: 1 },
+        DecodeError::InvalidField("field"),
+        DecodeError::LimitExceeded("limit"),
+    ];
+    let violations = [
+        Violation::Decode(DecodeError::Truncated),
+        Violation::LaneMismatch,
+        Violation::EpochMismatch,
+        Violation::ReliableOrder {
+            expected: 1,
+            received: 3,
+        },
+        Violation::FragmentOnReliableChannel,
+        Violation::TooManyFragments(9),
+        Violation::FragmentMismatch,
+        Violation::AssembledMessageTooLarge,
+        Violation::UnexpectedMessage(MessageKind::Hello),
+        Violation::TooManySkippedOptional,
+        Violation::UnownedSlot(PlayerSlot::new(2)),
+        Violation::CommandTickRegression,
+        Violation::CommandAckAhead,
+        Violation::Transfer("chunk order"),
+        Violation::Delta(DeltaError::UpdateMissing(entity)),
+        Violation::Delta(DeltaError::DestroyMissing(entity)),
+        Violation::Delta(DeltaError::CreateOccupied(entity)),
+        Violation::Delta(DeltaError::CreateNotNewer(entity)),
+        Violation::Delta(DeltaError::Decode(DecodeError::Truncated)),
+        Violation::Delta(DeltaError::Snapshot(SnapshotError::DuplicateIndex(3))),
+        Violation::StaleGeneration(entity),
+        Violation::InvalidAccept,
+    ];
+    let closes = [
+        CloseReason::Requested,
+        CloseReason::RemoteClosed(7),
+        CloseReason::Rejected(RejectReason::SessionFull),
+        CloseReason::HandshakeTimeout,
+        CloseReason::SyncTimeout,
+        CloseReason::IdleTimeout,
+        CloseReason::QueueOverflow,
+        CloseReason::Transport(ge_net::TransportFailure::TimedOut),
+        CloseReason::Cancelled,
+        CloseReason::Shutdown,
+    ];
+    let mut messages: Vec<String> = Vec::new();
+    messages.extend(decode.iter().map(ToString::to_string));
+    messages.extend(violations.iter().map(ToString::to_string));
+    messages.extend(
+        violations
+            .iter()
+            .map(|violation| CloseReason::Violation(*violation).to_string()),
+    );
+    messages.extend(closes.iter().map(ToString::to_string));
+    messages.extend(
+        [
+            EncodeError::PayloadTooLarge { len: 9, max: 8 },
+            EncodeError::CountTooLarge("slots"),
+        ]
+        .iter()
+        .map(ToString::to_string),
+    );
+    messages.extend(
+        [
+            IngestError::StaleAttempt,
+            IngestError::InboundBudgetExhausted,
+            IngestError::EventQueueFull,
+        ]
+        .iter()
+        .map(ToString::to_string),
+    );
+    messages.extend(
+        [
+            StateError::WrongPhase(Phase::Closed),
+            StateError::StaleAttempt,
+            StateError::AttemptNotIncreasing,
+            StateError::TooManyAttempts,
+            StateError::UnknownSnapshot,
+            StateError::QueueOverflow,
+        ]
+        .iter()
+        .map(ToString::to_string),
+    );
+    messages.extend(
+        [
+            ConfigError::MissingReliableLanes { available: 1 },
+            ConfigError::MissingDatagrams,
+            ConfigError::DatagramTooSmall {
+                usable: 40,
+                required: 102,
+            },
+            ConfigError::InvalidBudget("max_peers"),
+            ConfigError::InvalidDescriptor,
+        ]
+        .iter()
+        .map(ToString::to_string),
+    );
+    messages.extend(
+        [
+            SubmitError::NotActive,
+            SubmitError::UnknownSlot(PlayerSlot::new(1)),
+            SubmitError::OutboxFull,
+            SubmitError::CommandTooLarge { len: 9, max: 8 },
+            SubmitError::TickRegression,
+        ]
+        .iter()
+        .map(ToString::to_string),
+    );
+    messages.push(TimeRegression.to_string());
+    messages.push(PublishError::TickNotIncreasing { last: Tick::new(4) }.to_string());
+    messages.push(PublishError::Snapshot(SnapshotError::IndexOutOfRange(9)).to_string());
+    messages.push(ge_net::identity::EntityAllocError::Exhausted.to_string());
+    messages.push(ge_net::identity::EntityAllocError::NotLive(entity).to_string());
+    messages.push(DescriptorError::ZeroTickRate.to_string());
+    messages.push(DescriptorError::ExtensionsNotAscending.to_string());
+    messages.push(DescriptorError::TooManyExtensions(40).to_string());
+    messages.push(DescriptorError::RequiredFeatureUnsupported(8).to_string());
+    messages.push(PeerId::new(3).to_string());
+    messages.push(SnapshotId::new(3).to_string());
+    messages.push(CommandSeq::new(3).to_string());
+
+    for message in &messages {
+        assert!(!message.is_empty());
+        assert!(message.is_ascii(), "{message}");
+        assert!(!message.contains('\n'), "{message}");
+    }
+    // Within one error type each failure reads differently, so a report can
+    // tell them apart.
+    let distinct = |texts: Vec<String>| {
+        let unique: std::collections::BTreeSet<&String> = texts.iter().collect();
+        assert_eq!(unique.len(), texts.len(), "{texts:?}");
+    };
+    distinct(decode.iter().map(ToString::to_string).collect());
+    distinct(violations.iter().map(ToString::to_string).collect());
+    distinct(closes.iter().map(ToString::to_string).collect());
+    // Wire close codes name a category; local-only reasons send none.
+    let codes: Vec<u8> = closes.iter().map(CloseReason::wire_code).collect();
+    assert_eq!(codes, [1, 0, 8, 4, 5, 6, 7, 0, 0, 2]);
+    assert_eq!(
+        CloseReason::Violation(Violation::LaneMismatch).wire_code(),
+        3
+    );
+}
+
+#[test]
 fn every_malformed_prefix_and_bit_flip_is_handled_without_panic() {
     run_decoder_fuzz(0xf00d, 4_000);
 }
