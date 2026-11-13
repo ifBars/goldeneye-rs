@@ -1,10 +1,13 @@
 //! The actual one-shot player constructor prefix on the retained CPU worker.
 //! The reset precedes still-required constructor flags and virtual initialization.
 mod actions;
+mod component_tail;
 pub(super) mod components;
 mod constructor_tail;
 mod evidence;
+mod initializer;
 mod loadout;
+mod pose;
 mod providers;
 mod virtual_init;
 use super::{actors::Definitions, resource_states, world_hooks};
@@ -41,7 +44,14 @@ pub(super) struct Owned {
     repeat_action: Option<actions::repeat::Owned>,
     callback_entry: Option<continuation::CallbackEntry>,
     completed_callback_evidence: Option<evidence::CallbackTail>,
+    completed_repeat_evidence: Option<evidence::RepeatAction>,
+    completed_constructor_evidence: Option<evidence::ConstructorTail>,
+    completed_pose_evidence: Option<evidence::PoseSetup>,
+    completed_component_evidence: Option<evidence::ComponentTail>,
     constructor_tail: Option<continuation::Pending>,
+    pose_setup: Option<pose::Owned>,
+    component_tail: Option<ge_core::mission::player::constructor::component_tail::Pending>,
+    initializer_prefix: Option<ge_core::mission::player::constructor::initializer_prefix::Pending>,
     operations: usize,
     catalog_entries: usize,
     rng_reads: usize,
@@ -147,7 +157,14 @@ impl Owned {
             repeat_action: None,
             callback_entry: None,
             completed_callback_evidence: None,
+            completed_repeat_evidence: None,
+            completed_constructor_evidence: None,
+            completed_pose_evidence: None,
+            completed_component_evidence: None,
             constructor_tail: None,
+            pose_setup: None,
+            component_tail: None,
+            initializer_prefix: None,
             operations,
             catalog_entries,
             rng_reads: provider.rng_reads,
@@ -217,6 +234,7 @@ impl Owned {
         world: &mut World,
         hook: &world_hooks::Attempt,
     ) -> Result<()> {
+        let session = sources.session;
         components::initialize(self, sources, world, hook)?;
         if self.flag.is_some() {
             ensure!(
@@ -228,6 +246,9 @@ impl Owned {
             self.callback_entry = Some(continuation::CallbackEntry::capture(&self.base)?);
         }
         actions::initialize(self, world, hook)?;
-        constructor_tail::initialize(self, world, hook)
+        constructor_tail::initialize(self, world, hook)?;
+        pose::initialize(self, session, world, hook)?;
+        component_tail::initialize(self, session, world, hook)?;
+        initializer::initialize(self, world, hook)
     }
 }

@@ -10,6 +10,9 @@ mod attachment;
 mod binding;
 mod callbacks;
 mod first_person;
+#[cfg(test)]
+#[path = "preparation/tests/pose_fixture.rs"]
+mod pose_fixture;
 mod postbind;
 pub use attachment::Attachment;
 pub use binding::BindReturn;

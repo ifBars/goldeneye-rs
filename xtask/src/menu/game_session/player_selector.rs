@@ -21,8 +21,29 @@ pub(super) fn dependency(stage: &Value) -> Option<&'static str> {
         "player_callback_tail_pending" => Some("player_callback_tail"),
         "player_constructor_tail_pending" => Some("player_constructor_tail"),
         "player_pose_setup_pending" => Some("player_pose_setup"),
+        "player_component_tail_pending" => Some("player_component_tail"),
+        "player_initializer_pending" => Some("player_initializer"),
+        "player_transform_caches_pending" => Some("player_transform_caches"),
+        "player_animation_preload_pending" => Some("player_animation_preload"),
+        "player_initializer_tail_pending" => Some("player_initializer_tail"),
         _ => None,
     }
+}
+pub(super) fn root_rank(stage: &Value) -> Option<u8> {
+    match stage.as_str()? {
+        "action_dispatch_repeat_pending" => Some(0),
+        "player_callback_tail_pending" => Some(1),
+        "player_constructor_tail_pending" => Some(2),
+        "player_pose_setup_pending" => Some(3),
+        "player_component_tail_pending" => Some(4),
+        "player_initializer_pending" => Some(5),
+        "player_transform_caches_pending" => Some(6),
+        "player_animation_preload_pending" | "player_initializer_tail_pending" => Some(7),
+        _ => None,
+    }
+}
+pub(super) fn at_least(stage: &Value, rank: u8) -> bool {
+    root_rank(stage).is_some_and(|r| r >= rank)
 }
 pub(super) fn validate(state: &Value, action: &Value) -> Result<()> {
     let pending = action["stage"] == "tp_command_pending";

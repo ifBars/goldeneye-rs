@@ -2,6 +2,8 @@
 //! This is sparse typed state, not a zeroed native object image.
 use super::identity::{ComponentId, ItemId, PhysicsId, PlayerId, WorldId};
 use anyhow::{Result, ensure};
+mod initializer;
+mod pose;
 
 /// Reached wrapperless derived-factory fields, separate from actor membership.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -79,6 +81,9 @@ pub struct Item {
     pub(super) registration: Registration,
     pub(super) components: Vec<ComponentId>,
     flags: u16,
+    byte_8c: u8,
+    transform_flags_90: u16,
+    rotation_mode_93: Option<u8>,
     handler: Option<PlayerId>,
     physics: Option<PhysicsId>,
     position: [u32; 4],
@@ -110,6 +115,10 @@ impl Item {
             registration: Registration::Constructed,
             components: Vec::new(),
             flags: 0xb,
+            // Shared constructor10, then EXItem's source OR13.
+            byte_8c: 0x13,
+            transform_flags_90: 0,
+            rotation_mode_93: None,
             handler: None,
             physics: None,
             position: [0; 4],
@@ -329,6 +338,12 @@ impl Item {
         wide(&mut emit, self.world.get());
         wide(&mut emit, self.id.get());
         emit(u32::from(self.flags));
+        emit(u32::from(self.byte_8c));
+        emit(u32::from(self.transform_flags_90));
+        emit(u32::from(self.rotation_mode_93.is_some()));
+        if let Some(mode) = self.rotation_mode_93 {
+            emit(u32::from(mode));
+        }
         option(&mut emit, self.handler.map(PlayerId::get));
         option(&mut emit, self.visual_overrides.map(PlayerId::get));
         emit(u32::from(self.animation_interface.is_some()));

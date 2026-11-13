@@ -2511,6 +2511,226 @@ test('repeat rejects wrong owners, ordering, history, private payloads and prema
   }
 });
 
+const poseStages=['entry','blend_gate','enable_arguments','third_person_enable','first_person_enable','character_binding','character_10','character_14','session_scale','scale','scale_invalidate','dirty','weapon_mode','force_components','user_target','user_lookup','user_false_arm','backlink_components','attachment','global_byte','global_attachment','fade_inputs','final_session','returned'];
+const componentTailStages=['rotation_second','rotation_first','store_rotation_first','store_rotation_second','rotation_invalidate','character','character_10','character_14','session_scale','scale_first','scale_second','scale_invalidate','flags','returned'];
+function forPlayerComponents(report,change) {
+  for(const probe of [...report.menu.details.game_session.difficulty_probes,report.menu.details.game_session.cancel_reentry]) {
+    const player=probe.window.game_session.active.world_initialization.player_initialization;
+    change(player.component_initialization,player);
+  }
+  return report;
+}
+function setPlayerRoot(c,player,stage) {
+  const dependencies={player_pose_setup_pending:'player_pose_setup',player_component_tail_pending:'player_component_tail',player_initializer_pending:'player_initializer',player_transform_caches_pending:'player_transform_caches',player_animation_preload_pending:'player_animation_preload',player_initializer_tail_pending:'player_initializer_tail'};
+  c.stage=stage;c.pending_dependency=dependencies[stage];player.pending_dependency=c.pending_dependency;
+}
+function poseSetupFixture(stage='returned') {
+  const s=poseStages.indexOf(stage);
+  return {stage,pending_dependency:null,input_raw:254,input_signed:-2,helper_returned:s===23,
+    entry_702:s===0?null:0,blend_ba8:s>=2?0:null,bab_written:s>=2,tp_enabled:s>=3?false:null,fp_enabled:s>=3?true:null,
+    receiver_searches:[s>3,s>4],enable_writes:[0,1].map(i=>s>3+i?{component_file:[0x01020017,0x01020016][i],reference:0x04000011+i,enabled:i===1,reference_matched:true,flags_before:3,flags_after:i===0?2:3,invalidated_8e:i===1}:null),
+    character_bound:s>=6,character_scalars_read:s<7?0:s===7?1:2,character_vector_read:s>=8,session_scale_multiple:s>8?false:null,
+    scale_source:s>=10?'startup_ones':null,scale_stored:s>=10,scale_invalidated:s>=11,dirty_before:s>=12?0x20:null,dirty_after:s>=12?0:null,
+    ca4_written:s>12,mode_afc_absent:s>12?true:null,force_nodes_checked:s>=14?2:0,user_target_bound:s>14,
+    user_lookup:s>15?{visited:1,matched:false,association_state:'known_null',association_origin:'local_user_constructor',state_sha256:'b'.repeat(64)}:null,
+    false_arm_b00_absent:s>16?true:null,backlink_nodes_checked:s>=18?2:0,attachment_absent:s>18?true:null,
+    weapon_global_read:s>19,weapon_global_byte:null,global_argument:null,global_equivalence_used:s>20,global_attachment_absent:s>20?true:null,
+    fade_inputs_read:s>21,fade_argument_ready:s>21,fade_attachment_absent:s>21?true:null,final_session_multiple:s===23?false:null,state_sha256:'d'.repeat(64)};
+}
+function withPoseSetup(report,stage='returned') {
+  withConstructorContinuation(report);
+  return forPlayerComponents(report,(c,p)=>{c.pose_setup=poseSetupFixture(stage);setPlayerRoot(c,p,stage==='returned'?'player_component_tail_pending':'player_pose_setup_pending');});
+}
+function componentTailFixture(stage='returned') {
+  const s=componentTailStages.indexOf(stage);
+  return {stage,pending_dependency:null,helper_return:s===13?1:null,helper_returned:s===13,
+    rotation_reads:[s>=2,s>=1],rotation_stores:[s>=3,s>=4],rotation_invalidated:s>=5,
+    character_outcome:s>=6?'bound':null,character_scalars_read:s<7?0:s===7?1:2,character_scale_ready:s>=8,session_multiple:s>8?false:null,
+    scale_stores:[s>=10,s>=11],scale_invalidated:s>=12,flags_before:s===13?0x10:null,flags_after:s===13?0x13:null,state_sha256:'e'.repeat(64)};
+}
+function withComponentTail(report,stage='returned') {
+  withPoseSetup(report);
+  return forPlayerComponents(report,(c,p)=>{c.component_tail=componentTailFixture(stage);setPlayerRoot(c,p,stage==='returned'?'player_initializer_pending':'player_component_tail_pending');});
+}
+function transformCachesFixture() {
+  const backing=(kind,native_bytes,known_bytes)=>({kind,native_bytes,known_bytes,matrix_payload_known_bytes:kind==='matrix'?0:null});
+  const headers=Array.from({length:2},()=>({count:2,association_bound:false,backings:[backing('matrix',144,8),backing('validity',2,2),backing('offsets',4,4),backing('descendants',3,3),null],invalidation_count_reads:0,invalidation_pointer_reads:0}));
+  const builds=['first_person','third_person'].map(slot=>({slot,stage:'returned',bone_count:2,roots_completed:2,descendant_visits:1,descendant_bytes:3,offsets_written:2,allocations:5,releases:1,waiting_skeleton:false,failed:false,returned:true,state_sha256:'c'.repeat(64)}));
+  return {selected:'first_person',counts:[2,2],matrix_backings:[true,true],associations:[false,false],native_bytes:306,allocations:8,invocation_count:1,headers,
+    trace:{ordinal:1,stage:'returned',receivers_found:[true,true],selected_before:null,builds,missing_receiver_skip:false,reused_selected:false,selection_returned:true,selected_after:'first_person',failed:false,returned:true,state_sha256:'f'.repeat(64)},state_sha256:'a'.repeat(64)};
+}
+function withInitializerPrefix(report,stage='awaiting_preload') {
+  withComponentTail(report);
+  const stages=['item_flags','item_mode','item_dirty','base_scalars','first_person','third_person','caches','cache_flag','invalidate','awaiting_preload','awaiting_tail'],s=stages.indexOf(stage);
+  return forPlayerComponents(report,(c,p)=>{
+    c.initializer_prefix={stage,pending_dependency:({caches:'player_transform_caches',awaiting_preload:'player_animation_preload',awaiting_tail:'player_initializer_tail'}[stage]??'player_initializer_prefix'),
+      item_flags_before:s>=1?0:null,item_flags_after:s>=1?12:null,mode_written:s>=2,dirty_cleared:s>=3,scalars_written:s>=4,
+      receiver_searches:s<5?0:s===5?1:2,receivers_found:[s>=5,s>=6],cache_enabled:s===9?1:s>=8?0:null,invalidated:s===10,
+      caches:s>=6?transformCachesFixture():null,state_sha256:'b'.repeat(64)};
+    if(s===10) for(const h of c.initializer_prefix.caches.headers) if(h===c.initializer_prefix.caches.headers[0]) {h.invalidation_count_reads=1;h.invalidation_pointer_reads=1;}
+    setPlayerRoot(c,p,({caches:'player_transform_caches_pending',awaiting_preload:'player_animation_preload_pending',awaiting_tail:'player_initializer_tail_pending'}[stage]??'player_initializer_pending'));
+  });
+}
+
+test('pose stages retain ordered effects and explicit unknown global equivalence',async()=>{
+  for(const stage of poseStages) {
+    const report=withPoseSetup(withPlayerPrelude(gameSessionFixture()),stage);
+    await inspect(embed(report),d=>{
+      const text=d.querySelector('#game-session-summary').textContent;
+      assert.doesNotMatch(text,/has not been recorded completely|undefined/);
+      assert.match(text,/Pose setup helper/);
+      assert.match(text,/does not return the full player constructor/);
+      if(stage==='returned') {
+        assert.match(text,/original weapon global remains unknown/);
+        assert.match(text,/argument unread; no zero value was invented/);
+        assert.match(text,/constructor-proven NULL/);
+        assert.doesNotMatch(text,/pose setup is pending with signed argument/);
+      }
+    });
+  }
+});
+
+test('outer helper stages keep historical pose scale distinct from final character scale',async()=>{
+  for(const stage of componentTailStages) {
+    const report=withComponentTail(withPlayerPrelude(gameSessionFixture()),stage);
+    const c=report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization;
+    const historical=JSON.stringify([c.initial_action,c.repeat_action,c.callback_tail,c.constructor_tail,c.pose_setup]);
+    await inspect(embed(report),d=>{
+      const text=d.querySelector('#game-session-summary').textContent;
+      assert.doesNotMatch(text,/has not been recorded completely|undefined/);
+      assert.match(text,/Outer component helper/);
+      if(stage==='returned') assert.match(text,/final character scale was stored separately from the historical pose-helper scale/);
+    });
+    assert.equal(JSON.stringify([c.initial_action,c.repeat_action,c.callback_tail,c.constructor_tail,c.pose_setup]),historical);
+  }
+});
+
+test('initializer stages show real cache storage without sampled poses or preload completion',async()=>{
+  for(const stage of ['item_flags','item_mode','item_dirty','base_scalars','first_person','third_person','caches','cache_flag','invalidate','awaiting_preload','awaiting_tail']) {
+    const report=withInitializerPrefix(withPlayerPrelude(gameSessionFixture()),stage);
+    await inspect(embed(report),d=>{
+      const text=d.querySelector('#game-session-summary').textContent;
+      assert.doesNotMatch(text,/has not been recorded completely|undefined/);
+      assert.match(text,/Initializer prefix awaits/);
+      if(stage==='awaiting_preload') {
+        assert.match(text,/2 FP and 2 TP bones in 8 owned allocations \(306 native bytes\)/);
+        assert.match(text,/Matrix payloads are allocated and unwritten; no animation pose was sampled/);
+        assert.match(text,/Real animation preload is pending; the shared cache flag remains 1/);
+        assert.equal(d.querySelector('#parity-count').textContent,'0 of 3 tracked criteria verified');
+      }
+    });
+  }
+});
+
+test('cache selected reuse and failed allocation prefix preserve separate truthful receipts',async()=>{
+  const reused=withInitializerPrefix(withPlayerPrelude(gameSessionFixture()));
+  forPlayerComponents(reused,c=>{const caches=c.initializer_prefix.caches,t=caches.trace;caches.invocation_count=2;Object.assign(t,{ordinal:2,selected_before:'first_person',builds:[null,null],reused_selected:true,selection_returned:false});});
+  await inspect(embed(reused),d=>assert.match(d.querySelector('#game-session-summary').textContent,/existing selected cache was reused/));
+  const failed=withInitializerPrefix(withPlayerPrelude(gameSessionFixture()),'caches');
+  forPlayerComponents(failed,c=>{
+    const caches=c.initializer_prefix.caches,t=caches.trace,fp=t.builds[0];
+    Object.assign(caches,{selected:null,counts:[0,0],matrix_backings:[true,false],native_bytes:144,allocations:1});
+    caches.headers[0].count=0;caches.headers[0].backings.splice(1,4,null,null,null,null);
+    caches.headers[1].count=0;caches.headers[1].backings.fill(null);
+    Object.assign(t,{stage:'first_person',builds:[fp,null],selection_returned:false,selected_after:null,failed:true,returned:false});
+    Object.assign(fp,{stage:'validity_allocation',roots_completed:0,descendant_visits:0,descendant_bytes:0,offsets_written:0,allocations:1,releases:0,failed:true,returned:false});
+  });
+  await inspect(embed(failed),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.match(text,/Cache construction retains a partial prefix/);
+    assert.doesNotMatch(text,/has not been recorded completely|construction and selection returned|preload is pending; the shared cache flag remains 1/);
+  });
+});
+
+test('missing receiver skips flag read, cache construction and selected validity invalidation',async()=>{
+  const report=withInitializerPrefix(withPlayerPrelude(gameSessionFixture()),'awaiting_tail');
+  forPlayerComponents(report,c=>Object.assign(c.initializer_prefix,{receivers_found:[true,false],cache_enabled:null,invalidated:false,caches:null}));
+  await inspect(embed(report),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.match(text,/missing receiver skipped cache work and validity invalidation/);
+    assert.doesNotMatch(text,/has not been recorded completely|Selected validity bytes were cleared/);
+  });
+  forPlayerComponents(report,c=>{c.initializer_prefix.invalidated=true;});
+  await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+});
+
+test('known-null early branches and pending unknown arguments retain only reached effects',async()=>{
+  const early=withPoseSetup(withPlayerPrelude(gameSessionFixture()));
+  forPlayerComponents(early,c=>{
+    const p=c.pose_setup;p.entry_702=9;
+    for(const key of ['blend_ba8','tp_enabled','fp_enabled','session_scale_multiple','scale_source','dirty_before','dirty_after','mode_afc_absent','user_lookup','false_arm_b00_absent','attachment_absent','weapon_global_byte','global_argument','global_attachment_absent','fade_attachment_absent','final_session_multiple']) p[key]=null;
+    for(const key of ['bab_written','character_bound','character_vector_read','scale_stored','scale_invalidated','ca4_written','user_target_bound','weapon_global_read','global_equivalence_used','fade_inputs_read','fade_argument_ready']) p[key]=false;
+    for(const key of ['character_scalars_read','force_nodes_checked','backlink_nodes_checked']) p[key]=0;
+    p.receiver_searches=[false,false];p.enable_writes=[null,null];
+  });
+  await inspect(embed(early),d=>assert.doesNotMatch(d.querySelector('#game-session-summary').textContent,/has not been recorded completely|argument unread/));
+  const absent=withComponentTail(withPlayerPrelude(gameSessionFixture()));
+  forPlayerComponents(absent,c=>Object.assign(c.component_tail,{character_outcome:'known_absent',character_scalars_read:0,character_scale_ready:false,session_multiple:null,scale_stores:[false,false],scale_invalidated:false,flags_before:null,flags_after:null}));
+  await inspect(embed(absent),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.match(text,/character-absent branch skipped scale and flag writes/);
+    assert.doesNotMatch(text,/has not been recorded completely/);
+  });
+  const pending=withPoseSetup(withPlayerPrelude(gameSessionFixture()),'global_attachment');
+  forPlayerComponents(pending,c=>Object.assign(c.pose_setup,{pending_dependency:'pose_global_argument',global_attachment_absent:false}));
+  await inspect(embed(pending),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.match(text,/awaits pose global argument/);
+    assert.doesNotMatch(text,/has not been recorded completely|argument unread/);
+  });
+});
+
+test('reused matrix payload metadata cannot be mislabeled as a fresh unwritten allocation',async()=>{
+  const report=withInitializerPrefix(withPlayerPrelude(gameSessionFixture()));
+  forPlayerComponents(report,c=>{
+    const caches=c.initializer_prefix.caches,t=caches.trace;caches.invocation_count=2;
+    Object.assign(t,{ordinal:2,selected_before:'first_person',builds:[null,null],reused_selected:true,selection_returned:false});
+    caches.headers[0].backings[0].known_bytes=12;caches.headers[0].backings[0].matrix_payload_known_bytes=4;
+  });
+  await inspect(embed(report),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.match(text,/Existing matrix payload knowledge was retained on reuse/);
+    assert.match(text,/does not establish a sampled animation pose/);
+    assert.doesNotMatch(text,/has not been recorded completely|Matrix payloads are allocated and unwritten/);
+  });
+});
+
+test('current build bone count constrains matrix size independently of allocation totals',async()=>{
+  const report=withInitializerPrefix(withPlayerPrelude(gameSessionFixture()));
+  forPlayerComponents(report,c=>{
+    const caches=c.initializer_prefix.caches;
+    // Keep stride shape and owner byte sum valid: only the current build's
+    // two-bone count contradicts this three-matrix allocation.
+    caches.headers[0].backings[0].native_bytes+=64;
+    caches.native_bytes+=64;
+  });
+  await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+});
+
+test('new helper evidence rejects unknown defaults, premature writes, missing fields and readiness claims',async()=>{
+  const changes=[c=>{c.pose_setup.weapon_global_byte=0;},c=>{c.pose_setup.global_argument=0;},c=>{c.pose_setup.global_equivalence_used=false;},c=>{c.pose_setup.global_attachment_absent=false;},
+    c=>{c.pose_setup.user_lookup.association_state='unavailable';},c=>{c.pose_setup.user_lookup.association_origin='unavailable';},c=>{c.pose_setup.user_lookup.matched=true;},
+    c=>{c.pose_setup.enable_writes[0].flags_after=3;},c=>{c.pose_setup.scale_invalidated=false;},c=>{c.pose_setup.pose=[0,0,0];},
+    c=>{c.component_tail.rotation_reads=[true,false];},c=>{c.component_tail.scale_stores=[true,false];},c=>{c.component_tail.flags_after=0x10;},c=>{c.component_tail.helper_return=0;},
+    c=>{c.initializer_prefix.cache_enabled=0;},c=>{c.initializer_prefix.invalidated=true;},c=>{c.initializer_prefix.item_flags_after=0;},c=>{c.initializer_prefix.receivers_found=[true,false];},
+    c=>{c.initializer_prefix.caches.headers[0].backings[0].matrix_payload_known_bytes=1;},c=>{c.initializer_prefix.caches.headers[0].backings[0].known_bytes=9;},
+    c=>{c.initializer_prefix.caches.native_bytes++;},c=>{c.initializer_prefix.caches.allocations=9;},c=>{c.initializer_prefix.caches.trace.builds.reverse();},
+    c=>{c.initializer_prefix.caches.trace.builds[0].roots_completed=1;},c=>{c.initializer_prefix.caches.selected='third';},c=>{c.initializer_prefix.caches.headers[0].backings[4]={kind:'temporary',native_bytes:4,known_bytes:4,matrix_payload_known_bytes:null};},
+    c=>{c.stage='player_pose_setup_pending';c.pending_dependency='player_pose_setup';},c=>{c.pose_setup=null;},c=>{c.component_tail=null;},c=>{c.initializer_prefix=null;}];
+  const seed=withInitializerPrefix(withPlayerPrelude(gameSessionFixture()));
+  const sample=seed.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization;
+  for(const field of ['pose_setup','component_tail','initializer_prefix']) {
+    changes.push(c=>{delete c[field];});
+    for(const key of Object.keys(sample[field])) changes.push(c=>{delete c[field][key];});
+  }
+  for(const change of changes) {
+    const report=withInitializerPrefix(withPlayerPrelude(gameSessionFixture()));
+    const c=report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization;
+    change(c);
+    await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+  }
+});
+
 function withConstructorContinuation(report,stage='awaiting_pose') {
   withCallbackTail(report);
   for(const probe of [...report.menu.details.game_session.difficulty_probes,report.menu.details.game_session.cancel_reentry]) {
@@ -3054,7 +3274,7 @@ function componentPlayerFixture() {
     texture_dependencies_enumerated:true,component_binding_complete:true,
     texture_directory_outcome:'enumerated',texture_requests:3,texture_targets_resident:3,
     texture_residency_complete:true,texture_requests_state_sha256:'f'.repeat(64),preparation_state_sha256:'d'.repeat(64),
-    target_state_sha256:'e'.repeat(64),skeleton_binding:skeletonPlayerFixture(),bind_refresh:refreshPlayerFixture(),attachment:attachmentPlayerFixture(),visual_postbind:postbindPlayerFixture(),callbacks:callbacksPlayerFixture(),first_person:firstPersonPlayerFixture(),initial_action:initialActionPlayerFixture(),repeat_action:null,callback_tail:null,constructor_tail:null,scope:'Authored initial action; TP control dispatch pending'};
+    target_state_sha256:'e'.repeat(64),skeleton_binding:skeletonPlayerFixture(),bind_refresh:refreshPlayerFixture(),attachment:attachmentPlayerFixture(),visual_postbind:postbindPlayerFixture(),callbacks:callbacksPlayerFixture(),first_person:firstPersonPlayerFixture(),initial_action:initialActionPlayerFixture(),repeat_action:null,callback_tail:null,constructor_tail:null,pose_setup:null,component_tail:null,initializer_prefix:null,scope:'Authored initial action; TP control dispatch pending'};
 }
 function virtualPlayerFixture() {
   return {stage:'player_basic_complete',pending_dependency:'tp_fp_components',

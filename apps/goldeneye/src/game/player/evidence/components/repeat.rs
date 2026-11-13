@@ -272,6 +272,52 @@ pub(super) fn build(player: &Owned) -> Result<Option<RepeatAction>> {
         .and_then(|a| a.completed_evidence.as_ref())
         .context("repeat action has no immutable first invocation snapshot")?;
     let state = &repeated.state;
+    if let Some(snapshot) = &player.completed_repeat_evidence {
+        let dispatch = repeated
+            .dispatch
+            .as_ref()
+            .context("cached repeated dispatch absent")?;
+        let captured = dispatch.captured();
+        let saved = snapshot
+            .dispatch
+            .as_ref()
+            .context("cached repeat dispatch receipt absent")?;
+        ensure!(
+            state.stage() == actions::Stage::Returned
+                && state.player() == player.base.player()
+                && snapshot.stage == "returned"
+                && snapshot.action_invocation_returned
+                && !snapshot.callback_returned
+                && snapshot.generic_request == state.generic()
+                && snapshot.parameter_bits == state.parameter_bits()
+                && snapshot.state_sha256
+                    == super::super::words(b"ge_player_repeat_action_v1\0", |emit| state
+                        .visit_state_words(emit))
+                && dispatch.stage() == repeat::Stage::Returned
+                && dispatch.player() == state.player()
+                && saved.phase == "returned"
+                && saved.captured_position_bits == captured.bits
+                && saved.captured_head_present == captured.head.is_some()
+                && saved.captured_matched == captured.matched
+                && saved.tp_coordinate_written == dispatch.tp_coordinate_written()
+                && saved.seek_bits == dispatch.seek_bits()
+                && saved.seek_node_present == dispatch.seek_node().is_some()
+                && saved.seek_returned == dispatch.seek_returned()
+                && saved.override_writes == dispatch.override_writes()
+                && saved.fp_coordinate_bits == dispatch.fp_coordinate_bits()
+                && saved.fp_coordinate_written == dispatch.fp_coordinate_written()
+                && saved.calls.len() == dispatch.calls().len()
+                && saved
+                    .calls
+                    .iter()
+                    .zip(dispatch.calls())
+                    .all(|(saved, call)| saved.state_sha256
+                        == super::super::words(b"ge_player_repeat_mode_call_v1\0", |emit| call
+                            .visit_state_words(emit))),
+            "repeat snapshot differs from its actual returned invocation"
+        );
+        return Ok(Some(snapshot.clone()));
+    }
     ensure!(
         first.action_invocation_returned
             && !first.callback_returned

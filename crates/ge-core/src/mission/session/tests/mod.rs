@@ -141,6 +141,7 @@ fn received_delta_requires_known_source_and_matching_admitted_user() {
         identity: known,
         flags_raw: 0,
         created_byte_raw: 0,
+        player_association: local_users::Association::unavailable(known),
     };
     let ready = FlagsDelta {
         set: 0x100,

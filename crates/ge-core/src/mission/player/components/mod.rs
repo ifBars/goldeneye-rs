@@ -8,7 +8,7 @@ mod preparation;
 mod registry;
 mod skeleton;
 mod visual;
-pub use animator::{AnimationPosition, Animator};
+pub use animator::{AnimationPosition, Animator, EnableWrite};
 pub use preparation::{Attachment, BindReturn, ThirdPersonReturn, VisualPostbind};
 pub use preparation::{
     Bindings, Preparation, Provider, Stage, TextureEnumeration, TextureOutcome,

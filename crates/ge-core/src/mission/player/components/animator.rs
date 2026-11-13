@@ -10,10 +10,13 @@ mod child_effects;
 mod child_factory;
 mod control_capture;
 mod dispatch_tail;
+mod item_lookup;
 mod mask_control;
 mod mode_command;
 mod mode_target;
 mod parameters;
+mod pose;
+pub use pose::EnableWrite;
 mod repeat;
 pub use repeat::AnimationPosition;
 

@@ -10,11 +10,15 @@ mod player_callbacks;
 mod player_capture;
 mod player_child;
 mod player_command;
+mod player_component_tail;
 mod player_constructor_tail;
 mod player_dispatch;
 mod player_first_person;
 mod player_fp;
+mod player_initializer_prefix;
 mod player_mask;
+mod player_native_setup;
+mod player_pose_setup;
 mod player_postbind;
 mod player_refresh;
 mod player_repeat;
@@ -1042,6 +1046,9 @@ fn validate_player_components(component: &Value, reached: bool) -> Result<()> {
             "repeat_action",
             "callback_tail",
             "constructor_tail",
+            "pose_setup",
+            "component_tail",
+            "initializer_prefix",
             "scope",
         ],
     )?;
@@ -1102,6 +1109,9 @@ fn validate_player_components(component: &Value, reached: bool) -> Result<()> {
     player_repeat::validate(&component["repeat_action"], component)?;
     player_callback_tail::validate(&component["callback_tail"], component)?;
     player_constructor_tail::validate(&component["constructor_tail"], component)?;
+    player_pose_setup::validate(&component["pose_setup"], component)?;
+    player_component_tail::validate(&component["component_tail"], component)?;
+    player_initializer_prefix::validate(&component["initializer_prefix"], component)?;
     let capture = &component["initial_action"]["tp_capture"];
     ensure!(
         capture["bones_per_control"] == component["skeleton_binding"]["bones"]
@@ -1624,15 +1634,7 @@ fn validate_tutorial_suffix(player: &Value) -> Result<()> {
         player_selector::dependency(&c["stage"])
             .is_some_and(|dependency| player["pending_dependency"] == dependency
                 && c["pending_dependency"] == dependency)
-            && matches!(
-                c["stage"].as_str(),
-                Some(
-                    "action_dispatch_repeat_pending"
-                        | "player_callback_tail_pending"
-                        | "player_constructor_tail_pending"
-                        | "player_pose_setup_pending"
-                )
-            )
+            && player_selector::at_least(&c["stage"], 0)
             && a["stage"] == "action_dispatch_repeat_pending"
             && a["action_invocation_returned"] == true
             && a["callback_returned"] == false
@@ -1683,14 +1685,7 @@ fn validate_tutorial_repeat(player: &Value) -> Result<()> {
         player_selector::dependency(&component["stage"])
             .is_some_and(|dependency| player["pending_dependency"] == dependency
                 && component["pending_dependency"] == dependency)
-            && matches!(
-                component["stage"].as_str(),
-                Some(
-                    "player_callback_tail_pending"
-                        | "player_constructor_tail_pending"
-                        | "player_pose_setup_pending"
-                )
-            )
+            && player_selector::at_least(&component["stage"], 1)
             && action["stage"] == "returned"
             && action["action_invocation_returned"] == true
             && action["callback_returned"] == false
@@ -1789,10 +1784,7 @@ fn validate_tutorial_callback_tail(player: &Value) -> Result<()> {
         player_selector::dependency(&component["stage"])
             .is_some_and(|dependency| player["pending_dependency"] == dependency
                 && component["pending_dependency"] == dependency)
-            && matches!(
-                component["stage"].as_str(),
-                Some("player_constructor_tail_pending" | "player_pose_setup_pending")
-            )
+            && player_selector::at_least(&component["stage"], 2)
             && tail["stage"] == "returned"
             && tail["logging_noop_returned"] == true
             && tail["e59_raw"] == 0
@@ -1814,9 +1806,10 @@ fn validate_tutorial_constructor_tail(player: &Value) -> Result<()> {
     let tail = &component["constructor_tail"];
     player_constructor_tail::validate(tail, component)?;
     ensure!(
-        player["pending_dependency"] == "player_pose_setup"
-            && component["stage"] == "player_pose_setup_pending"
-            && component["pending_dependency"] == "player_pose_setup"
+        player_selector::dependency(&component["stage"])
+            .is_some_and(|dependency| player["pending_dependency"] == dependency
+                && component["pending_dependency"] == dependency)
+            && player_selector::at_least(&component["stage"], 3)
             && tail["stage"] == "awaiting_pose"
             && tail["pending_dependency"] == "constructor_pose"
             && tail["saved_state_704"] == 0
@@ -2095,6 +2088,7 @@ fn validate_tutorial_world(probe: &Value) -> Result<()> {
     validate_tutorial_repeat(player)?;
     validate_tutorial_callback_tail(player)?;
     validate_tutorial_constructor_tail(player)?;
+    player_native_setup::validate(player)?;
     let flag = &player["constructor_flag"];
     let virtual_init = &player["virtual_initialization"];
     ensure!(
@@ -3833,7 +3827,7 @@ mod tests {
             "visual_postbind":player_postbind::tests::fixture(),
             "callbacks":player_callbacks::tests::fixture(),
             "first_person":player_first_person::tests::fixture(),
-            "initial_action":player_action::tests::fixture(),"repeat_action":null,"callback_tail":null,"constructor_tail":null,
+            "initial_action":player_action::tests::fixture(),"repeat_action":null,"callback_tail":null,"constructor_tail":null,"pose_setup":null,"component_tail":null,"initializer_prefix":null,
             "scope":"Authored TP control capture; TP mode selector remains pending"});
         probe
     }

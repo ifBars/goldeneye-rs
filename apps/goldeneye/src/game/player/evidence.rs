@@ -5,7 +5,10 @@ use crate::game::world_hooks::Attempt;
 use anyhow::{Result, ensure};
 pub(super) use components::CallbackTail;
 pub use components::ComponentInitialization;
+pub(super) use components::ComponentTail;
 pub(super) use components::InitialAction;
+pub(super) use components::PoseSetup;
+pub(super) use components::{ConstructorTail, RepeatAction};
 use ge_core::mission::{
     player::{base_handler, world::World},
     spawn::SelectionResult,
@@ -35,6 +38,40 @@ pub(super) fn capture_callback_tail(owned: &Owned, world: &World) -> Result<Call
         "callback snapshot requires a returned callback"
     );
     components::capture_callback_tail(owned, world)
+}
+/// Preserve completed helper receipts before pose setup changes their owners.
+pub(super) fn capture_constructor_entry(owned: &Owned) -> Result<(RepeatAction, ConstructorTail)> {
+    ensure!(
+        owned
+            .constructor_tail
+            .as_ref()
+            .is_some_and(|tail| tail.stage()
+                == ge_core::mission::player::constructor::continuation::Stage::AwaitingPose),
+        "pose entry snapshots require the real constructor helper return"
+    );
+    components::capture_constructor_entry(owned)
+}
+/// Retain this nested helper's actual return before the outer fragment writes scale.
+pub(super) fn capture_pose_setup(owned: &Owned, world: &World) -> Result<PoseSetup> {
+    ensure!(
+        owned
+            .pose_setup
+            .as_ref()
+            .is_some_and(|p| p.state.helper_returned()),
+        "pose snapshot requires the real nested helper return"
+    );
+    components::capture_pose_setup(owned, world)
+}
+/// Preserve the outer helper before initializer flags and mode stores begin.
+pub(super) fn capture_component_tail(owned: &Owned, world: &World) -> Result<ComponentTail> {
+    ensure!(
+        owned
+            .component_tail
+            .as_ref()
+            .is_some_and(|t| t.helper_returned()),
+        "component snapshot requires the real outer helper return"
+    );
+    components::capture_component_tail(owned, world)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

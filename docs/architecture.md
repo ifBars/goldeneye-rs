@@ -135,10 +135,24 @@ A separate callback-tail receipt proves its actual base/reset/physics writes and
 return. A separate constructor continuation now selects the default script through
 retained metadata and the actual inventory record. Its immediate cleanup preserves
 NULL skips, word/byte stores and count-only override removals. Only the returned
-helper permits the signed pose-input read. Pose setup, pose postprocessing and
-frame scheduling remain incomplete. These returns do not establish player or
-gameplay readiness. [Constructor continuation](constructor-continuation.md)
-describes the reached cleanup and next dependency.
+helper permits the signed pose-input read. The next pose helper now switches the
+actual component enable fields, applies retained character/default scale inputs
+and queries the same local user's player association. A source-owned NULL link
+remains distinct from unavailable data or readiness flags. An unresolved process
+byte is retained while an explicit argument-unread proof permits the reached
+NULL-attachment no-op. No concrete original branch is inferred.
+
+The separate outer component helper then copies the current item rotation and
+applies the final character-derived scale. Its return permits initializer item
+and base stores, followed by FP then TP transform-cache construction. The caches
+have separate controller-lived headers, checked startup provenance, validity and
+descendant storage. Their matrix payloads remain unwritten; they are not existing
+skeleton matrices or sampled poses. The actual shared preload flag stays 1 until
+the full enabled-weapon-row and temporary-animator work can execute. Pose
+postprocessing, frame scheduling, initializer/constructor completion and gameplay
+readiness remain incomplete. [Player pose setup](player-pose-setup.md) describes
+the reached path; [constructor continuation](constructor-continuation.md) covers
+its earlier cleanup boundary.
 [Script updates](animation-script-updates.md) describes their separate
 traces and provider boundaries.
 The first class-four factory now allocates its own retained header before any

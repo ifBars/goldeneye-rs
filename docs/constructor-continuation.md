@@ -67,7 +67,9 @@ The continuation has a separate receipt for its actual reads, skipped branches,
 ordered stores, override results and helper return. Private owner state is
 hashed; original payloads and pointers stay out of reports and synthetic tests.
 
-Reaching pose setup does not complete the player constructor or publish a live
-player. Pose work, camera setup, movement and combat remain separate milestones.
+The following [pose helpers and transform-cache construction](player-pose-setup.md)
+now execute too. Animation preload remains pending. These helper returns do not
+complete the player constructor or publish a live player; camera setup, movement
+and combat remain separate milestones.
 See [player creation](player-creation.md) and the
 [repeated startup action](repeated-player-action.md) for the preceding owners.

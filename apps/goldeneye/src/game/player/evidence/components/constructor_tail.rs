@@ -1,6 +1,6 @@
 use super::super::super::Owned;
 use anyhow::{Context, Result, ensure};
-use ge_core::mission::player::constructor::continuation::{MetadataField, Stage};
+use ge_core::mission::player::constructor::continuation::{MetadataField, Pending, Stage};
 use serde::Serialize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -54,6 +54,14 @@ pub(super) fn build(player: &Owned) -> Result<Option<ConstructorTail>> {
                 .is_some_and(|c| c.callback_returned),
         "constructor continuation changed its entry or lacks a returned callback snapshot"
     );
+    if let Some(snapshot) = &player.completed_constructor_evidence {
+        ensure!(
+            tail.stage() == Stage::AwaitingPose
+                && *snapshot == receipt(tail, snapshot.state_sha256.clone()),
+            "constructor snapshot differs from its actual completed helper receipt"
+        );
+        return Ok(Some(snapshot.clone()));
+    }
     if tail.stage() != Stage::RestoreState {
         let callback_state = player
             .completed_callback_evidence
@@ -154,6 +162,17 @@ pub(super) fn build(player: &Owned) -> Result<Option<ConstructorTail>> {
             "constructor signed pose input differs"
         );
     }
+    Ok(Some(receipt(
+        tail,
+        super::super::words(b"ge_player_constructor_continuation_v1\0", |mut emit| {
+            tail.visit_state_words(&mut emit);
+            player.base.visit_state_words(&mut emit);
+            player.reset.visit_state_words(&mut emit);
+            inventory.visit_state_words(&mut emit);
+        }),
+    )))
+}
+fn receipt(tail: &Pending, state_sha256: String) -> ConstructorTail {
     let stage = match tail.stage() {
         Stage::RestoreState => "restore_state",
         Stage::SelectScript => "select_script",
@@ -175,7 +194,7 @@ pub(super) fn build(player: &Owned) -> Result<Option<ConstructorTail>> {
         Stage::PoseInput => "pose_input",
         Stage::AwaitingPose => "awaiting_pose",
     };
-    Ok(Some(ConstructorTail {
+    ConstructorTail {
         stage,
         pending_dependency: tail.dependency().map(|d| d.as_str()),
         saved_state_704: tail.saved_state_704(),
@@ -210,14 +229,6 @@ pub(super) fn build(player: &Owned) -> Result<Option<ConstructorTail>> {
         helper_return: tail.helper_return(),
         pose_input_raw: tail.pose_input_raw(),
         pose_input_signed: tail.pose_input_signed(),
-        state_sha256: super::super::words(
-            b"ge_player_constructor_continuation_v1\0",
-            |mut emit| {
-                tail.visit_state_words(&mut emit);
-                player.base.visit_state_words(&mut emit);
-                player.reset.visit_state_words(&mut emit);
-                inventory.visit_state_words(&mut emit);
-            },
-        ),
-    }))
+        state_sha256,
+    }
 }

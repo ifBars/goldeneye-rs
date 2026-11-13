@@ -412,7 +412,9 @@ setter. Its second suffix returns before the actual callback tail mutates the
 existing base, reset and physics owners and returns. The following constructor
 continuation now selects script `0x04001dac` through the retained metadata and
 current record. Its supported cleanup path returns 1 before the actual signed
-pose-input read. Pose setup remains pending. See
+pose-input read. The pose and outer component helpers now return, and the
+initializer builds the separate shared transform caches before waiting for
+animation preload. See [player pose setup](player-pose-setup.md),
 [constructor continuation](constructor-continuation.md),
 [the repeated action](repeated-player-action.md),
 [the first action suffix](initial-action-suffix.md) and
@@ -428,7 +430,7 @@ once with the controller, rather than recreated on each load. Native removal and
 destructor/cache cleanup remain required; retained cancelled objects do not imply
 completed native lifetime behavior or active simulation.
 
-Player completion, pose setup, camera/view setup and gameplay
+Player completion, sampled gameplay poses, camera/view setup and gameplay
 remain incomplete. The native checkpoint says **Preparing player**. Progress
 evidence reports the reached constructor prefix and pending dependency, with
 original history and timing explicitly unverified. It hashes private state and

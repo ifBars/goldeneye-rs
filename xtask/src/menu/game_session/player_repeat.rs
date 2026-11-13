@@ -422,14 +422,7 @@ pub(super) fn validate(r: &Value, component: &Value) -> Result<()> {
     ensure!(
         r["action_invocation_returned"] == returned
             && if returned {
-                matches!(
-                    component["stage"].as_str(),
-                    Some(
-                        "player_callback_tail_pending"
-                            | "player_constructor_tail_pending"
-                            | "player_pose_setup_pending"
-                    )
-                )
+                player_selector::at_least(&component["stage"], 1)
             } else {
                 component["stage"] == "action_dispatch_repeat_pending"
             },

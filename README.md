@@ -29,14 +29,14 @@ Windows. The long-term goal is to reproduce the original game's behavior.
 - [ ] Enable the gameplay camera and player controls.
 - [ ] Play and complete the Tutorial.
 
-**Latest checkpoint:** both player startup animation actions, their callback and
-the following constructor cleanup helpers now complete. Pose setup is next;
-the player still needs more initialization before gameplay can start.
+**Latest checkpoint:** the player pose helpers and shared transform-cache
+construction now complete. Animation preload is next; the player still needs
+more initialization before gameplay can start.
 
 A reliable whole-game completion percentage isn't available yet. Progress is
 tracked by working features and playable missions; test coverage is separate.
 
-[Detailed checkpoint](docs/constructor-continuation.md) ·
+[Detailed checkpoint](docs/player-pose-setup.md) ·
 [Build and coverage reports](https://github.com/ifBars/goldeneye-rs/actions/workflows/ci.yml) ·
 [Open the local progress dashboard](#development)
 

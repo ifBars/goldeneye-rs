@@ -35,7 +35,7 @@ fn hash(v: &Value) -> bool {
 pub(super) fn validate(t: &Value, component: &Value) -> Result<()> {
     if t.is_null() {
         ensure!(
-            component["stage"] != "player_pose_setup_pending",
+            !super::player_selector::at_least(&component["stage"], 3),
             "pose setup precedes constructor helper return"
         );
         return Ok(());
@@ -88,12 +88,11 @@ pub(super) fn validate(t: &Value, component: &Value) -> Result<()> {
             && t["b84_written"].is_boolean()
             && t["bd1_written"].is_boolean()
             && hash(&t["state_sha256"])
-            && component["stage"]
-                == if stage == 18 {
-                    "player_pose_setup_pending"
-                } else {
-                    "player_constructor_tail_pending"
-                },
+            && if stage == 18 {
+                super::player_selector::at_least(&component["stage"], 3)
+            } else {
+                component["stage"] == "player_constructor_tail_pending"
+            },
         "constructor entry, restore or current root stage differs"
     );
     let expected_dependency = match stage {

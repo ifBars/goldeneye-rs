@@ -1,7 +1,10 @@
 //! Shared PlayerNew constructor allocations/count, with actual uninitialized
 //! owned storage. Reset and final cache cleanup remain real caller operations.
 mod allocation;
+pub mod component_tail;
 pub mod continuation;
+pub mod initializer_prefix;
+pub mod pose;
 mod prelude;
 mod reset_prefix;
 mod scratch;

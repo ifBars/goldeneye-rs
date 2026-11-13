@@ -75,8 +75,10 @@ the two earlier action snapshots keep their original completion scope.
 
 Callback return does not publish a completed player. The following
 [constructor continuation](constructor-continuation.md) now selects the default
-script and returns through its supported cleanup path. Pose setup, later loader
-work, camera setup and gameplay remain incomplete. No mission has become playable.
+script and returns through its supported cleanup path. The following
+[pose helpers and shared transform caches](player-pose-setup.md) now execute,
+before waiting for animation preload. Later initialization, camera setup and
+gameplay remain incomplete. No mission has become playable.
 
 Synthetic tests cover secondary history ordering, command acknowledgement,
 animation type gates, seek fields, scalar rounding, callback branches, field

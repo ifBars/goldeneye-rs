@@ -4,6 +4,7 @@ mod action;
 mod callback_tail;
 mod components;
 mod constructor_tail;
+mod pose;
 mod selection;
 mod tail;
 use super::super::{base_handler, identity::PlayerId};

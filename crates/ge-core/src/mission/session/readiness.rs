@@ -26,6 +26,7 @@ pub struct UserSnapshot {
     pub identity: UserId,
     pub flags_raw: u32,
     pub created_byte_raw: u8,
+    pub player_association: super::local_users::Association,
 }
 
 /// Apply an explicitly received source delta to an existing matching peer,

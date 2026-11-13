@@ -9,6 +9,10 @@ pub use animation::AnimationInterface;
 mod constructor_flag;
 mod constructor_tail;
 mod generic;
+mod initializer;
+#[cfg(test)]
+#[path = "tests/pose_fixture.rs"]
+mod pose_fixture;
 mod reset;
 mod runtime_reset;
 mod types;

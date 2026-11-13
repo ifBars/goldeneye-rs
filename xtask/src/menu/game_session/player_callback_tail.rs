@@ -15,10 +15,7 @@ fn hash(v: &Value) -> bool {
 pub(super) fn validate(t: &Value, component: &Value) -> Result<()> {
     if t.is_null() {
         ensure!(
-            !matches!(
-                component["stage"].as_str(),
-                Some("player_constructor_tail_pending" | "player_pose_setup_pending")
-            ),
+            !super::player_selector::at_least(&component["stage"], 2),
             "constructor continuation precedes callback return"
         );
         return Ok(());
@@ -60,10 +57,7 @@ pub(super) fn validate(t: &Value, component: &Value) -> Result<()> {
             && t["callback_returned"] == (stage == 5)
             && hash(&t["state_sha256"])
             && if stage == 5 {
-                matches!(
-                    component["stage"].as_str(),
-                    Some("player_constructor_tail_pending" | "player_pose_setup_pending")
-                )
+                super::player_selector::at_least(&component["stage"], 2)
             } else {
                 component["stage"] == "player_callback_tail_pending"
             },

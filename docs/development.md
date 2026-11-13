@@ -53,13 +53,13 @@ The server root contains public summaries rather than the image, private evidenc
 or coverage source listings. This serves the dashboard only; it does not run the
 game. The computer and phone must be able to reach one another on the local network.
 
-New Game currently stops at **Preparing player** after the constructor cleanup
-helper returns. Its receipt keeps selected metadata, current inventory, ordered
-NULL skips and narrow stores separate from the completed action/callback
-snapshots. The next pose helper has not run. See
-[constructor continuation](constructor-continuation.md) for the source order and
-remaining providers. A new native receipt must keep player and camera readiness
-false until their real completion paths return.
+New Game currently stops at **Preparing player**, awaiting animation preload.
+The pose and outer component helpers return, and the initializer builds the
+shared transform caches for the actual first- and third-person skeletons. Their
+matrix payloads remain unwritten. Earlier action and helper receipts stay
+immutable as later operations change the live owners. See
+[player pose setup](player-pose-setup.md) for the current source order and limits.
+Keep player and camera readiness false until their real completion paths return.
 
 VS Code's **Run Task** menu exposes these routine commands; Rust Analyzer and
 TOML extension recommendations are included. Generated/private directories are

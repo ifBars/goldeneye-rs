@@ -1,5 +1,8 @@
 //! The second live animator. It shares constructor/bind rules with TP, while
 //! retaining its own skin, skeleton, identity and reached partial state.
+#[cfg(test)]
+#[path = "tests/pose_fixture.rs"]
+mod pose_fixture;
 mod tail;
 use super::skeleton::{FP_COMPONENT, ResourceBinding};
 use super::{Animator, Identity, SkeletonBudget, SkeletonInput, Visual};

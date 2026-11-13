@@ -11,12 +11,15 @@ mod callback_tail;
 mod callbacks;
 mod child;
 mod command;
+mod component_tail;
 mod constructor_tail;
 mod control_capture;
 mod dispatch;
 mod first_person;
 mod fp_dispatch;
+mod initializer_prefix;
 mod mask;
+mod pose_setup;
 mod postbind;
 mod refresh;
 mod repeat;
@@ -29,10 +32,14 @@ pub use callback_tail::CallbackTail;
 pub use callbacks::CallbackBinding;
 pub use child::ChildHeader;
 pub use command::CommandBody;
+pub use component_tail::ComponentTail;
+pub use constructor_tail::ConstructorTail;
 pub use control_capture::ThirdPersonCapture;
 pub use first_person::FirstPersonBinding;
+pub use pose_setup::PoseSetup;
 pub use postbind::VisualPostbind;
 pub use refresh::BindRefresh;
+pub use repeat::RepeatAction;
 pub use selector::ThirdPersonSelector;
 pub use skeleton::SkeletonBinding;
 
@@ -44,6 +51,18 @@ pub(super) fn capture_initial_action(
 }
 pub(super) fn capture_callback_tail(player: &Owned, world: &World) -> Result<CallbackTail> {
     callback_tail::build(player, world)?.context("returned callback tail evidence absent")
+}
+pub(super) fn capture_constructor_entry(player: &Owned) -> Result<(RepeatAction, ConstructorTail)> {
+    Ok((
+        repeat::build(player)?.context("returned repeat receipt absent")?,
+        constructor_tail::build(player)?.context("constructor helper receipt absent")?,
+    ))
+}
+pub(super) fn capture_pose_setup(player: &Owned, world: &World) -> Result<PoseSetup> {
+    pose_setup::build(player, world)?.context("returned pose helper evidence absent")
+}
+pub(super) fn capture_component_tail(player: &Owned, world: &World) -> Result<ComponentTail> {
+    component_tail::build(player, world)?.context("returned outer component helper evidence absent")
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -78,6 +97,9 @@ pub struct ComponentInitialization {
     pub repeat_action: Option<repeat::RepeatAction>,
     pub callback_tail: Option<callback_tail::CallbackTail>,
     pub constructor_tail: Option<constructor_tail::ConstructorTail>,
+    pub pose_setup: Option<PoseSetup>,
+    pub component_tail: Option<component_tail::ComponentTail>,
+    pub initializer_prefix: Option<initializer_prefix::InitializerPrefix>,
     pub scope: &'static str,
 }
 pub(super) fn build(
@@ -139,7 +161,24 @@ pub(super) fn build(
     let repeat_action = repeat::build(player)?;
     let callback_tail = callback_tail::build(player, world)?;
     let constructor_tail = constructor_tail::build(player)?;
-    let (stage, pending_dependency) = if constructor_tail
+    let pose_setup = pose_setup::build(player, world)?;
+    let component_tail = component_tail::build(player, world)?;
+    let initializer_prefix = initializer_prefix::build(player, world, hook)?;
+    let (stage, pending_dependency) = if let Some(prefix) = &initializer_prefix {
+        match prefix.stage {
+            "awaiting_preload" => (
+                "player_animation_preload_pending",
+                "player_animation_preload",
+            ),
+            "caches" => ("player_transform_caches_pending", "player_transform_caches"),
+            "awaiting_tail" => ("player_initializer_tail_pending", "player_initializer_tail"),
+            _ => ("player_initializer_pending", "player_initializer"),
+        }
+    } else if component_tail.as_ref().is_some_and(|t| t.helper_returned) {
+        ("player_initializer_pending", "player_initializer")
+    } else if pose_setup.as_ref().is_some_and(|p| p.helper_returned) {
+        ("player_component_tail_pending", "player_component_tail")
+    } else if constructor_tail
         .as_ref()
         .is_some_and(|t| t.stage == "awaiting_pose")
     {
@@ -191,6 +230,9 @@ pub(super) fn build(
         repeat_action,
         callback_tail,
         constructor_tail,
+        pose_setup,
+        component_tail,
+        initializer_prefix,
         scope: "TP selection and command effects use the same resident component base. Returned class-four factories copy the old head position, insert typed list members and apply scalar/post-word writes in source order. Only returned bodies are acknowledged before selector continuation. The setter preserves its actual tracked/untracked history gates. TP dispatch applies reached blend-coordinate writes and re-enters existing scripts with initflag1, retaining their file/cache/clip owners and separate update traces. Other factory classes, wrapper allocation and cleanup remain explicit dependencies when reached. The first action receipt stays immutable while the repeated action records its own setters, captured seek, override stores and second suffix. Callback return comes only from its separate tail receipt. Constructor continuation, pose postprocessing, scheduling, completed player and camera remain incomplete.",
     }))
 }

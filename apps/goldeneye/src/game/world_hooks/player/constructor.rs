@@ -125,11 +125,12 @@ impl Attempt {
         self.ensure_current()?;
         let reads = state
             .player
+            .math_defaults
             .reset_quad_reads
             .checked_add(1)
             .ok_or_else(|| anyhow::anyhow!("player reset defaults read count overflow"))?;
-        state.player.reset_quad_reads = reads;
-        Ok(state.player.reset_quad_bits)
+        state.player.math_defaults.reset_quad_reads = reads;
+        Ok(state.player.math_defaults.reset_quad_bits)
     }
 
     pub fn reset_player_runtime_float(&self, bits: u32) -> Result<()> {

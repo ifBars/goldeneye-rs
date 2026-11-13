@@ -69,8 +69,18 @@ now clears the derived timer and retained physics fields, writes handler state
 and flags, and returns. Constructor continuation now selects script04001dac
 through the retained metadata and current inventory. Its supported cleanup path
 preserves NULL skips, word/byte store widths and count-only override removals.
-The helper returns1 before the actual signedc7d read. Pose setup remains next;
-no player completion or camera readiness is inferred.
+The helper returns1 before the actual signedc7d read. The pose helper now uses
+live animator references and semantic enable flags, retained character inputs
+and the same admitted local user's constructor-owned NULL player association.
+An unknown process byte remains unknown; its selected argument is proved unread
+only while the actual attachment is NULL. A distinct outer helper returns after
+rotation self-copy and final character scale. The initializer now writes its
+item/base prefix and builds both controller-lived transform caches in order.
+Matrix payloads stay unwritten. The actual preload flag remains1; full animation
+preload is next, not a buffer-clear or flag-clear shortcut. It first writes32
+Raw512 flag bytes and34 Array34 key words, then visits actual enabled registry
+rows and separate temporary animators. No player/camera readiness is inferred.
+See docs/player-pose-setup.md for the current boundary.
 Factory and update traces stay separate,
 with bounded diagnostic history independent of simulation lifetime. Pose postprocess targets
 are assigned, but their body and frame scheduling remain unavailable.

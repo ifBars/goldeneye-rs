@@ -3,6 +3,7 @@
 //! This owns no provider, native handle, world or player. Host callbacks report
 //! actual operation outcomes; request construction alone never activates a
 //! session. Live world/catalog completion remains outside this module.
+pub mod local_users;
 pub mod member_snapshot;
 pub mod player_load;
 mod readiness;
@@ -215,6 +216,10 @@ impl Session {
                         identity: self.user_id,
                         flags_raw: 0,
                         created_byte_raw: 0,
+                        player_association: local_users::Association::from_constructor(
+                            self.session_id,
+                            self.user_id,
+                        ),
                     },
                 });
                 let mut records = records::Owner::from_constructor(self.session_id);
