@@ -2,6 +2,26 @@ use super::super::*;
 use ge_core::mission::player::components::Preparation;
 
 #[test]
+fn animation_step_uses_shared_actual_frame_time_and_rejects_cancelled_attempts() {
+    let shared = Shared::from_constructor();
+    let first = shared.begin(1).unwrap();
+    assert_eq!(first.animation_step().unwrap(), 1f32.to_bits());
+    shared
+        .0
+        .state
+        .lock()
+        .unwrap()
+        .clock
+        .advance(std::time::Duration::from_millis(25))
+        .unwrap();
+    assert_eq!(first.animation_step().unwrap(), 1.5f32.to_bits());
+    shared.invalidate();
+    assert!(first.animation_step().is_err());
+    let second = shared.begin(2).unwrap();
+    assert_eq!(second.animation_step().unwrap(), 1.5f32.to_bits());
+}
+
+#[test]
 fn animation_arena_and_context_persist_after_cancellation_without_stale_callback_writes() {
     let shared = Shared::from_constructor();
     let first = shared.begin(1).unwrap();

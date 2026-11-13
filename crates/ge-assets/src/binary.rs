@@ -12,6 +12,9 @@ impl<'a> Bytes<'a> {
     pub fn u16(self, offset: usize) -> Result<u16> {
         Ok(u16::from_be_bytes(self.range(offset, 2)?.try_into()?))
     }
+    pub fn u8(self, offset: usize) -> Result<u8> {
+        Ok(self.range(offset, 1)?[0])
+    }
     pub fn u32(self, offset: usize) -> Result<u32> {
         Ok(u32::from_be_bytes(self.range(offset, 4)?.try_into()?))
     }

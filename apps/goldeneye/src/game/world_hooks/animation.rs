@@ -5,6 +5,17 @@ use anyhow::Result;
 use ge_core::mission::player::components::Preparation;
 
 impl Attempt {
+    pub fn animation_step(&self) -> Result<u32> {
+        self.ensure_current()?;
+        let state = self
+            .shared
+            .0
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("animation step owner lock is poisoned"))?;
+        self.ensure_current()?;
+        Ok(state.clock.scaled_step_bits())
+    }
     pub fn animation_slot_override(&self) -> Result<ge_core::animation::layers::SlotOverride> {
         self.ensure_current()?;
         let state = self

@@ -3,6 +3,8 @@
 use crate::{binary::Bytes, edb::Table};
 use anyhow::{Context, Result, bail, ensure};
 use serde::Serialize;
+mod live;
+pub use live::SelectionEntry;
 
 pub const TRANSLATION: u32 = 0x04;
 pub const ROTATION: u32 = 0x08;

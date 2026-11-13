@@ -2,6 +2,40 @@ use super::*;
 use crate::animation::{layers::command, script_child};
 use anyhow::Context;
 impl super::super::Preparation {
+    pub fn initialize_third_person_child_phase_zero(
+        &mut self,
+        command: &mut command::Pending,
+        source: &mut impl script_child::initialization::Source,
+        scaled_step_bits: u32,
+        maximum_entries: usize,
+    ) -> Result<()> {
+        ensure!(
+            self.stage() == super::super::Stage::AwaitingInitialModes,
+            "phase-zero initializer precedes component helper return"
+        );
+        let owner = self.animator_mut_for_capture()?;
+        let result = (|| {
+            ensure!(
+                command.stage() == command::Stage::ChildFactoryPending,
+                "phase-zero initializer command differs"
+            );
+            let id = command
+                .factory_node()
+                .context("phase-zero child factory allocation absent")?;
+            let inputs = script_child::initialization::Inputs {
+                component_speed_bits: owner.word(0x108).context("animator speed unknown")?,
+                scaled_step_bits,
+                maximum_entries,
+            };
+            owner
+                .script_children
+                .initialize_phase_zero(id, source, inputs)
+        })();
+        if result.is_err() {
+            command.fail_factory(owner.layers.as_mut().context("TP layers absent")?);
+        }
+        result
+    }
     pub fn initialize_third_person_child_prefix(
         &mut self,
         command: &mut command::Pending,

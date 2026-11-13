@@ -1,5 +1,5 @@
 use super::*;
-struct Source {
+pub(super) struct Source {
     file: u32,
     generation: u32,
     found: bool,
@@ -34,7 +34,7 @@ impl Provider for Source {
         Ok(self.body)
     }
 }
-fn source() -> Source {
+pub(super) fn source() -> Source {
     Source {
         file: 0x0102_00ab,
         generation: 0,
@@ -44,7 +44,7 @@ fn source() -> Source {
         calls: Vec::new(),
     }
 }
-fn fixture() -> (Store, Ids, NodeId) {
+pub(super) fn fixture() -> (Store, Ids, NodeId) {
     let owner = OwnerId::new(3).unwrap();
     let mut store = Store::from_constructor(owner, 4);
     let mut ids = Ids::from_constructor(owner, 4);

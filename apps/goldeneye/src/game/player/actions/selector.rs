@@ -86,6 +86,32 @@ pub(super) fn initialize(player: &mut Player, hook: &world_hooks::Attempt) -> Re
                 &mut script_source,
             )?;
             hook.ensure_current()?;
+            let header = owner
+                .state
+                .command()
+                .and_then(|command| command.factory_node())
+                .and_then(|id| {
+                    player
+                        .components
+                        .preparation
+                        .animator()?
+                        .script_children()
+                        .get(id)
+                })
+                .context("phase-zero TP child absent")?;
+            if header.stage() == ge_core::animation::script_child::Stage::AwaitingInitializer {
+                let binding = header
+                    .cached()
+                    .context("phase-zero TP script cache absent")?;
+                let mut phase_source = tp_source.phase_zero_source(binding)?;
+                owner.state.initialize_third_person_child_phase_zero(
+                    &mut player.components.preparation,
+                    &mut phase_source,
+                    hook.animation_step()?,
+                    65_536,
+                )?;
+                hook.ensure_current()?;
+            }
         }
     }
     // The real operand/weight prefix is retained before its factory/cleanup

@@ -1,5 +1,7 @@
 use super::*;
 use ge_core::mission::player::components::{self, Preparation};
+#[path = "component_preparation/phase_zero.rs"]
+mod phase_zero;
 
 struct EntryProvider {
     fail: bool,
@@ -150,6 +152,18 @@ impl ge_core::animation::script_child::Provider for ModeSource {
     }
 }
 fn initial_selector_chain(fp_available: bool, fail_count: bool, fail_body: bool) {
+    initial_selector_chain_with_phase(fp_available, fail_count, fail_body, false);
+}
+#[test]
+fn phase_zero_failure_latches_child_command_and_selector_without_reallocating_controls() {
+    initial_selector_chain_with_phase(true, false, false, true);
+}
+fn initial_selector_chain_with_phase(
+    fp_available: bool,
+    fail_count: bool,
+    fail_body: bool,
+    fail_phase: bool,
+) {
     let (mut base, mut prelude, mut reset) = player_state(44);
     let mut world = world();
     let mut registry = Registry::from_constructor();
@@ -846,6 +860,46 @@ fn initial_selector_chain(fp_available: bool, fail_count: bool, fail_body: bool)
                 .is_err()
         );
         assert_eq!(source.calls, calls);
+        if !fail_body {
+            let result = action.initialize_third_person_child_phase_zero(
+                &mut preparation,
+                &mut source,
+                if fail_phase {
+                    f32::NAN.to_bits()
+                } else {
+                    1f32.to_bits()
+                },
+                100,
+            );
+            assert_eq!(result.is_err(), fail_phase);
+            let animator = preparation.animator().unwrap();
+            assert_eq!(animator.script_children().len(), 1);
+            assert_eq!(animator.controls().len(), 4);
+            assert_eq!(animator.layers().unwrap().active_count(), 1);
+            assert_eq!(animator.layers().unwrap().failed(), fail_phase);
+            assert_eq!(
+                animator.script_children().get(id).unwrap().stage(),
+                if fail_phase {
+                    ge_core::animation::script_child::Stage::Failed
+                } else {
+                    ge_core::animation::script_child::Stage::ReturnedWithoutPlay
+                }
+            );
+            assert_eq!(action.selector().unwrap().completed_commands(), 0);
+            assert_eq!(action.selector().unwrap().return_word(), None);
+            let calls = source.calls.clone();
+            assert!(
+                action
+                    .initialize_third_person_child_phase_zero(
+                        &mut preparation,
+                        &mut source,
+                        1f32.to_bits(),
+                        100
+                    )
+                    .is_err()
+            );
+            assert_eq!(source.calls, calls);
+        }
         for at in [0x70c, 0x710, 0x714, 0x718] {
             assert_eq!(reset.word(at), Some(0));
         }

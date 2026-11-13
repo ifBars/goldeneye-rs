@@ -364,9 +364,16 @@ The child compares its cache generation before resolving script metadata. A
 successful metadata lookup updates the cache before the body is validated against
 the logically resident base. A later failure retains those writes and the real
 allocation. A cached payload from a later section grants no runtime residence.
-A resident script now awaits phase-zero interpretation, while a genuine absent
-body takes the native early return. No phase initialization, parent copy/wrapper
-step, layer insertion, child scalar initialization or command return is inferred.
+A resident script now performs phase-zero selection and clip-reference setup.
+The fresh native TP path visits four command headers, selects the first play
+command and binds seven normal clips from the same file wrapper. Its clip setup
+returns with index6 and range30. Animation-body lookup and position preparation
+remain pending, so phase initialization has not returned. An unavailable external
+file lookup remains pending rather than becoming a missing-file skip. A genuine
+absent script body takes the native early return. No parent copy/wrapper step,
+layer insertion, child scalar initialization or command return is inferred.
+See [script initialization](animation-script-initialization.md) for the source
+ordering, partial-failure behavior and remaining dependencies.
 
 The controller arena retains actual player, item and physics objects, their
 registry rows and actor memberships across cancellation. Worker teardown leaves

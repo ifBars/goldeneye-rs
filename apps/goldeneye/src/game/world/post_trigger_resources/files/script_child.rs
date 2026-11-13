@@ -1,5 +1,6 @@
 use super::*;
 use ge_core::animation::script_child::{Binding, Provider};
+mod phase_zero;
 impl Provider for FileBinding {
     fn file(&self) -> u32 {
         self.source.header.hash

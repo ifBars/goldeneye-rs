@@ -2295,9 +2295,47 @@ function tpCapturePlayerFixture() {
 }
 function tpChildPlayerFixture() {
   return {native_header_bytes:0x90,resource_reused:true,context_bound:true,generation_observed:0,cache_generation:0,
-    metadata_cached:true,descriptor_index:2,body_bound:true,phase_zero_initialized:false,initializer_returned:false,
+    metadata_cached:true,descriptor_index:2,body_bound:true,phase_zero:tpPhaseZeroFixture(),phase_zero_initialized:false,initializer_returned:false,
     factory_returned:false,layer_inserted:false,state_sha256:'d'.repeat(64)};
 }
+function tpPhaseZeroFixture() {
+  return {stage:'frame_count_pending',delta_bits:0x3f800000,duration_raw:60,frame_bits:0,entries_visited:2,
+    selected_offset:0,normal_requested:1,secondary_requested:0,normal_bound:1,secondary_bound:0,clip_records:1,
+    heap_allocated:false,initial_index_raw:0,initial_index_clamped:0,frame_range:0,setup_returned:false,flags_applied:false,pending_file:null};
+}
+
+test('phase-zero summaries keep animation providers separate from clip setup and command completion',async()=>{
+  for (const phase of [
+    {...tpPhaseZeroFixture(),stage:'animation_pending',frame_range:30,setup_returned:true,flags_applied:true},
+    {...tpPhaseZeroFixture(),stage:'clip_range_pending',frame_range:null},
+    {...tpPhaseZeroFixture(),stage:'clip_file_pending',pending_file:0x010000ab,initial_index_raw:null,initial_index_clamped:null,frame_range:null},
+  ]) {
+    const report=withPlayerPrelude(gameSessionFixture());
+    for(const probe of [...report.menu.details.game_session.difficulty_probes,report.menu.details.game_session.cancel_reentry]) {
+      probe.window.game_session.active.world_initialization.player_initialization.component_initialization.initial_action.tp_command.child_header.phase_zero=phase;
+    }
+    await inspect(embed(report),d=>{
+      const text=d.querySelector('#game-session-summary').textContent;
+      assert.match(text,/Script selection visited 2 records; 1 normal and 0 secondary clip references bound/);
+      assert.doesNotMatch(text,/has not been recorded completely/);
+      assert.match(text,/no layer insertion or command return/);
+      assert.equal(d.querySelector('#parity-count').textContent,'0 of 3 tracked criteria verified');
+    });
+  }
+});
+
+test('phase-zero evidence rejects missing fields, invalid counts and premature returns',async()=>{
+  const changes=[...Object.keys(tpPhaseZeroFixture()).map(key=>v=>{delete v[key];})];
+  for(const [key,value] of Object.entries({stage:'complete',delta_bits:0x7f800000,duration_raw:-1,frame_bits:0x7fc00000,
+    entries_visited:0,selected_offset:null,normal_requested:256,secondary_requested:null,normal_bound:2,secondary_bound:1,
+    clip_records:0,heap_allocated:true,initial_index_raw:256,initial_index_clamped:1,frame_range:1,setup_returned:true,
+    flags_applied:true,pending_file:7,payload:[1]})) changes.push(v=>{v[key]=value;});
+  for(const change of changes) {
+    const report=withPlayerPrelude(gameSessionFixture());
+    change(report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization.initial_action.tp_command.child_header.phase_zero);
+    await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+  }
+});
 function tpCommandPlayerFixture() {
   return {stage:'child_initializer_pending',opcode:0x0c000002,set_reference:0x0a0000ab,set_index:0,set_groups:1,
     groups_visited:1,weight_writes:1,pending_group:0,pending_slot:1,child_reference:0x040000ab,factory_class:4,
@@ -2572,7 +2610,10 @@ test('TP skeleton binding keeps shared refresh attachment and FP explicit',async
     assert.match(text,/Third-person constructor retained: 4 animation slots, 1 active/);
     assert.match(text,/skin request retains 1,024 file bytes and 256 logical section bytes/);
     assert.match(text,/Initial action selected and all three mappings resolved through the retained inventory and supplied tables. TP captured four independent controls from primary locals and auxiliary storage; the active slot count remains one/);
-    assert.match(text,/First command opcode 0xc000002 retained; execution pending. Command body retained 1 group weight write; awaiting phase-zero initialization. Factory class 4. One child header retained; no layer insertion or command return. Mode history and command return remain pending. Pose postprocessing and frame scheduling remain incomplete/);
+    assert.match(text,/First command opcode 0xc000002 retained; execution pending/);
+    assert.match(text,/Command body retained 1 group weight write; awaiting phase-zero initialization/);
+    assert.match(text,/One child header retained; no layer insertion or command return/);
+    assert.match(text,/Mode history and command return remain pending. Pose postprocessing and frame scheduling remain incomplete/);
   });
   const changes=[state=>{state.third_person_constructed=false;},state=>{state.third_person_attached=false;},
     state=>{state.first_person_constructed=false;},state=>{state.texture_dependencies_enumerated=false;},
@@ -2720,7 +2761,7 @@ test('retained script header distinguishes pending interpretation from a native 
     const report=withPlayerPrelude(gameSessionFixture());
     for(const probe of [...report.menu.details.game_session.difficulty_probes,report.menu.details.game_session.cancel_reentry]) {
       const body=probe.window.game_session.active.world_initialization.player_initialization.component_initialization.initial_action.tp_command;
-      body.stage='child_effects_pending';Object.assign(body.child_header,{body_bound:false,initializer_returned:true,factory_returned:true,
+      body.stage='child_effects_pending';Object.assign(body.child_header,{body_bound:false,phase_zero:null,initializer_returned:true,factory_returned:true,
         metadata_cached:cached,descriptor_index:cached ? 2 : null,cache_generation:cached ? 0 : 0xffffffff});
     }
     await inspect(embed(report),d=>{

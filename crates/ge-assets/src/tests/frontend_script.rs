@@ -1,5 +1,26 @@
 use super::*;
 
+#[test]
+fn live_selection_reads_only_reached_common_fields_and_each_requested_clip_scalar() {
+    let mut data = fixture();
+    word(&mut data, 0x84, u32::MAX);
+    let script = read_at(&data[..0xca], 0x80).unwrap();
+    assert_eq!(script.duration_raw().unwrap(), u32::MAX);
+    // Truncated instance payload is irrelevant to selection. Only +0,+1,+4..6.
+    let entry = script.selection_entry(0).unwrap();
+    assert_eq!((entry.opcode, entry.next, entry.start), (4, 24, -2));
+    assert!(script.command_at(0xc4).is_err());
+    assert!(script.selection_entry(6).is_err());
+    // A first normal reference is readable before counts/record payloads.
+    word(&mut data, 0xe4, 0x8300_0021);
+    data[0xd4..0xd8].copy_from_slice(&[1, 0xff, 255, 2]);
+    let script = read_at(&data[..0xe8], 0x80).unwrap();
+    assert_eq!(script.clip_counts(0).unwrap(), [1, 2]);
+    assert_eq!(script.clip_reference(0, false, 0, 1).unwrap(), 0x8300_0021);
+    assert!(script.clip_blend(0, 0).is_err());
+    assert!(script.clip_file(0, true, 0, 1).is_err());
+}
+
 fn u16_at(data: &mut [u8], at: usize, value: u16) {
     data[at..at + 2].copy_from_slice(&value.to_be_bytes());
 }

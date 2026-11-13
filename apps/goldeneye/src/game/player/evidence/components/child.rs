@@ -5,6 +5,7 @@ use ge_core::animation::{
     script_child::{self, Stage},
 };
 use serde::Serialize;
+mod phase_zero;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ChildHeader {
     pub native_header_bytes: usize,
@@ -15,6 +16,7 @@ pub struct ChildHeader {
     pub metadata_cached: bool,
     pub descriptor_index: Option<usize>,
     pub body_bound: bool,
+    pub phase_zero: Option<phase_zero::PhaseZero>,
     pub phase_zero_initialized: bool,
     pub initializer_returned: bool,
     pub factory_returned: bool,
@@ -45,15 +47,28 @@ pub(super) fn build(player: &Owned) -> Result<Option<ChildHeader>> {
         .get(id)
         .context("retained TP child header absent")?;
     let binding = animator.component().context("TP current resource absent")?;
-    let returned = header.stage() == Stage::ReturnedWithoutBody;
+    let returned = matches!(
+        header.stage(),
+        Stage::ReturnedWithoutBody | Stage::ReturnedWithoutPlay
+    );
+    let phase_zero = phase_zero::build(header)?;
+    let expected_flags = if let Some(flags) = header.initialization().and_then(|t| t.flags_raw) {
+        if flags & 1 != 0 {
+            u32::from(request.effective_flags) | 0x80
+        } else {
+            u32::from(request.effective_flags) & !0x80
+        }
+    } else {
+        u32::from(request.effective_flags)
+    };
     ensure!(
-        (returned || header.stage() == Stage::AwaitingInitializer)
+        (returned || header.stage() == Stage::AwaitingInitializer || phase_zero.is_some())
             && header.owner().get() == animator.identity().id().get()
             && animator.node_ids().kind(id) == Some(Kind::Script)
             && header.file() == binding.file
             && header.reference() == request.reference
             && header.slot() == Some(request.slot)
-            && header.word(0x20) == Some(u32::from(request.effective_flags))
+            && header.word(0x20) == Some(expected_flags)
             && header.word(0x1c).is_none()
             && header.word(0).is_none()
             && header.word(4).is_none()
@@ -84,11 +99,12 @@ pub(super) fn build(player: &Owned) -> Result<Option<ChildHeader>> {
         body_bound: header
             .body_bound()
             .context("TP script body binding absent")?,
-        phase_zero_initialized: false,
+        phase_zero,
+        phase_zero_initialized: header.stage() == Stage::ReturnedWithoutPlay,
         initializer_returned: returned,
         factory_returned: returned,
         layer_inserted: false,
-        state_sha256: super::super::words(b"ge_player_tp_class04_header_v1\0", |emit| {
+        state_sha256: super::super::words(b"ge_player_tp_class04_header_v2\0", |emit| {
             header.visit_state_words(emit)
         }),
     }))
