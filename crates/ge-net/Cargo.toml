@@ -1,0 +1,11 @@
+[package]
+name = "ge-net"
+description = "Runtime-independent host-authoritative session, channel and replication core."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# The protocol/session core has no dependencies: no game crate, socket, async
+# runtime or wall clock. A transport backend lives in a companion crate.
+[dependencies]

@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/ge-assets", "crates/ge-core", "crates/ge-render", "apps/goldeneye", "xtask"]
+members = ["crates/ge-assets", "crates/ge-core", "crates/ge-net", "crates/ge-render", "apps/goldeneye", "xtask"]
 default-members = ["crates/ge-assets", "apps/goldeneye"]
 resolver = "3"
 
