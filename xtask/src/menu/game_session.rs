@@ -9,6 +9,7 @@ mod player_callbacks;
 mod player_capture;
 mod player_child;
 mod player_command;
+mod player_dispatch;
 mod player_first_person;
 mod player_postbind;
 mod player_refresh;
@@ -1450,6 +1451,58 @@ fn validate_world(snapshot: &Value) -> Result<()> {
 
 /// This gate runs only the supplied Tutorial New Game. These independently
 /// observed source counts are separate from generic invariants/authored data.
+fn validate_tutorial_dispatch(player: &Value) -> Result<()> {
+    let component = &player["component_initialization"];
+    let action = &component["initial_action"];
+    let selector = &action["tp_selector"];
+    let command = &action["tp_command"];
+    let dispatch = &action["tp_dispatch"];
+    ensure!(
+        player["pending_dependency"] == "fp_mode_dispatch"
+            && component["stage"] == "fp_dispatch_pending"
+            && component["pending_dependency"] == "fp_mode_dispatch"
+            && component["active_slots"] == 4
+            && action["stage"] == "fp_dispatch_pending"
+            && action["mode_history_updated"] == false
+            && action["callback_returned"] == false
+            && selector["stage"] == "returned"
+            && selector["tracks_player_modes"] == false
+            && selector["return_word"] == 0x0900_06c0u32
+            && selector["commands_issued"] == 1
+            && selector["commands_executed"] == 1
+            && command["stage"] == "command_returned"
+            && command["children_completed"] == 2
+            && command["children_inserted"] == 2
+            && command["head_copies"] == 2
+            && command["active_slots"] == 4
+            && command["effective_flags_or"] == 39
+            && command["selector_acknowledged"] == true
+            && command["cleanup_skipped"] == true
+            && dispatch["stage"] == "returned"
+            && dispatch["captured_position_bits"] == 0
+            && dispatch["setter_return_word"] == 0x0900_06c0u32
+            && dispatch["history_updated"] == false
+            && dispatch["primary_changed"].is_null()
+            && dispatch["scalar_visits"] == 3
+            && dispatch["scalar_writes"] == 2
+            && [
+                "updates_started",
+                "updates_completed",
+                "script_invocations",
+                "rate_queries",
+                "rate_returns",
+                "clip_reuses",
+                "position_returns"
+            ]
+            .iter()
+            .all(|key| dispatch[key] == 2)
+            && dispatch["pending_slot"].is_null()
+            && dispatch["pending_dependency"].is_null()
+            && dispatch["rate_bits"] == json!([0.5f32.to_bits(), 0.5f32.to_bits()]),
+        "Tutorial TP dispatcher did not return through its two retained script updates"
+    );
+    Ok(())
+}
 fn validate_tutorial_world(probe: &Value) -> Result<()> {
     let world = &probe["window"]["game_session"]["active"]["world_initialization"];
     for (field, expected) in [
@@ -1684,6 +1737,7 @@ fn validate_tutorial_world(probe: &Value) -> Result<()> {
         "Tutorial player prelude was not recorded"
     );
     validate_player_initialization(player, world, &probe["window"]["game_session"]["active"])?;
+    validate_tutorial_dispatch(player)?;
     let flag = &player["constructor_flag"];
     let virtual_init = &player["virtual_initialization"];
     ensure!(
@@ -3498,6 +3552,52 @@ mod tests {
                 validate(&bad, check).is_err(),
                 "accepted mismatched slot count {slots}"
             );
+        }
+    }
+
+    #[test]
+    fn dispatcher_return_updates_parent_dependency_but_never_publishes_a_player() {
+        let mut probe = player_probe_fixture();
+        let player = &mut probe["window"]["game_session"]["active"]["world_initialization"]["player_initialization"];
+        player["pending_dependency"] = json!("fp_mode_dispatch");
+        let component = &mut player["component_initialization"];
+        component["stage"] = json!("fp_dispatch_pending");
+        component["pending_dependency"] = json!("fp_mode_dispatch");
+        component["active_slots"] = json!(4);
+        component["initial_action"] = player_dispatch::tests::returned_action();
+        let check = Check::Loaded {
+            difficulty: 0,
+            reentry: false,
+        };
+        validate(&probe, check).unwrap();
+        for (key, value) in [
+            ("player_created", json!(true)),
+            ("camera_ready", json!(true)),
+            ("pending_dependency", json!("tp_mode_setter_tail")),
+        ] {
+            let mut bad = probe.clone();
+            bad["window"]["game_session"]["active"]["world_initialization"]["player_initialization"]
+                [key] = value;
+            assert!(validate(&bad, check).is_err(), "accepted {key}");
+        }
+    }
+
+    #[test]
+    fn tutorial_gate_requires_both_real_script_updates_and_the_actual_rate() {
+        let mut action = player_dispatch::tests::returned_action();
+        action["tp_command"]["effective_flags_or"] = json!(39);
+        let player = json!({"pending_dependency":"fp_mode_dispatch","component_initialization":{"stage":"fp_dispatch_pending","pending_dependency":"fp_mode_dispatch","active_slots":4,"initial_action":action}});
+        validate_tutorial_dispatch(&player).unwrap();
+        for (key, value) in [
+            ("clip_reuses", json!(1)),
+            ("position_returns", json!(1)),
+            ("rate_queries", json!(1)),
+            ("rate_bits", json!([1f32.to_bits(), 0.5f32.to_bits()])),
+            ("history_updated", json!(true)),
+        ] {
+            let mut bad = player.clone();
+            bad["component_initialization"]["initial_action"]["tp_dispatch"][key] = value;
+            assert!(validate_tutorial_dispatch(&bad).is_err(), "accepted {key}");
         }
     }
 

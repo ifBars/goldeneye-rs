@@ -14,6 +14,10 @@ mod child_effects;
 mod command;
 mod factory;
 mod selector;
+mod setter;
+mod third_person_tail;
+pub use setter::SetterReturn;
+pub use third_person_tail::{DispatchStage, ThirdPersonDispatch};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stage {
@@ -27,6 +31,9 @@ pub enum Stage {
     AwaitingThirdPersonCommand,
     AwaitingThirdPersonSetterTail,
     ThirdPersonCommandFailed,
+    AwaitingThirdPersonDispatchTail,
+    ThirdPersonDispatchFailed,
+    AwaitingFirstPersonDispatch,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Target {
@@ -64,6 +71,7 @@ pub struct Pending {
     primary_head: Option<(Option<crate::animation::layers::NodeId>, u32)>,
     command: Option<crate::animation::layers::command::Pending>,
     completed_commands: Vec<crate::animation::layers::command::Pending>,
+    dispatch: Option<ThirdPersonDispatch>,
 }
 impl Pending {
     pub fn begin(base: &base_handler::Owner, reset: &mut PendingReset) -> Result<Self> {
@@ -83,6 +91,7 @@ impl Pending {
             primary_head: None,
             command: None,
             completed_commands: Vec::new(),
+            dispatch: None,
         })
     }
     pub fn stage(&self) -> Stage {
@@ -229,7 +238,7 @@ impl Pending {
         Ok(())
     }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(5);
+        emit(6);
         emit(self.stage as u32);
         emit((self.player.get() >> 32) as u32);
         emit(self.player.get() as u32);
@@ -286,6 +295,10 @@ impl Pending {
         emit(self.completed_commands.len() as u32);
         for command in &self.completed_commands {
             command.visit_state_words(&mut emit);
+        }
+        emit(u32::from(self.dispatch.is_some()));
+        if let Some(dispatch) = &self.dispatch {
+            dispatch.visit_state_words(&mut emit);
         }
     }
 }

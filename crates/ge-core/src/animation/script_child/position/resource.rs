@@ -1,6 +1,6 @@
 use super::*;
 impl Header {
-    pub(super) fn resolve_position_animation(
+    pub(in crate::animation::script_child) fn resolve_position_animation(
         &mut self,
         source: &mut impl Source,
         t: &mut Trace,

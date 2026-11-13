@@ -44,8 +44,13 @@ and applies transition/divisor/post-word writes. Source order and failure prefix
 stay retained. Capture preserves its initial active count of one; this command
 raises the actual count to four. Both groups return with cleanup skipped by the
 actual effective flags. The caller acknowledges the body before the mode cursor
-tries its zero-hash fallback. TP selection now returns 0x090006c0. Its setter tail
-and player mode-history writes remain next, before FP dispatch. Pose postprocess targets
+tries its zero-hash fallback. TP selection returns 0x090006c0. The fresh untracked
+setter returns without writing player mode history. Its dispatch tail visits
+three blend-coordinate helpers, writes two script heads and re-enters both
+scripts through initflag1. Rate queries reuse retained clips, and unchanged play
+selection skips clip setup. Both updates return before TP dispatch returns;
+the native path now awaits FP dispatch. Factory and update traces stay separate,
+with bounded diagnostic history independent of simulation lifetime. Pose postprocess targets
 are assigned, but their body and frame scheduling remain unavailable.
 Later initialization and gameplay remain
 incomplete. docs/player-creation.md describes the reached boundary.

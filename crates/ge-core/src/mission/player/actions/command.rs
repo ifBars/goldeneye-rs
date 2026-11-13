@@ -3,7 +3,12 @@ use crate::animation::layers::{SlotOverride, command};
 impl Pending {
     pub fn command(&self) -> Option<&command::Pending> {
         self.command.as_ref().or_else(|| {
-            if self.stage == Stage::AwaitingThirdPersonSetterTail {
+            if matches!(
+                self.stage,
+                Stage::AwaitingThirdPersonSetterTail
+                    | Stage::AwaitingThirdPersonDispatchTail
+                    | Stage::AwaitingFirstPersonDispatch
+            ) {
                 self.completed_commands.last()
             } else {
                 None

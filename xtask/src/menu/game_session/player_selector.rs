@@ -11,6 +11,8 @@ pub(super) fn dependency(stage: &Value) -> Option<&'static str> {
     match stage.as_str()? {
         "tp_command_pending" => Some("tp_animation_command"),
         "tp_setter_tail_pending" => Some("tp_mode_setter_tail"),
+        "tp_dispatch_pending" => Some("tp_animation_update"),
+        "fp_dispatch_pending" => Some("fp_mode_dispatch"),
         _ => None,
     }
 }
@@ -77,8 +79,10 @@ pub(super) fn validate(state: &Value, action: &Value) -> Result<()> {
             "TP pending command claims an execution or selector return"
         ),
         Some("returned") => ensure!(
-            action["stage"] == "tp_setter_tail_pending"
-                && state["commands_issued"] == state["commands_executed"]
+            matches!(
+                action["stage"].as_str(),
+                Some("tp_setter_tail_pending" | "tp_dispatch_pending" | "fp_dispatch_pending")
+            ) && state["commands_issued"] == state["commands_executed"]
                 && state["command_effects_complete"] == (count(state, "commands_executed")? > 0)
                 && state["pending_ordinal"].is_null()
                 && state["pending_opcode"].is_null()

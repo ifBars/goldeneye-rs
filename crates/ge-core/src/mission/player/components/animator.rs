@@ -8,6 +8,7 @@ use std::sync::Arc;
 mod child_effects;
 mod child_factory;
 mod control_capture;
+mod dispatch_tail;
 mod mode_command;
 
 pub const SOURCE_BYTES: usize = 0x1b8;

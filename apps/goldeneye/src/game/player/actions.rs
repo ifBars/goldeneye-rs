@@ -7,6 +7,7 @@ use ge_core::mission::player::{
     world::World,
 };
 mod selector;
+mod tail;
 pub(super) struct Owned {
     pub state: actions::Pending,
     pub mappings: Vec<ge_assets::weapon_static::Remap>,

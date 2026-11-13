@@ -29,6 +29,10 @@ pub(super) fn boundary(stage: Stage) -> Result<(&'static str, &'static str)> {
         Stage::AwaitingThirdPersonSetterTail => {
             Ok(("tp_setter_tail_pending", "tp_mode_setter_tail"))
         }
+        Stage::AwaitingThirdPersonDispatchTail => {
+            Ok(("tp_dispatch_pending", "tp_animation_update"))
+        }
+        Stage::AwaitingFirstPersonDispatch => Ok(("fp_dispatch_pending", "fp_mode_dispatch")),
         _ => anyhow::bail!("TP selector has no reportable pending boundary"),
     }
 }
@@ -55,7 +59,9 @@ pub(super) fn build(player: &Owned) -> Result<ThirdPersonSelector> {
             );
             "command_pending"
         }
-        Stage::AwaitingThirdPersonSetterTail => {
+        Stage::AwaitingThirdPersonSetterTail
+        | Stage::AwaitingThirdPersonDispatchTail
+        | Stage::AwaitingFirstPersonDispatch => {
             ensure!(
                 cursor.stage() == runtime::Stage::Complete
                     && pending.is_none()
@@ -114,10 +120,22 @@ pub(super) fn build(player: &Owned) -> Result<ThirdPersonSelector> {
             "untracked TP path has a primary comparison"
         );
     }
-    ensure!(
-        Some(inputs.previous) == player.reset.word(if tracks { 0x714 } else { 0x70c }),
-        "TP previous mode differs from actual player history"
-    );
+    if owner
+        .state
+        .third_person_dispatch()
+        .and_then(|d| d.setter())
+        .is_none_or(|s| !s.history_updated)
+    {
+        ensure!(
+            Some(inputs.previous) == player.reset.word(if tracks { 0x714 } else { 0x70c }),
+            "TP previous mode differs from actual player history"
+        );
+    } else {
+        ensure!(
+            tracks && player.reset.word(0x714) == Some(inputs.requested),
+            "TP selector history changed outside its tracked setter"
+        );
+    }
     let work = cursor.work();
     Ok(ThirdPersonSelector {
         stage,

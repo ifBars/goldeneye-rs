@@ -5,6 +5,23 @@ use anyhow::Result;
 use ge_core::mission::player::components::Preparation;
 
 impl Attempt {
+    pub fn animation_rate_inputs(
+        &self,
+        current_file_data_available: bool,
+    ) -> Result<ge_core::animation::script_child::rate::Inputs> {
+        self.ensure_current()?;
+        let state = self
+            .shared
+            .0
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("animation rate owner lock is poisoned"))?;
+        self.ensure_current()?;
+        let mut inputs = state.animation_rate_globals;
+        inputs.current_file_data_available = current_file_data_available;
+        inputs.baseline = state.clock.baseline();
+        Ok(inputs)
+    }
     pub fn animation_step(&self) -> Result<u32> {
         self.ensure_current()?;
         let state = self

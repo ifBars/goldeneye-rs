@@ -1,4 +1,4 @@
-use super::{closed, count, player_capture, player_command, player_selector};
+use super::{closed, count, player_capture, player_command, player_dispatch, player_selector};
 use anyhow::{Result, ensure};
 use serde_json::Value;
 
@@ -26,6 +26,7 @@ pub(super) fn validate(state: &Value) -> Result<()> {
             "tp_capture",
             "tp_selector",
             "tp_command",
+            "tp_dispatch",
         ],
     )?;
     ensure!(
@@ -44,7 +45,7 @@ pub(super) fn validate(state: &Value) -> Result<()> {
                     .is_some_and(|value| value > 0 && value <= u64::from(u32::MAX)))
             && state["source_tables_reused"] == true
             && state["mode_controls_created"] == 4
-            && state["mode_history_updated"] == false
+            && state["mode_history_updated"].is_boolean()
             && state["callback_returned"] == false
             && ["state_sha256", "mapping_state_sha256"]
                 .into_iter()
@@ -59,6 +60,7 @@ pub(super) fn validate(state: &Value) -> Result<()> {
     player_capture::validate(&state["tp_capture"])?;
     player_selector::validate(&state["tp_selector"], state)?;
     player_command::validate(&state["tp_command"], state)?;
+    player_dispatch::validate(&state["tp_dispatch"], state)?;
     Ok(())
 }
 #[cfg(test)]
@@ -70,7 +72,7 @@ pub(super) mod tests {
             "weapon_key":0x0200_00ab,"variant":0,"remap_calls":3,"map_rows_read":20,"fp_mapped":0x0900_00ab,
             "tp_mapped":0x0900_00ac,"tp_secondary_mapped":0x0900_00ad,"source_tables_reused":true,
             "mode_controls_created":4,"mode_history_updated":false,"callback_returned":false,
-            "state_sha256":"a".repeat(64),"mapping_state_sha256":"b".repeat(64),"tp_capture":player_capture::tests::fixture(),"tp_selector":player_selector::tests::fixture(),"tp_command":player_command::tests::fixture()})
+            "state_sha256":"a".repeat(64),"mapping_state_sha256":"b".repeat(64),"tp_capture":player_capture::tests::fixture(),"tp_selector":player_selector::tests::fixture(),"tp_command":player_command::tests::fixture(),"tp_dispatch":player_dispatch::tests::fixture()})
     }
     #[test]
     fn rejects_partial_mapping_and_early_callback_or_mode_completion() {

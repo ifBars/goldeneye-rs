@@ -48,6 +48,7 @@ pub struct Trace {
     pub selected_offset: Option<u32>,
     pub selected_start: Option<i16>,
     pub compared_reference: Option<u32>,
+    pub previous_reference: Option<u32>,
     pub requested: Option<[u8; 2]>,
     pub rows_visited: [usize; 2],
     pub bound: [u8; 2],
@@ -57,6 +58,30 @@ pub struct Trace {
     pub frame_range: Option<i32>,
     pub setup_returned: bool,
     pub flags_raw: Option<u8>,
+}
+impl Trace {
+    pub(crate) fn new(inputs: Inputs) -> Self {
+        Self {
+            inputs,
+            delta_bits: None,
+            duration_raw: None,
+            frame_bits: None,
+            entries_visited: 0,
+            selected_offset: None,
+            selected_start: None,
+            compared_reference: None,
+            previous_reference: None,
+            requested: None,
+            rows_visited: [0; 2],
+            bound: [0; 2],
+            pending_file: None,
+            initial_index_raw: None,
+            initial_index_clamped: None,
+            frame_range: None,
+            setup_returned: false,
+            flags_raw: None,
+        }
+    }
 }
 #[derive(Debug)]
 pub struct Record {
@@ -89,25 +114,7 @@ impl Store {
             "phase-zero initialization differs or replays"
         );
         header.stage = Stage::Initializing;
-        let mut trace = Trace {
-            inputs,
-            delta_bits: None,
-            duration_raw: None,
-            frame_bits: None,
-            entries_visited: 0,
-            selected_offset: None,
-            selected_start: None,
-            compared_reference: None,
-            requested: None,
-            rows_visited: [0; 2],
-            bound: [0; 2],
-            pending_file: None,
-            initial_index_raw: None,
-            initial_index_clamped: None,
-            frame_range: None,
-            setup_returned: false,
-            flags_raw: None,
-        };
+        let mut trace = Trace::new(inputs);
         let result = header.select(source, &mut trace);
         header.initialization = Some(trace);
         if result.is_err() {

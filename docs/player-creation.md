@@ -338,17 +338,20 @@ their required control-capture or clear dependency. Unhandled opcodes stay pendi
 The completed native first set is now acknowledged. The cursor's protocol requires command effects
 to return before reading the next command or trying fallback after source hash
 zero. Provider/command errors preserve the reached prefix and prohibit replay.
-If no command is reached, the selector return stays separate from its pending
-setter tail, including native zero returns. No history words are updated yet. The native cursor now returns 0x090006c0
+If no command is reached, the selector return stays separate from its
+setter tail, including native zero returns. The native cursor returns 0x090006c0
 after its completed first set and permitted zero-hash fallback.
 
 Live directory, count and opcode reads use the same component wrapper's resident
 base, independently of its full cached payload. Reports carry aggregate
 cursor/body state and typed pending factory metadata, never source addresses or
 private payload arrays.
-The dashboard distinguishes a pending command from a returned command awaiting
-its setter tail. Mode history, callback completion, pose and camera work remain
-incomplete. Hosted tests use authored malformed pointers, missing targets, zero
+The dashboard distinguishes pending commands, setter return, TP dispatch updates
+and FP dispatch. The fresh untracked setter returns without history writes;
+tracked nonzero returns store the requested generic/mapped pair before comparing
+the new primary head. A changed identity or reference clears secondary history.
+These operations do not complete the initial-action callback, pose or camera.
+Hosted tests use authored malformed pointers, missing targets, zero
 source hashes, ordered command returns and failures; they establish no original
 runtime or numerical parity.
 
@@ -380,7 +383,14 @@ active. An unavailable external
 file lookup remains pending rather than becoming a missing-file skip. A genuine
 absent script body takes the native early return. The native flags skip wrapper allocation and cleanup. Actual parent position
 copy, child scalar/post-word writes, layer insertion and command return are now
-recorded separately from the TP setter tail and later FP dispatch.
+recorded separately from the TP setter tail and later FP dispatch. The native
+setter now returns and its dispatch tail writes the two script heads' blend
+coordinates. Both scripts re-enter with initflag1, query a rate of 0.5 from their
+30 FPS animations and the retained baseline60, reuse unchanged clip selections
+and return position preparation. TP dispatch then returns before the still
+pending FP dispatch. Re-entry uses the same file generation and caches; it
+neither recreates the children nor overwrites their factory receipts. See
+[script updates](animation-script-updates.md) for the retained update boundary.
 See [script initialization](animation-script-initialization.md) for the source
 ordering, partial-failure behavior and remaining dependencies.
 

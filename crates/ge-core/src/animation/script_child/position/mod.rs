@@ -39,6 +39,30 @@ pub struct Trace {
     pub previous_position_bits: Option<u32>,
     pub root_motion_pending: bool,
 }
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Selection {
+    pub offset: u32,
+    pub frame_bits: u32,
+    pub start: i16,
+}
+impl Trace {
+    pub(crate) fn new(index: u16) -> Self {
+        Self {
+            index,
+            file: None,
+            generation: None,
+            binding: None,
+            body_bound: None,
+            timing_flags: None,
+            animation_fps: None,
+            script_fps_bits: None,
+            frame_bits: None,
+            position_bits: None,
+            previous_position_bits: None,
+            root_motion_pending: false,
+        }
+    }
+}
 impl Store {
     pub fn prepare_phase_zero_position(
         &mut self,
@@ -54,21 +78,8 @@ impl Store {
             "script position continuation differs or replays"
         );
         h.stage = Stage::PreparingPosition;
-        let mut t = Trace {
-            index: 0,
-            file: None,
-            generation: None,
-            binding: None,
-            body_bound: None,
-            timing_flags: None,
-            animation_fps: None,
-            script_fps_bits: None,
-            frame_bits: None,
-            position_bits: None,
-            previous_position_bits: None,
-            root_motion_pending: false,
-        };
-        let result = h.prepare_position(source, &mut t);
+        let mut t = Trace::new(0);
+        let result = h.prepare_selected_position(source, &mut t, None);
         h.position = Some(t);
         if result.is_err() {
             h.stage = Stage::Failed;
@@ -80,7 +91,12 @@ impl Header {
     pub fn position(&self) -> Option<&Trace> {
         self.position.as_ref()
     }
-    fn prepare_position(&mut self, source: &mut impl Source, t: &mut Trace) -> Result<()> {
+    pub(in crate::animation::script_child) fn prepare_selected_position(
+        &mut self,
+        source: &mut impl Source,
+        t: &mut Trace,
+        selection: Option<Selection>,
+    ) -> Result<()> {
         ensure!(
             source.file() == self.file,
             "script position file owner differs"
@@ -92,18 +108,26 @@ impl Header {
         if !self.resolve_position_animation(source, t)? {
             return Ok(());
         }
-        let init = self
-            .initialization
-            .as_ref()
-            .context("script selection absent")?;
-        let offset = init.selected_offset.context("selected play absent")?;
-        let mut frame = f32::from_bits(init.frame_bits.context("script frame absent")?)
-            - f32::from(init.selected_start.context("play start absent")?);
+        let selection = match selection {
+            Some(selection) => selection,
+            None => {
+                let init = self
+                    .initialization
+                    .as_ref()
+                    .context("script selection absent")?;
+                Selection {
+                    offset: init.selected_offset.context("selected play absent")?,
+                    frame_bits: init.frame_bits.context("script frame absent")?,
+                    start: init.selected_start.context("play start absent")?,
+                }
+            }
+        };
+        let mut frame = f32::from_bits(selection.frame_bits) - f32::from(selection.start);
         let frames = u16::from_be_bytes([
             self.byte(0x70).context("clip frame count unknown")?,
             self.byte(0x71).context("clip frame count unknown")?,
         ]);
-        let flags = source.timing_flags(offset)?;
+        let flags = source.timing_flags(selection.offset)?;
         t.timing_flags = Some(flags);
         if flags & 3 != 0 {
             self.stage = Stage::AwaitingTimingCurve;

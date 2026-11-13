@@ -2329,6 +2329,52 @@ function withReturnedMode(report) {
   }
   return report;
 }
+function withReturnedDispatch(report) {
+  withReturnedMode(report);
+  for(const probe of [...report.menu.details.game_session.difficulty_probes,report.menu.details.game_session.cancel_reentry]) {
+    const player=probe.window.game_session.active.world_initialization.player_initialization,c=player.component_initialization,a=c.initial_action,b=a.tp_command;
+    player.pending_dependency='fp_mode_dispatch';c.stage='fp_dispatch_pending';c.pending_dependency='fp_mode_dispatch';c.active_slots=4;a.stage=c.stage;
+    Object.assign(b,{set_groups:2,groups_visited:2,weight_writes:2,children_created:2,children_completed:2,children_inserted:2,head_copies:2,active_slots:4});b.last_completed_child.slot=3;
+    Object.assign(a.tp_dispatch,{stage:'returned',setter_return_word:a.tp_selector.return_word,scalar_visits:3,scalar_writes:2,
+      updates_started:2,updates_completed:2,script_invocations:2,rate_queries:2,rate_returns:2,clip_reuses:2,position_returns:2,rate_bits:[0x3f000000,0x3f000000]});
+  }
+  return report;
+}
+test('returned TP dispatcher exposes FP dependency without claiming a player or callback',async()=>{
+  await inspect(embed(withReturnedDispatch(withPlayerPrelude(gameSessionFixture()))),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.match(text,/TP setter returned/);assert.match(text,/TP dispatcher returned after 2 update calls; 2 reused existing clips/);
+    assert.match(text,/FP dispatch is pending/);assert.match(text,/setter preserved mode history on this branch/);
+    assert.match(text,/initial action callback remains incomplete/);assert.doesNotMatch(text,/has not been recorded completely|undefined|setter tail is pending/);
+    assert.equal(d.querySelector('#parity-count').textContent,'0 of 3 tracked criteria verified');
+  });
+});
+test('TP dispatch rejects missing fields, forged returns, invalid rates and parent mismatches',async()=>{
+  const changes=Object.keys(tpDispatchPlayerFixture()).map(key=>a=>{delete a.tp_dispatch[key];});
+  for(const [key,value] of Object.entries({stage:'complete',captured_position_bits:1,setter_return_word:0,history_updated:true,primary_changed:false,
+    scalar_visits:2,scalar_writes:4,updates_started:3,updates_completed:1,pending_slot:3,script_invocations:3,rate_queries:3,rate_returns:1,
+    clip_reuses:3,position_returns:3,pending_dependency:'clip_rate',rate_bits:[0x7fc00000,0x3f000000],state_sha256:'short',source_pose:[1,2,3]})) changes.push(a=>{a.tp_dispatch[key]=value;});
+  changes.push(a=>{a.mode_history_updated=true;});changes.push(a=>{a.callback_returned=true;});changes.push(a=>{a.stage='tp_setter_tail_pending';});
+  for(const change of changes) {
+    const report=withReturnedDispatch(withPlayerPrelude(gameSessionFixture()));
+    change(report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization.initial_action);
+    await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+  }
+});
+test('pending clip provider preserves the reached update prefix and does not claim dispatch return',async()=>{
+  const report=withReturnedDispatch(withPlayerPrelude(gameSessionFixture()));
+  for(const probe of [...report.menu.details.game_session.difficulty_probes,report.menu.details.game_session.cancel_reentry]) {
+    const player=probe.window.game_session.active.world_initialization.player_initialization,c=player.component_initialization,a=c.initial_action;
+    player.pending_dependency='tp_animation_update';c.stage='tp_dispatch_pending';c.pending_dependency=player.pending_dependency;a.stage=c.stage;
+    Object.assign(a.tp_dispatch,{stage:'script_update_pending',updates_started:1,updates_completed:0,pending_slot:2,script_invocations:1,rate_queries:1,
+      rate_returns:0,clip_reuses:0,position_returns:0,rate_bits:[null,null],pending_dependency:'animation_body'});
+  }
+  await inspect(embed(report),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.match(text,/TP dispatch awaits animation_body in slot 2; 0 of 2 update calls returned/);
+    assert.doesNotMatch(text,/TP dispatcher returned|has not been recorded completely|undefined/);
+  });
+});
 test('returned mode acknowledges real inserted children while leaving setter history and gameplay pending',async()=>{
   const report=withReturnedMode(withPlayerPrelude(gameSessionFixture()));
   await inspect(embed(report),d=>{
@@ -2449,11 +2495,16 @@ function tpSelectorPlayerFixture() {
     commands_issued:1,commands_executed:0,pending_ordinal:0,pending_opcode:0x0c000002,
     return_word:null,base_only:true,command_effects_complete:false,state_sha256:'d'.repeat(64)};
 }
+function tpDispatchPlayerFixture() {
+  return {stage:'awaiting_setter',captured_position_bits:0,setter_return_word:null,history_updated:false,primary_changed:null,
+    scalar_visits:0,scalar_writes:0,updates_started:0,updates_completed:0,pending_slot:null,script_invocations:0,
+    rate_queries:0,rate_returns:0,clip_reuses:0,position_returns:0,pending_dependency:null,rate_bits:[null,null],state_sha256:'e'.repeat(64)};
+}
 function initialActionPlayerFixture() {
   return {stage:'tp_command_pending',generic_request:0x0900071e,parameter_bits:0,direction_raw:255,
     weapon_key:0x020000ab,variant:0,remap_calls:3,map_rows_read:20,fp_mapped:0x090000ab,tp_mapped:0x090000ac,
     tp_secondary_mapped:0x090000ad,source_tables_reused:true,mode_controls_created:4,mode_history_updated:false,
-    callback_returned:false,state_sha256:'a'.repeat(64),mapping_state_sha256:'b'.repeat(64),tp_capture:tpCapturePlayerFixture(),tp_selector:tpSelectorPlayerFixture(),tp_command:tpCommandPlayerFixture()};
+    callback_returned:false,state_sha256:'a'.repeat(64),mapping_state_sha256:'b'.repeat(64),tp_capture:tpCapturePlayerFixture(),tp_selector:tpSelectorPlayerFixture(),tp_command:tpCommandPlayerFixture(),tp_dispatch:tpDispatchPlayerFixture()};
 }
 function firstPersonPlayerFixture() {
   return {helper_returned:true,identity_registered:true,item_list_ordinal:1,ordered_links_bound:true,

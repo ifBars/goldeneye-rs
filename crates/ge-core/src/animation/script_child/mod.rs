@@ -3,7 +3,9 @@
 pub mod initialization;
 mod parent;
 pub mod position;
+pub mod rate;
 mod state;
+pub mod update;
 use super::{
     layers::NodeId,
     nodes::{Ids, Kind, OwnerId},
@@ -43,6 +45,7 @@ pub enum Stage {
     AwaitingTimingCurve,
     AwaitingRootMotion,
     ReturnedInitialized,
+    AwaitingClipReplacement,
 }
 #[derive(Debug)]
 pub struct Header {
@@ -58,6 +61,8 @@ pub struct Header {
     initialization: Option<initialization::Trace>,
     clips: Option<initialization::Storage>,
     position: Option<position::Trace>,
+    updates: Vec<update::Trace>,
+    update_count: u64,
 }
 #[derive(Debug)]
 pub struct Store {
@@ -143,6 +148,8 @@ impl Header {
             initialization: None,
             clips: None,
             position: None,
+            updates: Vec::new(),
+            update_count: 0,
         };
         // Common control, skeletal instance and class-four constructors, in
         // source order. Self-relative pointers have typed roles, not addresses.

@@ -115,9 +115,15 @@ The first native TP set completes both groups and both script children, with
 four active slots after the initial capture retained one. Its actual effective
 flags skip cleanup. The caller acknowledges the completed body before continuing
 selection; a zero source hash then permits the fallback attempt. The retained
-mode cursor returns 0x090006c0 before the TP setter tail. The setter's player mode
-history, FP dispatch, enclosing callback, pose postprocessing and frame scheduling
-remain incomplete. These returns do not establish player or gameplay readiness.
+mode cursor returns 0x090006c0 before the TP setter tail. That fresh untracked
+setter now returns without history writes. Three ordered scalar helpers then
+visit the TP heads and update two script blend coordinates. Both scripts re-enter
+with initflag1, resolve rates through existing animation caches and reuse their
+unchanged play selections before position preparation returns. TP dispatch now
+returns before FP dispatch. The enclosing callback, pose postprocessing and frame
+scheduling remain incomplete. These returns do not establish player or gameplay
+readiness. [Script updates](animation-script-updates.md) describes their separate
+traces and provider boundaries.
 The first class-four factory now allocates its own retained header before any
 script-provider call. A component-local ID allocator covers both control snapshots
 and script headers, preserving detached allocations without reusing IDs. Factory

@@ -183,7 +183,12 @@ pub(super) fn initialize(player: &mut Player, hook: &world_hooks::Attempt) -> Re
             .advance_third_person_selector(&mut next_source)?;
         hook.ensure_current()?;
     }
-    // The real operand/weight prefix is retained before its factory/cleanup
-    // dependency. No command return or mode-history update is fabricated.
+    if owner.state.stage() == actions::Stage::AwaitingThirdPersonSetterTail {
+        owner
+            .state
+            .finish_third_person_setter(&mut player.reset, &player.components.preparation)?;
+        hook.ensure_current()?;
+        super::tail::initialize(player, hook)?;
+    }
     Ok(())
 }

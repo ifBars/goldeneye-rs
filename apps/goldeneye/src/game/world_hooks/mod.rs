@@ -30,6 +30,7 @@ struct State {
     animation_callbacks: Arc<ge_core::mission::player::components::callbacks::Table>,
     animation_fallback: ge_core::animation::dispatch::Fallback,
     animation_slot_override: ge_core::animation::layers::SlotOverride,
+    animation_rate_globals: ge_core::animation::script_child::rate::Inputs,
 }
 
 struct SharedState {
@@ -49,6 +50,15 @@ impl Shared {
         let reset = clock_reset::Owner::from_constructor(&mut clock)
             .expect("owned boot frame-clock constructor is infallible");
         let constructor_clock_reads = reset.total_reads();
+        let animation_rate_globals = ge_core::animation::script_child::rate::Inputs {
+            current_file_data_available: false,
+            baseline: clock.baseline(),
+            epsilon_bits: 0x3400_0000,
+            lower_bits: 0,
+            upper_bits: 1f32.to_bits(),
+            snap_bits: 0x3f7f_be77,
+            index_floor: 0,
+        };
         Self(Arc::new(SharedState {
             actors: Mutex::new(player::Actors::from_constructor()),
             state: Mutex::new(State {
@@ -56,6 +66,7 @@ impl Shared {
                 reset,
                 final_owners: final_reset::Owners::fresh(),
                 constructor_clock_reads,
+                animation_rate_globals,
                 loader: loader::Persistent::new(),
                 player: player::Persistent::from_constructor(),
                 animation_context: ge_core::animation::scratch::Context::default(),

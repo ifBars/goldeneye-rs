@@ -17,14 +17,27 @@ impl Header {
                 && self.word(0x88) == Some(u32::MAX),
             "phase-zero entry is not a fresh script child"
         );
+        self.select_with_rate(source, trace, 1f32.to_bits())
+    }
+    pub(in crate::animation::script_child) fn select_with_rate(
+        &mut self,
+        source: &mut impl Source,
+        trace: &mut Trace,
+        clip_rate_bits: u32,
+    ) -> Result<()> {
+        ensure!(
+            source.file() == self.file && trace.inputs.maximum_entries > 0,
+            "script selection owner or budget differs"
+        );
+        let clip_rate = f32::from_bits(clip_rate_bits);
         let rate = f32::from_bits(self.word(0x2c).context("child speed unknown")?);
         let speed = f32::from_bits(trace.inputs.component_speed_bits);
         let step = f32::from_bits(trace.inputs.scaled_step_bits);
         ensure!(
-            rate.is_finite() && speed.is_finite() && step.is_finite(),
+            clip_rate.is_finite() && rate.is_finite() && speed.is_finite() && step.is_finite(),
             "phase-zero timing input is not finite"
         );
-        let delta = ((1.0f32 * rate) * speed) * step;
+        let delta = ((clip_rate * rate) * speed) * step;
         ensure!(delta.is_finite(), "phase-zero timing overflow");
         trace.delta_bits = Some(delta.to_bits());
         if delta != 0.0 {
@@ -75,10 +88,28 @@ impl Header {
             self.stage = Stage::ReturnedWithoutPlay;
             return Ok(());
         };
+        if self.word(0x88) == Some(selected) {
+            self.stage = Stage::AwaitingAnimation;
+            return Ok(());
+        }
         // The caller compares the first normal reference before writing +88,
         // even when the clip-count fields have not been read or are zero.
         trace.compared_reference = Some(source.reference(selected, false, 0, 0)?);
+        trace.previous_reference = Some(
+            if self.clips.is_some() {
+                self.clip_word(0, 4)
+            } else {
+                self.word(0x44)
+            }
+            .context("previous first clip reference unknown")?,
+        );
         self.w(0x88, selected);
+        if self.clips.is_some() {
+            // Replacing initialized clip references has its own release/setup
+            // prefix. Retain the changed selection before that dependency.
+            self.stage = Stage::AwaitingClipReplacement;
+            return Ok(());
+        }
         self.setup_clips(source, trace, selected)
     }
 }

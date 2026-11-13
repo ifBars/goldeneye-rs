@@ -123,5 +123,6 @@ command operand prefix or rewriting an existing group weight. Effective flags
 control the final cleanup gate. The native first set uses two groups, inserts two
 script children and raises the actual slot count to four. Its flags skip cleanup,
 so the command returns and is acknowledged before the mode cursor continues.
-The permitted zero-hash fallback then returns 0x090006c0. The TP setter tail still
-needs its own player-history and return effects before FP dispatch.
+The permitted zero-hash fallback then returns 0x090006c0. The TP setter preserves
+its own history gates before the dispatch tail re-enters the retained scripts.
+See [script updates](animation-script-updates.md) for that separate continuation.

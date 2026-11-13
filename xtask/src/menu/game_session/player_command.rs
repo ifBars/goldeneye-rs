@@ -7,7 +7,10 @@ fn bounded(v: &Value, max: u64) -> bool {
 pub(super) fn validate(s: &Value, a: &Value) -> Result<()> {
     if s.is_null() {
         ensure!(
-            a["stage"] == "tp_setter_tail_pending" && a["tp_selector"]["commands_executed"] == 0,
+            matches!(
+                a["stage"].as_str(),
+                Some("tp_setter_tail_pending" | "tp_dispatch_pending" | "fp_dispatch_pending")
+            ) && a["tp_selector"]["commands_executed"] == 0,
             "command receipt missing after execution"
         );
         return Ok(());
@@ -75,7 +78,10 @@ pub(super) fn validate(s: &Value, a: &Value) -> Result<()> {
     if s["selector_acknowledged"] == true {
         ensure!(
             returned
-                && a["stage"] == "tp_setter_tail_pending"
+                && matches!(
+                    a["stage"].as_str(),
+                    Some("tp_setter_tail_pending" | "tp_dispatch_pending" | "fp_dispatch_pending")
+                )
                 && count(&a["tp_selector"], "commands_executed")? > 0,
             "command acknowledgement differs"
         );

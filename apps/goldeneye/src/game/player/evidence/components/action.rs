@@ -26,6 +26,7 @@ pub struct InitialAction {
     pub tp_capture: super::ThirdPersonCapture,
     pub tp_selector: super::ThirdPersonSelector,
     pub tp_command: Option<super::CommandBody>,
+    pub tp_dispatch: super::dispatch::ThirdPersonDispatch,
 }
 pub(super) fn build(
     player: &Owned,
@@ -56,16 +57,16 @@ pub(super) fn build(
     ensure!(
         matches!(
             state.stage(),
-            Stage::AwaitingThirdPersonCommand | Stage::AwaitingThirdPersonSetterTail
+            Stage::AwaitingThirdPersonCommand
+                | Stage::AwaitingThirdPersonSetterTail
+                | Stage::AwaitingThirdPersonDispatchTail
+                | Stage::AwaitingFirstPersonDispatch
         ) && state.player() == player.base.player()
             && state.resolved().len() == 3
             && owner.mappings.len() == 3
             && state.generic() == 0x0900_071e
             && player.reset.byte(0xc7c) == Some(0xff)
-            && player.base.word(0x704) == Some(0)
-            && [0x70c, 0x710, 0x714, 0x718]
-                .into_iter()
-                .all(|at| player.reset.word(at) == Some(0)),
+            && player.base.word(0x704) == Some(0),
         "initial action caller boundary differs"
     );
     let mut hash = Sha256::new();
@@ -112,6 +113,23 @@ pub(super) fn build(
             }]);
         }
     }
+    let tp_dispatch = super::dispatch::build(player)?;
+    if tp_dispatch.history_updated {
+        ensure!(
+            player.reset.word(0x70c) == Some(state.generic())
+                && player.reset.word(0x714) == Some(state.resolved()[1].output)
+                && (tp_dispatch.primary_changed != Some(true)
+                    || player.reset.word(0x710) == Some(0)),
+            "TP setter history differs from actual player writes"
+        );
+    } else {
+        ensure!(
+            [0x70c, 0x710, 0x714, 0x718]
+                .into_iter()
+                .all(|at| player.reset.word(at) == Some(0)),
+            "fresh TP path changed history without a setter write"
+        );
+    }
     Ok(InitialAction {
         stage: super::selector::boundary(state.stage())?.0,
         generic_request: state.generic(),
@@ -130,7 +148,7 @@ pub(super) fn build(
         tp_secondary_mapped: state.resolved()[2].output,
         source_tables_reused: true,
         mode_controls_created: tp.controls().len(),
-        mode_history_updated: false,
+        mode_history_updated: tp_dispatch.history_updated,
         callback_returned: false,
         state_sha256: super::super::words(b"ge_player_initial_action_v2\0", |emit| {
             state.visit_state_words(emit)
@@ -139,5 +157,6 @@ pub(super) fn build(
         tp_capture: super::control_capture::build(player, hook)?,
         tp_selector: super::selector::build(player)?,
         tp_command: super::command::build(player)?,
+        tp_dispatch,
     })
 }

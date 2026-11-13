@@ -59,6 +59,7 @@ fn only_a_returned_body_can_acknowledge_the_pending_invocation_and_finish_select
         primary_head: None,
         command: Some(command::Pending::new(0x0c00_0002)),
         completed_commands: Vec::new(),
+        dispatch: None,
     };
     assert!(p.acknowledge_third_person_command().is_err());
     assert_eq!(p.selector().unwrap().completed_commands(), 0);

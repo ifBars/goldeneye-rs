@@ -1,5 +1,17 @@
 use super::*;
 impl Store {
+    pub(crate) fn set_dispatch_coordinate(&mut self, id: NodeId, bits: u32) -> Result<()> {
+        let h = self
+            .headers
+            .get_mut(&id)
+            .context("dispatch script absent")?;
+        ensure!(
+            h.initializer_returned(),
+            "dispatch coordinate precedes factory return"
+        );
+        h.w(0x64, bits);
+        Ok(())
+    }
     pub(crate) fn copy_parent_phase(&mut self, id: NodeId, bits: u32) -> Result<()> {
         let h = self
             .headers

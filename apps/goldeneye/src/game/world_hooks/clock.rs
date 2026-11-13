@@ -8,14 +8,19 @@ pub(super) struct Clock {
     seconds: f32,
     updates: usize,
     scaled_step_bits: u32,
+    baseline: u32,
 }
 
 impl Clock {
+    pub fn baseline(&self) -> u32 {
+        self.baseline
+    }
     pub fn from_constructor() -> Self {
         Self {
             seconds: 0.0,
             updates: 0,
             scaled_step_bits: 1f32.to_bits(),
+            baseline: 60,
         }
     }
 
@@ -24,7 +29,7 @@ impl Clock {
         let next = self.seconds + step;
         // Supplied engine baseline is 60; retain the actual host frame's scaled
         // animation step rather than inventing a zero-time loading update.
-        let scaled_step = step * 60.0;
+        let scaled_step = step * self.baseline as f32;
         let updates = self
             .updates
             .checked_add(1)
