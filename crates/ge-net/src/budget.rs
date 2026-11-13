@@ -263,6 +263,13 @@ impl Limits {
         if reliable_bytes < 512 {
             return Err(ConfigError::InvalidBudget("max_message_bytes"));
         }
+        // SyncBegin cannot fragment: its fixed fields and one nine-byte
+        // acknowledgement per slot must fit one reliable message.
+        let sync_begin =
+            BASE_HEADER_BYTES + TICK_BYTES + 11 + 9 * usize::from(budget.max_slots_per_peer);
+        if reliable_bytes < sync_begin {
+            return Err(ConfigError::InvalidBudget("max_message_bytes"));
+        }
         let max_chunks = (budget.max_snapshot_bytes as usize).div_ceil(chunk);
         if max_chunks > usize::from(u16::MAX) {
             return Err(ConfigError::InvalidBudget("max_snapshot_bytes"));

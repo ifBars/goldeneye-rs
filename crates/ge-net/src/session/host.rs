@@ -474,7 +474,15 @@ impl HostSession {
             self.diagnostics.stale_attempt_events += 1;
             return Err(StateError::AttemptNotIncreasing);
         }
-        self.last_admitted = Some(attempt);
+        // Every admitted attempt ends with an event and, unless the transport
+        // closed it, a disconnect instruction. Admission waits for the
+        // application to drain both, so connection turnover cannot grow
+        // either queue: together they stay within the event budget plus one
+        // of each per live attempt. A refusal here records nothing, so the
+        // same attempt can be admitted after draining.
+        if self.events.len() + self.disconnects.len() >= self.budget.max_pending_events as usize {
+            return Err(StateError::EventQueueFull);
+        }
         let negotiating = self
             .peers
             .values()
@@ -484,13 +492,7 @@ impl HostSession {
         if negotiating >= usize::from(self.budget.max_handshakes) || self.peers.len() >= capacity {
             return Err(StateError::TooManyAttempts);
         }
-        // Every admitted attempt ends with an event. Admission waits for the
-        // application to drain them, so connection turnover cannot grow the
-        // queue: it stays within the event budget plus one terminal event
-        // per live attempt.
-        if self.events.len() >= self.budget.max_pending_events as usize {
-            return Err(StateError::EventQueueFull);
-        }
+        self.last_admitted = Some(attempt);
         let link = Link::new(
             attempt,
             self.now,

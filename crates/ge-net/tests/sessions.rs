@@ -1097,6 +1097,55 @@ fn connection_turnover_cannot_grow_the_event_queue() {
     assert_eq!(host.admit(AttemptId::new(20_000)), Ok(()));
 }
 
+#[test]
+fn cancellation_turnover_cannot_grow_the_disconnect_queue() {
+    let mut budget = SessionBudget::small_session();
+    budget.max_pending_events = 4;
+    let mut entropy = support::rng::SeededRng::new(53);
+    let mut host = ge_net::HostSession::new(
+        ge_net::HostConfig {
+            budget,
+            descriptor: descriptor(),
+            sequence_origin: 0,
+        },
+        support::pipe::CAPABILITIES,
+        &mut entropy,
+        NetInstant::ZERO,
+    )
+    .unwrap();
+    // The application polls events but never drains outbound work, so
+    // every cancellation leaves a disconnect instruction behind.
+    let mut refused = None;
+    for attempt in 1..10_000u64 {
+        let attempt = AttemptId::new(attempt);
+        match host.admit(attempt) {
+            Ok(()) => {
+                host.cancel(attempt).unwrap();
+                while host.poll_event().is_some() {}
+            }
+            Err(error) => {
+                assert_eq!(error, StateError::EventQueueFull);
+                refused = Some(attempt);
+                break;
+            }
+        }
+    }
+    let refused = refused.expect("admission pushed back");
+    let mut disconnects = 0;
+    host.drain_outbound(DrainLimit::UNLIMITED, |outbound| {
+        if matches!(outbound, Outbound::Disconnect { .. }) {
+            disconnects += 1;
+        }
+        SendOutcome::Sent
+    });
+    assert!(
+        disconnects <= 4,
+        "{disconnects} disconnect instructions queued"
+    );
+    // A refusal records nothing: the same attempt is admitted after draining.
+    assert_eq!(host.admit(refused), Ok(()));
+}
+
 /// A backend that always has another event, none of which reaches a session.
 struct Endless {
     polled: usize,
@@ -1205,6 +1254,46 @@ fn a_partition_registered_later_still_holds_messages_already_in_flight() {
     }
     assert_eq!(received, vec![b"first".to_vec(), b"second".to_vec()]);
     assert!(net.stats(0).datagrams_lost >= 1);
+}
+
+#[test]
+fn an_orderly_close_still_follows_messages_a_later_partition_delays() {
+    use ge_net::Transport;
+    use support::link::SimNetwork;
+    let mut net = SimNetwork::new(54, 1);
+    let profile = LinkProfile {
+        latency_micros: 100_000,
+        ..LinkProfile::ideal()
+    };
+    let client_attempt = net.connect(0, profile.clone());
+    net.set_now(100_000);
+    assert!(matches!(
+        net.endpoint(Endpoint::Host).poll(),
+        Some(ge_net::TransportEvent::Connected { .. })
+    ));
+    // Sent at 100 ms and due at 200 ms; the close follows just after it.
+    let mut client = net.endpoint(Endpoint::Client(0));
+    assert!(matches!(
+        client.poll(),
+        Some(ge_net::TransportEvent::Connected { .. })
+    ));
+    client.send(client_attempt, Lane::Control, b"last words");
+    client.close(client_attempt);
+    // A partition registered afterwards delays the message past the close.
+    net.partition(0, 150_000, 600_000);
+    net.set_now(600_000 + profile.retransmit_micros + profile.latency_micros + 10);
+    let mut host = net.endpoint(Endpoint::Host);
+    match host.poll() {
+        Some(ge_net::TransportEvent::Message { bytes, .. }) => assert_eq!(bytes, b"last words"),
+        other => panic!("the accepted message comes first, got {other:?}"),
+    }
+    assert!(matches!(
+        host.poll(),
+        Some(ge_net::TransportEvent::Closed {
+            failure: TransportFailure::RemoteClosed,
+            ..
+        })
+    ));
 }
 
 #[test]

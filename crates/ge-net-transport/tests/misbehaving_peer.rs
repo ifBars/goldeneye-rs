@@ -484,3 +484,74 @@ fn a_host_whose_application_stops_polling_turns_new_connections_away() {
     };
     assert!(attempt > admitted);
 }
+
+#[test]
+fn a_client_attempt_cancelled_while_its_report_waits_is_closed_and_never_reported() {
+    let config = QuicConfig {
+        event_queue_messages: 16,
+        ..config()
+    };
+    let identity = HostIdentity::generate().unwrap();
+    let mut host = QuicHost::bind(loopback(), identity, config.clone()).unwrap();
+    let mut client = QuicClient::bind(loopback(), config).unwrap();
+    let poll_until = |transport: &mut dyn Transport, what: &str| {
+        let deadline = Instant::now() + DEADLINE;
+        loop {
+            if let Some(event) = transport.poll() {
+                return event;
+            }
+            assert!(Instant::now() < deadline, "timed out waiting for {what}");
+            std::thread::sleep(Duration::from_millis(1));
+        }
+    };
+
+    let first = client.connect(host.local_addr(), host.fingerprint());
+    assert_eq!(
+        poll_until(&mut client, "first"),
+        TransportEvent::Connected { attempt: first }
+    );
+    let TransportEvent::Connected {
+        attempt: host_first,
+    } = poll_until(&mut host, "first")
+    else {
+        panic!("expected the first connection");
+    };
+    // The client application stops polling while datagrams fill its queue.
+    for _ in 0..64 {
+        host.send(host_first, Lane::Datagram, b"filler");
+    }
+    std::thread::sleep(Duration::from_millis(200));
+
+    // A second attempt connects, but its report cannot be queued. The
+    // application cancels it while the report waits.
+    let second = client.connect(host.local_addr(), host.fingerprint());
+    let TransportEvent::Connected {
+        attempt: host_second,
+    } = poll_until(&mut host, "second")
+    else {
+        panic!("expected the second connection");
+    };
+    client.close(second);
+
+    // The cancelled connection is closed rather than left open behind a
+    // report that will never be read.
+    let started = Instant::now();
+    match poll_until(&mut host, "the cancelled connection to close") {
+        TransportEvent::Closed { attempt, .. } => assert_eq!(attempt, host_second),
+        other => panic!("unexpected {other:?}"),
+    }
+    assert!(
+        started.elapsed() < Duration::from_secs(3),
+        "took {:?}",
+        started.elapsed()
+    );
+
+    // When the application polls again, the cancelled attempt never appears.
+    std::thread::sleep(Duration::from_millis(100));
+    while let Some(event) = client.poll() {
+        assert!(
+            matches!(event, TransportEvent::Message { attempt, .. } if attempt == first),
+            "only the first attempt's datagrams: {event:?}"
+        );
+    }
+}

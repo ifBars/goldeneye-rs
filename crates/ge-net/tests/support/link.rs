@@ -214,11 +214,13 @@ impl SimNetwork {
         assert!(now >= self.now, "simulated time is monotonic");
         self.now = now;
         for index in 0..self.connections.len() {
-            if self.connections[index].fail_at.is_some_and(|at| at <= now) {
+            if let Some(at) = self.connections[index].fail_at.filter(|at| *at <= now) {
                 self.connections[index].fail_at = None;
+                // At the failure time itself, so nothing scheduled after it
+                // on an abandoned lane can arrive before the failure.
                 for side in 0..2 {
                     if !self.connections[index].closed[side] {
-                        self.schedule_closed(index, side, now, TransportFailure::TimedOut);
+                        self.schedule_closed(index, side, at, TransportFailure::TimedOut);
                     }
                 }
             }
@@ -294,7 +296,19 @@ impl SimNetwork {
         let profile = self.connections[index].profile.clone();
         // Latest arrival per receiving side and reliable lane.
         let mut last = [[0u64; 2]; 2];
+        let mut orderly_closes = Vec::new();
         for mut item in pending {
+            if matches!(
+                item.event,
+                TransportEvent::Closed {
+                    failure: TransportFailure::RemoteClosed,
+                    ..
+                }
+            ) {
+                // Placed once every reliable arrival is known.
+                orderly_closes.push(item);
+                continue;
+            }
             let partitioned = self.partition_end(index, item.at);
             match item.reliable {
                 Some((lane, _)) => {
@@ -325,6 +339,18 @@ impl SimNetwork {
                 }
                 None => {}
             }
+            let inbox = if item.side == 1 {
+                &mut self.host_inbox
+            } else {
+                &mut self.client_inboxes[client]
+            };
+            inbox.push(Reverse(item));
+        }
+        // An orderly close follows every reliable message already accepted
+        // for that side, wherever the partition moved them.
+        for mut item in orderly_closes {
+            let flushed = last[item.side].iter().copied().max().unwrap_or(0);
+            item.at = item.at.max(flushed + 1);
             let inbox = if item.side == 1 {
                 &mut self.host_inbox
             } else {

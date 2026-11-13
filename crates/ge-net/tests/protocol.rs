@@ -786,6 +786,23 @@ fn transports_must_declare_both_delivery_contracts() {
         };
         assert_eq!(build(queue, caps), expected, "{bytes} queued bytes");
     }
+    // SyncBegin cannot fragment, so its acknowledgements for every slot of
+    // one peer must fit a reliable message: 54 slots need 519 bytes.
+    let mut slots = config();
+    slots.budget.max_message_bytes = 512;
+    slots.budget.snapshot_chunk_bytes = 256;
+    slots.budget.max_player_slots = 54;
+    slots.budget.max_slots_per_peer = 54;
+    assert_eq!(
+        build(slots, caps),
+        Err(ConfigError::InvalidBudget("max_message_bytes"))
+    );
+    let mut slots = config();
+    slots.budget.max_message_bytes = 512;
+    slots.budget.snapshot_chunk_bytes = 256;
+    slots.budget.max_player_slots = 53;
+    slots.budget.max_slots_per_peer = 53;
+    assert_eq!(build(slots, caps), Ok(()));
     let mut history = config();
     history.budget.baseline_history = 1;
     assert_eq!(

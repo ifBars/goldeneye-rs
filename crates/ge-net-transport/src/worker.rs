@@ -495,7 +495,7 @@ async fn accept_loop(endpoint: Endpoint, context: Arc<Context>) {
                 connection.close(VarInt::from_u32(CLOSE_PROTOCOL), b"datagram size");
                 return;
             }
-            let (handle, parts) = handle_for(&connection, &context.config);
+            let (handle, mut parts) = handle_for(&connection, &context.config);
             let attempt = {
                 let mut next = context.next_host_attempt.lock().await;
                 let attempt = *next;
@@ -510,7 +510,8 @@ async fn accept_loop(endpoint: Endpoint, context: Arc<Context>) {
                 // order. The wait is bounded: an application that stops
                 // polling cannot hold the lock, and its new connections are
                 // turned away instead of piling up.
-                if !report_connected(&context, attempt, &connection, true).await {
+                if !report_connected(&context, attempt, &connection, true, &mut parts.closing).await
+                {
                     return;
                 }
                 attempt
@@ -527,32 +528,53 @@ async fn accept_loop(endpoint: Endpoint, context: Arc<Context>) {
 /// away, so an application that stops polling cannot hold the attempt lock.
 /// A client waits: its application asked for this attempt and must learn
 /// how it ended; the wait ends at the latest when the endpoint shuts down.
+/// Either way, if the application cancels the attempt meanwhile, the
+/// connection is closed and no event is reported for it.
 async fn report_connected(
     context: &Context,
     attempt: u64,
     connection: &Connection,
     bounded: bool,
+    closing: &mut oneshot::Receiver<()>,
 ) -> bool {
-    let connected = TransportEvent::Connected {
-        attempt: AttemptId::new(attempt),
+    // Waits in short slices so that a cancellation, which drops the
+    // attempt's handle and so ends `closing`, is noticed while waiting.
+    const SLICE: Duration = Duration::from_millis(50);
+    let cancelled = |closing: &mut oneshot::Receiver<()>| {
+        matches!(
+            closing.try_recv(),
+            Err(oneshot::error::TryRecvError::Closed)
+        )
     };
-    let send = context.events.send(connected);
-    let outcome = if bounded {
-        timeout(context.config.connect_timeout, send).await
-    } else {
-        Ok(send.await)
-    };
-    match outcome {
-        Ok(Ok(())) => true,
-        Ok(Err(_)) => {
-            context.shared.remove(attempt);
-            connection.close(VarInt::from_u32(CLOSE_NORMAL), b"shutdown");
-            false
-        }
-        Err(_) => {
-            context.shared.remove(attempt);
-            connection.close(VarInt::from_u32(CLOSE_BUSY), b"event queue full");
-            false
+    let deadline = tokio::time::Instant::now() + context.config.connect_timeout;
+    loop {
+        match timeout(SLICE, context.events.reserve()).await {
+            Ok(Ok(permit)) => {
+                if cancelled(closing) {
+                    // Cancelled while waiting: no event, and nothing left open.
+                    connection.close(VarInt::from_u32(CLOSE_NORMAL), b"");
+                    return false;
+                }
+                permit.send(TransportEvent::Connected {
+                    attempt: AttemptId::new(attempt),
+                });
+                return true;
+            }
+            Ok(Err(_)) => {
+                context.shared.remove(attempt);
+                connection.close(VarInt::from_u32(CLOSE_NORMAL), b"shutdown");
+                return false;
+            }
+            Err(_) if cancelled(closing) => {
+                connection.close(VarInt::from_u32(CLOSE_NORMAL), b"");
+                return false;
+            }
+            Err(_) if bounded && tokio::time::Instant::now() >= deadline => {
+                context.shared.remove(attempt);
+                connection.close(VarInt::from_u32(CLOSE_BUSY), b"event queue full");
+                return false;
+            }
+            Err(_) => {}
         }
     }
 }
@@ -597,7 +619,7 @@ async fn connect(
             return;
         }
     };
-    let (handle, parts) = handle_for(&connection, &context.config);
+    let (handle, mut parts) = handle_for(&connection, &context.config);
     {
         let mut connections = context
             .shared
@@ -615,7 +637,7 @@ async fn connect(
     }
     // A client attempt always ends in `Connected` or `Closed`, so its
     // report waits for the application rather than giving up.
-    if !report_connected(&context, attempt, &connection, false).await {
+    if !report_connected(&context, attempt, &connection, false, &mut parts.closing).await {
         return;
     }
     drive(attempt, connection, lanes, parts, context).await;
