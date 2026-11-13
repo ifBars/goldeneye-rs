@@ -1,6 +1,22 @@
 use super::*;
 
 #[test]
+fn live_timing_selection_reads_only_selected_flags_and_preserves_zero_relative_entry_semantics() {
+    let mut data = fixture();
+    let script = read_at(&data[..0x168], 0x80).unwrap();
+    assert_eq!(script.play_timing_flags(0).unwrap(), 0x94);
+    assert!(script.track_bundle(2).is_err()); // +8 option is deliberately absent
+    word(&mut data, 0x128, 0);
+    word(&mut data, 0x12c, 0x1234_5670);
+    assert_eq!(
+        read_at(&data, 0x80).unwrap().play_timing_flags(0).unwrap(),
+        0x1234_5670
+    );
+    word(&mut data, 0xb4, 0);
+    assert!(read_at(&data, 0x80).unwrap().play_timing_flags(0).is_err());
+}
+
+#[test]
 fn live_selection_reads_only_reached_common_fields_and_each_requested_clip_scalar() {
     let mut data = fixture();
     word(&mut data, 0x84, u32::MAX);

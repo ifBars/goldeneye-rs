@@ -130,10 +130,14 @@ unknown command payloads remain unread. Inline storage aliases the real header,
 while heap records preserve unwritten cache-pointer bytes. The selected index
 retains the source count clamp and subsequent raw-index overwrite. Shared host
 frame time supplies the scaled step; original timing and numerical parity remain
-unverified. The native first TP script binds seven local clip references and
-returns clip setup before its animation-body and position dependency. A real
-missing script body returns through the source early-out instead. Neither state
-completes a layer or command. The separate inspection binder cannot replace this
+unverified. The native first TP script binds seven local clip references, caches
+the selected animation descriptor through the same generation-bound wrapper and
+reads only the reached body/timing fields. Its actual 30 FPS and zero timing flags
+produce position zero, so no root-motion lookup runs. The initializer and factory
+now return before parent child/list effects. Unrequested animation bodies and
+timing curves remain explicit dependencies on other paths. A real missing script
+body returns through the source early-out instead. Neither return inserts a
+layer or completes a command. The separate inspection binder cannot replace this
 live initializer. See [script initialization](animation-script-initialization.md).
 The controller arena retains the actual player/item/physics owners and registry
 rows across worker cancellation. Its world/arena mutex is separate from manager
@@ -502,7 +506,7 @@ for matrix order, cached versus current state and capacity rules.
 
 `collision-box` selects an explicit initial zone. `goldeneye::world_query` adds
 an explicit ordered manager snapshot and opens only the selected world's resource.
-Its BSP supplies the initial zone; request bit2 validates that zone's row/group
+Its BSP supplies the initial zone; request bit 2 validates that zone's row/group
 metadata and evaluates portal shapes lazily, preserving returned order and duplicate
 zones. Malformed unused row metadata can still fail the bounded host reader.
 `static_collect::append_zone`

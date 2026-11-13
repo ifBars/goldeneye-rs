@@ -6,6 +6,7 @@ use ge_core::animation::{
 };
 use serde::Serialize;
 mod phase_zero;
+mod position;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ChildHeader {
     pub native_header_bytes: usize,
@@ -49,7 +50,7 @@ pub(super) fn build(player: &Owned) -> Result<Option<ChildHeader>> {
     let binding = animator.component().context("TP current resource absent")?;
     let returned = matches!(
         header.stage(),
-        Stage::ReturnedWithoutBody | Stage::ReturnedWithoutPlay
+        Stage::ReturnedWithoutBody | Stage::ReturnedWithoutPlay | Stage::ReturnedInitialized
     );
     let phase_zero = phase_zero::build(header)?;
     let expected_flags = if let Some(flags) = header.initialization().and_then(|t| t.flags_raw) {
@@ -100,11 +101,14 @@ pub(super) fn build(player: &Owned) -> Result<Option<ChildHeader>> {
             .body_bound()
             .context("TP script body binding absent")?,
         phase_zero,
-        phase_zero_initialized: header.stage() == Stage::ReturnedWithoutPlay,
+        phase_zero_initialized: matches!(
+            header.stage(),
+            Stage::ReturnedWithoutPlay | Stage::ReturnedInitialized
+        ),
         initializer_returned: returned,
         factory_returned: returned,
         layer_inserted: false,
-        state_sha256: super::super::words(b"ge_player_tp_class04_header_v2\0", |emit| {
+        state_sha256: super::super::words(b"ge_player_tp_class04_header_v3\0", |emit| {
             header.visit_state_words(emit)
         }),
     }))

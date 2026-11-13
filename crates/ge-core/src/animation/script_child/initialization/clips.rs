@@ -11,7 +11,10 @@ impl Header {
         let total = usize::from(counts[0]) + usize::from(counts[1]);
         self.clips = Some(if total <= 1 {
             self.bytes[0x76] = Some(0);
-            Storage::Inline { file: None }
+            Storage::Inline {
+                file: None,
+                cached: None,
+            }
         } else {
             let mut records = Vec::new();
             if let Err(error) = records.try_reserve_exact(total) {
@@ -21,6 +24,7 @@ impl Header {
             records.resize_with(total, || Record {
                 file: None,
                 bytes: [None; 0x1c],
+                cached: None,
             });
             self.bytes[0x76] = Some(1);
             Storage::Heap(records)
@@ -118,7 +122,7 @@ impl Header {
     fn bind_clip_file(&mut self, index: usize, file: u32) -> Result<()> {
         ensure!(file >> 24 == 1, "clip file identity is not a file");
         match self.clips.as_mut().context("clip storage absent")? {
-            Storage::Inline { file: target } => {
+            Storage::Inline { file: target, .. } => {
                 ensure!(index == 0, "inline clip index exceeds storage");
                 *target = Some(file);
             }
@@ -142,7 +146,12 @@ impl Header {
         }
         Ok(())
     }
-    fn clip_write(&mut self, index: usize, at: usize, value: &[u8]) -> Result<()> {
+    pub(in super::super) fn clip_write(
+        &mut self,
+        index: usize,
+        at: usize,
+        value: &[u8],
+    ) -> Result<()> {
         let bytes = match self.clips.as_mut().context("clip storage absent")? {
             Storage::Inline { .. } => {
                 ensure!(index == 0, "inline clip index exceeds storage");

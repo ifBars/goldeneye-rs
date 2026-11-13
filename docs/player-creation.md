@@ -367,8 +367,11 @@ allocation. A cached payload from a later section grants no runtime residence.
 A resident script now performs phase-zero selection and clip-reference setup.
 The fresh native TP path visits four command headers, selects the first play
 command and binds seven normal clips from the same file wrapper. Its clip setup
-returns with index6 and range30. Animation-body lookup and position preparation
-remain pending, so phase initialization has not returned. An unavailable external
+returns with index6 and range30. The selected animation now resolves directory
+index 22 through that same wrapper and updates its cache generation before body
+access. The resident header supplies 30 FPS. Zero timing flags skip curve reads;
+position zero skips root-motion lookup. Phase initialization and the factory now
+return before their parent child/list effects. An unavailable external
 file lookup remains pending rather than becoming a missing-file skip. A genuine
 absent script body takes the native early return. No parent copy/wrapper step,
 layer insertion, child scalar initialization or command return is inferred.

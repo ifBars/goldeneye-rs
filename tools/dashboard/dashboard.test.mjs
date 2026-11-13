@@ -2301,8 +2301,64 @@ function tpChildPlayerFixture() {
 function tpPhaseZeroFixture() {
   return {stage:'frame_count_pending',delta_bits:0x3f800000,duration_raw:60,frame_bits:0,entries_visited:2,
     selected_offset:0,normal_requested:1,secondary_requested:0,normal_bound:1,secondary_bound:0,clip_records:1,
-    heap_allocated:false,initial_index_raw:0,initial_index_clamped:0,frame_range:0,setup_returned:false,flags_applied:false,pending_file:null};
+    heap_allocated:false,initial_index_raw:0,initial_index_clamped:0,frame_range:0,setup_returned:false,flags_applied:false,pending_file:null,position:null};
 }
+function tpPositionFixture() {
+  return {selected_index:0,file_bound:true,generation_observed:0,metadata_bound:true,cache_generation:0,descriptor_index:3,
+    body_bound:true,timing_flags:0,animation_fps:30,script_fps_bits:0x41f00000,frame_bits:0,previous_position_bits:0,normalized_position_bits:0,root_motion_pending:false};
+}
+function withInitializedScript(report) {
+  for(const probe of [...report.menu.details.game_session.difficulty_probes,report.menu.details.game_session.cancel_reentry]) {
+    const body=probe.window.game_session.active.world_initialization.player_initialization.component_initialization.initial_action.tp_command;
+    body.stage='child_effects_pending';Object.assign(body.child_header,{phase_zero_initialized:true,initializer_returned:true,factory_returned:true});
+    Object.assign(body.child_header.phase_zero,{stage:'initialized',frame_range:30,setup_returned:true,flags_applied:true,position:tpPositionFixture()});
+  }
+  return report;
+}
+test('completed script position stays separate from layer insertion and parent command return',async()=>{
+  await inspect(embed(withInitializedScript(withPlayerPrelude(gameSessionFixture()))),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.match(text,/Script initializer returned after position setup/);
+    assert.match(text,/awaiting child effects/);assert.match(text,/no layer insertion or command return/);
+    assert.doesNotMatch(text,/has not been recorded completely/);
+    assert.equal(d.querySelector('#parity-count').textContent,'0 of 3 tracked criteria verified');
+  });
+});
+test('pending animation providers retain cache progress without claiming an initializer return',async()=>{
+  for(const stage of ['animation_owner_pending','animation_cache_pending','animation_body_pending','timing_curve_pending','root_motion_pending']) {
+    const report=withInitializedScript(withPlayerPrelude(gameSessionFixture()));
+    for(const probe of [...report.menu.details.game_session.difficulty_probes,report.menu.details.game_session.cancel_reentry]) {
+      const body=probe.window.game_session.active.world_initialization.player_initialization.component_initialization.initial_action.tp_command,
+        child=body.child_header, phase=child.phase_zero,p=phase.position;
+      body.stage='child_initializer_pending';phase.stage=stage;
+      Object.assign(child,{phase_zero_initialized:false,initializer_returned:false,factory_returned:false});
+      if(stage==='root_motion_pending') {body.child_flags|=2;p.frame_bits=0x41f00000;p.normalized_position_bits=0x3f800000;p.root_motion_pending=true;}
+      else {
+        for(const key of ['timing_flags','animation_fps','script_fps_bits','frame_bits','previous_position_bits','normalized_position_bits']) p[key]=null;
+        if(stage==='timing_curve_pending') p.timing_flags=1; else p.body_bound=null;
+        if(['animation_owner_pending','animation_cache_pending'].includes(stage)) Object.assign(p,{generation_observed:null,metadata_bound:false,cache_generation:0xffffffff,descriptor_index:null});
+        if(stage==='animation_cache_pending') Object.assign(p,{file_bound:false,cache_generation:null});
+      }
+    }
+    await inspect(embed(report),d=>{
+      const text=d.querySelector('#game-session-summary').textContent;
+      assert.doesNotMatch(text,/has not been recorded completely|undefined/);
+      assert.match(text,/no layer insertion or command return/);
+      assert.doesNotMatch(text,/Script initializer returned after position setup/);
+    });
+  }
+});
+test('script position receipts reject missing fields and fabricated lookup or completion evidence',async()=>{
+  const changes=Object.keys(tpPositionFixture()).map(k=>v=>{delete v[k];});
+  for(const [key,value] of Object.entries({selected_index:1,file_bound:false,generation_observed:7,metadata_bound:false,
+    cache_generation:4,descriptor_index:null,body_bound:null,timing_flags:1,animation_fps:256,script_fps_bits:null,
+    frame_bits:null,previous_position_bits:null,normalized_position_bits:0x7fc00000,root_motion_pending:true,payload:[1]})) changes.push(v=>{v[key]=value;});
+  for(const change of changes) {
+    const report=withInitializedScript(withPlayerPrelude(gameSessionFixture()));
+    change(report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization.initial_action.tp_command.child_header.phase_zero.position);
+    await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+  }
+});
 
 test('phase-zero summaries keep animation providers separate from clip setup and command completion',async()=>{
   for (const phase of [

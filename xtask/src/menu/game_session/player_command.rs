@@ -114,6 +114,16 @@ pub(super) fn validate(state: &Value, action: &Value) -> Result<()> {
                         "retained child header is absent or wrong class"
                     );
                     player_child::validate(&state["child_header"], &state["stage"])?;
+                    let phase = &state["child_header"]["phase_zero"];
+                    let position = &phase["position"];
+                    if let Some(bits) = position["normalized_position_bits"].as_u64() {
+                        let needs_root =
+                            count(state, "child_flags")? & 2 != 0 && bits & 0x7fff_ffff != 0;
+                        ensure!(
+                            (phase["stage"] == "root_motion_pending") == needs_root,
+                            "child flags contradict position return/root-motion dependency"
+                        );
+                    }
                 }
             } else {
                 ensure!(

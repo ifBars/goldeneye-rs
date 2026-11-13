@@ -7,6 +7,14 @@ use anyhow::{Context, Result, ensure};
 use serde::Serialize;
 mod script_reference;
 
+impl Edb {
+    pub(crate) fn base_bytes(&self) -> Result<&[u8]> {
+        self.data
+            .get(..usize::try_from(self.header.base_bytes)?)
+            .context("base exceeds retained file")
+    }
+}
+
 const TABLE_NAMES: [&str; 16] = [
     "sections",
     "references",

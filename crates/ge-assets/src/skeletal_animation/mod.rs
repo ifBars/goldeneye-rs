@@ -5,6 +5,7 @@ use crate::{
     edb::{Edb, Table},
 };
 use anyhow::{Context, Result, ensure};
+pub mod live;
 
 const STRIDE: usize = 0x20;
 const HEADER_BYTES: usize = 0x98;

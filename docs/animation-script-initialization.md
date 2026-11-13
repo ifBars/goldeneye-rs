@@ -4,9 +4,10 @@ New Game retains its first class-four animation child in the TP animator. The
 initializer now selects a play command and constructs its clip references. The
 native Tutorial probe visits four command headers, selects offset zero and binds
 seven normal clips from the same resource wrapper. Clip setup returns with
-index 6 and a 30-frame range. Animation-body lookup and position preparation are
-next. The initializer, factory and command have not returned; the player and
-camera remain incomplete.
+index 6 and a 30-frame range. The selected animation then resolves descriptor 22
+through the same wrapper, binds a resident header and reads 30 FPS. Zero timing
+flags and position zero let the initializer and factory return. Parent child/list
+effects and the command return are next; the player and camera remain incomplete.
 
 These operations are independently authored from static investigation of the
 supported SJBE52 revision 0 image. Synthetic tests verify the reconstructed
@@ -59,10 +60,39 @@ Unknown storage remains an explicit dependency. A nonpositive signed range
 requires the selected animation's frame-count provider. A positive range writes
 the frame count and returns clip setup. The caller then overwrites the index
 with the raw serialized byte and applies the play flag to child bit `0x80`.
-The next animation lookup and position operations remain required.
+The next animation lookup and position operations use the same retained child.
 
 The dashboard distinguishes file lookup, unknown clip range, frame-count lookup
 and animation preparation. A script with no selected play can return its
 initializer without constructing clips; this still does not insert a layer or
 return its parent command. Reports contain counts, typed states and state hashes,
 with no pose arrays, executable code or game assets.
+
+
+## Selected animation and position
+
+`ge-core/animation/script_child/position` continues after clip setup without
+repeating selection or allocating another child. A bound clip uses its actual
+file generation. A cache miss resolves the directory index, stores the typed
+cached descriptor and then updates the generation when found. A genuine miss
+stores NULL and leaves the old generation. A later body or timing failure keeps
+these writes. A matching but unknown cache pointer remains unknown.
+
+`ge-assets/skeletal_animation/live` reads the logically resident base. Index
+lookup does not read an unnecessary descriptor hash. Body lookup distinguishes
+NULL from an unrequested section. FPS is a separate scalar read; neither a full
+animation header nor compressed frame/channel data is preflighted. The app
+borrows this view from the same file owner rather than reloading a second EDB.
+
+The live timing reader follows only the selected table entry and reads its flags.
+Only the low two bits request timing curves; other bits do not force option or
+curve reads. Required curves stop before FPS conversion and position writes.
+A resident animation reads its FPS before the script FPS; an absent animation
+skips both. The source's separately rounded conversion, bounds or double
+remainder, history write and normalized position write stay in order. A
+nonfinite normalized result retains those writes before the explicit host limit.
+
+A nonzero position with child bit 2 set still needs the source's clip selection
+and root-motion lookup. Position zero skips that branch. Initializer return does
+not sample a pose, insert an intrusive layer node, execute parent post-words or
+acknowledge a mode command. The dashboard keeps those boundaries separate.

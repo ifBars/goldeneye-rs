@@ -2,6 +2,7 @@ use super::closed;
 use anyhow::{Result, ensure};
 use serde_json::Value;
 mod phase_zero;
+mod position;
 pub(super) fn validate(state: &Value, stage: &Value) -> Result<()> {
     closed(
         state,
@@ -57,22 +58,23 @@ pub(super) fn validate(state: &Value, stage: &Value) -> Result<()> {
     if !phase.is_null() {
         phase_zero::validate(phase)?;
     }
-    let no_play = phase["stage"] == "returned_without_play";
+    let phase_returned =
+        phase["stage"] == "returned_without_play" || phase["stage"] == "initialized";
     ensure!(
-        state["phase_zero_initialized"] == no_play,
+        state["phase_zero_initialized"] == phase_returned,
         "phase-zero return differs"
     );
     ensure!(
         if state["body_bound"] == true {
             state["metadata_cached"] == true
                 && stage
-                    == if no_play {
+                    == if phase_returned {
                         "child_effects_pending"
                     } else {
                         "child_initializer_pending"
                     }
-                && state["initializer_returned"] == no_play
-                && state["factory_returned"] == no_play
+                && state["initializer_returned"] == phase_returned
+                && state["factory_returned"] == phase_returned
         } else {
             phase.is_null()
                 && stage == "child_effects_pending"
@@ -87,6 +89,7 @@ pub(super) fn validate(state: &Value, stage: &Value) -> Result<()> {
 pub(super) mod tests {
     use super::*;
     use serde_json::json;
+    mod position;
     pub(in super::super) fn fixture() -> Value {
         json!({"native_header_bytes":0x90,"resource_reused":true,"context_bound":true,
         "generation_observed":0,"cache_generation":0,"metadata_cached":true,"descriptor_index":2,"body_bound":true,"phase_zero":phase_zero::fixture(),

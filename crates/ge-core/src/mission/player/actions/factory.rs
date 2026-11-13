@@ -1,6 +1,35 @@
 use super::*;
 use crate::animation::{layers::command, script_child};
 impl Pending {
+    pub fn prepare_third_person_child_position(
+        &mut self,
+        preparation: &mut Preparation,
+        source: &mut impl script_child::position::Source,
+    ) -> Result<()> {
+        ensure!(
+            self.stage == Stage::AwaitingThirdPersonCommand
+                && preparation.animator().is_some_and(|owner| {
+                    owner.player() == self.player
+                        && self
+                            .resolved
+                            .get(1)
+                            .is_some_and(|resolved| resolved.request.component == owner.identity())
+                }),
+            "position TP caller order or identity differs"
+        );
+        let command = self.command.as_mut().context("TP command absent")?;
+        let result = preparation.prepare_third_person_child_position(command, source);
+        if result.is_err() {
+            let invocation = self
+                .selector
+                .as_ref()
+                .context("TP selector absent")?
+                .pending()
+                .context("TP invocation absent")?;
+            self.third_person_command_failed(invocation)?;
+        }
+        result
+    }
     pub fn initialize_third_person_child_phase_zero(
         &mut self,
         preparation: &mut Preparation,

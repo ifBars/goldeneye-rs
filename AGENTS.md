@@ -44,8 +44,11 @@ metadata/body lookup. Shared component-local node IDs cover controls and scripts
 Phase-zero selection now scans only reached headers, preserves sign/history
 writes and binds clip references in source order. The native fresh TP script
 selects offset zero after four records, binds seven local clip references and
-returns clip setup with index6/range30. Animation-body and position preparation,
-later child/list effects and the setter tail are next, before FP dispatch. No command has returned yet. Pose postprocess targets
+returns clip setup with index6/range30. Its selected animation now caches directory
+index 22 through the same generation-bound wrapper, binds a resident header and
+uses its actual 30 FPS with zero timing flags. Position zero skips root-motion
+lookup and returns the initializer/factory. Parent child/list effects and the
+setter tail are next, before FP dispatch. No command has returned yet. Pose postprocess targets
 are assigned, but their body and frame scheduling remain unavailable.
 Later initialization and gameplay remain
 incomplete. docs/player-creation.md describes the reached boundary.

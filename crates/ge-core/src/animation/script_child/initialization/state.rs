@@ -42,15 +42,17 @@ impl Header {
         }
         match &self.clips {
             None => emit(0),
-            Some(Storage::Inline { file }) => {
+            Some(Storage::Inline { file, cached }) => {
                 emit(1);
                 visit_file(*file, emit);
+                super::super::position::visit_binding(*cached, emit);
             }
             Some(Storage::Heap(records)) => {
                 emit(2);
                 emit(records.len() as u32);
                 for record in records {
                     visit_file(record.file, emit);
+                    super::super::position::visit_binding(record.cached, emit);
                     for byte in record.bytes {
                         emit(u32::from(byte.is_some()));
                         if let Some(byte) = byte {

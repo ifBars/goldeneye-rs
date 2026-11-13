@@ -1,7 +1,7 @@
 use super::*;
 impl Header {
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(2);
+        emit(3);
         self.owner.visit_state_words(&mut emit);
         emit(self.file);
         emit(self.reference);
@@ -37,6 +37,7 @@ impl Header {
             emit(role);
         }
         self.visit_initialization(&mut emit);
+        self.visit_position(&mut emit);
     }
 }
 impl Store {

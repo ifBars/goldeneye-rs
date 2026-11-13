@@ -1,6 +1,7 @@
 //! Retained class-four headers and phase-zero initialization. Source pointer
 //! roles are typed bindings; unwritten bytes and unperformed effects stay unknown.
 pub mod initialization;
+pub mod position;
 mod state;
 use super::{
     layers::NodeId,
@@ -34,6 +35,13 @@ pub enum Stage {
     AwaitingFrameCount,
     AwaitingAnimation,
     ReturnedWithoutPlay,
+    PreparingPosition,
+    AwaitingAnimationOwner,
+    AwaitingClipCache,
+    AwaitingAnimationBody,
+    AwaitingTimingCurve,
+    AwaitingRootMotion,
+    ReturnedInitialized,
 }
 #[derive(Debug)]
 pub struct Header {
@@ -48,6 +56,7 @@ pub struct Header {
     body_bound: Option<bool>,
     initialization: Option<initialization::Trace>,
     clips: Option<initialization::Storage>,
+    position: Option<position::Trace>,
 }
 #[derive(Debug)]
 pub struct Store {
@@ -132,6 +141,7 @@ impl Header {
             body_bound: None,
             initialization: None,
             clips: None,
+            position: None,
         };
         // Common control, skeletal instance and class-four constructors, in
         // source order. Self-relative pointers have typed roles, not addresses.

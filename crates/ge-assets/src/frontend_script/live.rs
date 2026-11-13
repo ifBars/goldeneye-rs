@@ -8,6 +8,27 @@ pub struct SelectionEntry {
     pub next: u8,
 }
 impl Script<'_> {
+    /// Native timing selection reads only +4 flags. Header and option words,
+    /// descriptors and curves are not consumed when both low bits are clear.
+    pub fn play_timing_flags(self, offset: u32) -> Result<u32> {
+        let b = Bytes(self.data);
+        let field = self.address + 0x34;
+        ensure!(b.u32(field)? != 0, "live timing table is NULL");
+        let table = b.relative(field)?;
+        let selector = b.u16(self.command_address(offset)? + 8)?;
+        let entry = table
+            .checked_add(usize::from(selector) * 4)
+            .context("live timing selector overflow")?;
+        let bundle = b.relative(entry)?;
+        b.u32(
+            bundle
+                .checked_add(4)
+                .context("live timing flags overflow")?,
+        )
+    }
+    pub fn frames_per_second_raw(self) -> Result<u32> {
+        Bytes(self.data).u32(self.address + 0xc)
+    }
     pub fn duration_raw(self) -> Result<u32> {
         Bytes(self.data).u32(self.address + 4)
     }

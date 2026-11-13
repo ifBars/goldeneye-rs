@@ -2,6 +2,33 @@ use super::*;
 use crate::animation::{layers::command, script_child};
 use anyhow::Context;
 impl super::super::Preparation {
+    pub fn prepare_third_person_child_position(
+        &mut self,
+        command: &mut command::Pending,
+        source: &mut impl script_child::position::Source,
+    ) -> Result<()> {
+        ensure!(
+            self.stage() == super::super::Stage::AwaitingInitialModes,
+            "position continuation precedes component helper return"
+        );
+        let owner = self.animator_mut_for_capture()?;
+        let result = (|| {
+            ensure!(
+                command.stage() == command::Stage::ChildFactoryPending,
+                "position continuation command differs"
+            );
+            let id = command
+                .factory_node()
+                .context("position child factory allocation absent")?;
+            owner
+                .script_children
+                .prepare_phase_zero_position(id, source)
+        })();
+        if result.is_err() {
+            command.fail_factory(owner.layers.as_mut().context("TP layers absent")?);
+        }
+        result
+    }
     pub fn initialize_third_person_child_phase_zero(
         &mut self,
         command: &mut command::Pending,

@@ -1,6 +1,6 @@
 use super::*;
 use std::collections::BTreeMap;
-struct Reader {
+pub(in super::super) struct Reader {
     entries: BTreeMap<u32, Entry>,
     counts: [u8; 2],
     raw_index: u8,
@@ -76,7 +76,7 @@ impl Source for Reader {
         Ok(1)
     }
 }
-fn reader() -> Reader {
+pub(in super::super) fn reader() -> Reader {
     Reader {
         entries: [
             (
@@ -107,7 +107,7 @@ fn reader() -> Reader {
         duration: 60,
     }
 }
-fn fixture() -> (Store, NodeId) {
+pub(in super::super) fn fixture() -> (Store, NodeId) {
     let (mut store, _, id) = super::super::tests::fixture();
     store.bind_factory_context(id, 0, 0x120).unwrap();
     store
@@ -115,7 +115,7 @@ fn fixture() -> (Store, NodeId) {
         .unwrap();
     (store, id)
 }
-fn inputs() -> Inputs {
+pub(in super::super) fn inputs() -> Inputs {
     Inputs {
         component_speed_bits: 1f32.to_bits(),
         scaled_step_bits: 1f32.to_bits(),
@@ -136,7 +136,8 @@ fn fresh_selection_binds_inline_clip_then_preserves_raw_flags_without_returning_
     assert!(matches!(
         h.clip_storage(),
         Some(Storage::Inline {
-            file: Some(0x0102_00ab)
+            file: Some(0x0102_00ab),
+            ..
         })
     ));
     assert_eq!(h.word(0x40), None);

@@ -21,6 +21,7 @@ pub struct PhaseZero {
     pub setup_returned: bool,
     pub flags_applied: bool,
     pub pending_file: Option<u32>,
+    pub position: Option<super::position::Position>,
 }
 pub(super) fn build(header: &Header) -> Result<Option<PhaseZero>> {
     use anyhow::Context;
@@ -33,6 +34,12 @@ pub(super) fn build(header: &Header) -> Result<Option<PhaseZero>> {
         Stage::AwaitingFrameCount => "frame_count_pending",
         Stage::AwaitingAnimation => "animation_pending",
         Stage::ReturnedWithoutPlay => "returned_without_play",
+        Stage::AwaitingAnimationOwner => "animation_owner_pending",
+        Stage::AwaitingClipCache => "animation_cache_pending",
+        Stage::AwaitingAnimationBody => "animation_body_pending",
+        Stage::AwaitingTimingCurve => "timing_curve_pending",
+        Stage::AwaitingRootMotion => "root_motion_pending",
+        Stage::ReturnedInitialized => "initialized",
         _ => bail!("script phase-zero evidence has no reportable boundary"),
     };
     let (clip_records, heap_allocated) = match header.clip_storage() {
@@ -59,5 +66,6 @@ pub(super) fn build(header: &Header) -> Result<Option<PhaseZero>> {
         setup_returned: t.setup_returned,
         flags_applied: t.flags_raw.is_some(),
         pending_file: t.pending_file,
+        position: super::position::build(header),
     }))
 }

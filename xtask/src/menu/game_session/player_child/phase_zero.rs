@@ -21,6 +21,7 @@ pub(super) fn validate(v: &Value) -> Result<()> {
             "setup_returned",
             "flags_applied",
             "pending_file",
+            "position",
         ],
     )?;
     let bounded = |key: &str, max: u64| v[key].as_u64().is_some_and(|n| n <= max);
@@ -47,7 +48,8 @@ pub(super) fn validate(v: &Value) -> Result<()> {
                 "initial_index_raw",
                 "initial_index_clamped",
                 "frame_range",
-                "pending_file"
+                "pending_file",
+                "position"
             ]
             .iter()
             .all(|k| null(k))
@@ -85,7 +87,8 @@ pub(super) fn validate(v: &Value) -> Result<()> {
                     .iter()
                     .all(|k| null(k))
                 && v["setup_returned"] == false
-                && v["flags_applied"] == false,
+                && v["flags_applied"] == false
+                && v["position"].is_null(),
             "clip-file pending phase advances past lookup"
         );
         return Ok(());
@@ -105,7 +108,10 @@ pub(super) fn validate(v: &Value) -> Result<()> {
     );
     match v["stage"].as_str() {
         Some("clip_range_pending") => ensure!(
-            null("frame_range") && v["setup_returned"] == false && v["flags_applied"] == false,
+            null("frame_range")
+                && v["setup_returned"] == false
+                && v["flags_applied"] == false
+                && v["position"].is_null(),
             "unwritten clip range advanced"
         ),
         Some("frame_count_pending") => ensure!(
@@ -113,17 +119,36 @@ pub(super) fn validate(v: &Value) -> Result<()> {
                 .as_i64()
                 .is_some_and(|n| (-65535..=0).contains(&n))
                 && v["setup_returned"] == false
-                && v["flags_applied"] == false,
+                && v["flags_applied"] == false
+                && v["position"].is_null(),
             "frame-count dependency advanced"
         ),
-        Some("animation_pending") => ensure!(
-            v["frame_range"]
-                .as_i64()
-                .is_some_and(|n| (1..=65535).contains(&n))
-                && v["setup_returned"] == true
-                && v["flags_applied"] == true,
-            "animation dependency lacks clip setup"
-        ),
+        Some(
+            "animation_pending"
+            | "animation_owner_pending"
+            | "animation_cache_pending"
+            | "animation_body_pending"
+            | "timing_curve_pending"
+            | "root_motion_pending"
+            | "initialized",
+        ) => {
+            ensure!(
+                v["frame_range"]
+                    .as_i64()
+                    .is_some_and(|n| (1..=65535).contains(&n))
+                    && v["setup_returned"] == true
+                    && v["flags_applied"] == true,
+                "animation dependency lacks clip setup"
+            );
+            if v["stage"] == "animation_pending" {
+                ensure!(
+                    v["position"].is_null(),
+                    "position continuation precedes execution"
+                );
+            } else {
+                super::position::validate(&v["position"], v)?;
+            }
+        }
         _ => anyhow::bail!("unknown phase-zero dependency"),
     }
     Ok(())
@@ -133,5 +158,5 @@ pub(super) fn fixture() -> Value {
     serde_json::json!({"stage":"frame_count_pending","delta_bits":1f32.to_bits(),"duration_raw":60,"frame_bits":0,
         "entries_visited":2,"selected_offset":0,"normal_requested":1,"secondary_requested":0,"normal_bound":1,"secondary_bound":0,
         "clip_records":1,"heap_allocated":false,"initial_index_raw":0,"initial_index_clamped":0,"frame_range":0,
-        "setup_returned":false,"flags_applied":false,"pending_file":null})
+        "setup_returned":false,"flags_applied":false,"pending_file":null,"position":null})
 }

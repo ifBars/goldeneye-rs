@@ -1,5 +1,6 @@
 //! Fresh class-four phase-zero selection and clip-reference setup. Animation
 //! bodies and position preparation remain separate, fallible dependencies.
+mod cache;
 mod clips;
 mod selection;
 mod state;
@@ -61,12 +62,14 @@ pub struct Trace {
 pub struct Record {
     file: Option<u32>,
     bytes: [Option<u8>; 0x1c],
+    cached: Option<super::position::Binding>,
 }
 #[derive(Debug)]
 pub enum Storage {
     /// Aliases the actual header's +40..+5c constructor storage.
     Inline {
         file: Option<u32>,
+        cached: Option<super::position::Binding>,
     },
     Heap(Vec<Record>),
 }
@@ -139,4 +142,4 @@ impl Header {
 }
 
 #[cfg(test)]
-mod tests;
+pub(super) mod tests;

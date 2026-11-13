@@ -6,7 +6,7 @@ fn word(data: &mut [u8], at: usize, value: u32) {
 fn half(data: &mut [u8], at: usize, value: u16) {
     data[at..at + 2].copy_from_slice(&value.to_be_bytes());
 }
-fn fixture() -> Vec<u8> {
+pub(super) fn fixture() -> Vec<u8> {
     let mut data = vec![0; 0x300];
     for (at, value) in [
         (0, 0x4745_4f4d),

@@ -111,6 +111,27 @@ pub(super) fn initialize(player: &mut Player, hook: &world_hooks::Attempt) -> Re
                     65_536,
                 )?;
                 hook.ensure_current()?;
+                let header = owner
+                    .state
+                    .command()
+                    .and_then(|command| command.factory_node())
+                    .and_then(|id| {
+                        player
+                            .components
+                            .preparation
+                            .animator()?
+                            .script_children()
+                            .get(id)
+                    })
+                    .context("position TP child absent")?;
+                if header.stage() == ge_core::animation::script_child::Stage::AwaitingAnimation {
+                    let mut source = tp_source.script_position_source(binding)?;
+                    owner.state.prepare_third_person_child_position(
+                        &mut player.components.preparation,
+                        &mut source,
+                    )?;
+                    hook.ensure_current()?;
+                }
             }
         }
     }
