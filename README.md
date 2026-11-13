@@ -3,11 +3,33 @@
 An independent Rust rewrite of **GoldenEye 007 for Wii (2010)**, targeting native
 Windows. The long-term goal is to reproduce the original game's behavior.
 
-This is early development. Startup screens, logo movies, title animation, menu
-audio, sound/screen settings and Extras navigation work. New Game loads the Tutorial world and reaches
-**Preparing player**. Player initialization, the gameplay camera and playable
-missions are still incomplete. Asset inspection and rendering tools are also
-included.
+## Playability at a glance
+
+> **0 playable missions. Startup and menus work; gameplay is not available yet.**
+>
+> Choosing **New Game** loads the Tutorial world and stops at **Preparing player**.
+
+<!-- Keep this summary aligned with what the native build can actually run. -->
+
+| Part of the game | Current state |
+| --- | --- |
+| Startup and title screen | **Working**: startup screens, logo movies and title animation. |
+| Main menu | **Working**: navigation and menu audio. |
+| Settings and Extras | Sound/screen settings and Extras navigation work. |
+| New Game / Tutorial loading | **Partial**: the world loads; player initialization is unfinished. |
+| Player, camera, movement and combat | **Not playable yet.** |
+| Campaign missions and multiplayer | **Unavailable.** |
+
+**Latest checkpoint:** player startup completes its first animation action.
+**Next:** finish the remaining player startup actions, then continue toward the
+gameplay camera and a playable Tutorial.
+
+A reliable whole-game completion percentage isn't available yet. Progress is
+tracked by working features and playable missions; test coverage is separate.
+
+[Detailed checkpoint](docs/initial-action-suffix.md) ·
+[Build and coverage reports](https://github.com/ifBars/goldeneye-rs/actions/workflows/ci.yml) ·
+[Open the local progress dashboard](#development)
 
 ## Bring your own game
 
@@ -43,6 +65,8 @@ from Wii saves. For other commands, run `goldeneye.exe --help` or read the
 [developer guide](docs/development.md).
 
 ## Development
+
+Asset inspection and rendering tools are included alongside the native app.
 
 ```powershell
 cargo xtask check
