@@ -18,6 +18,7 @@ pub(super) fn validate(s: &Value, a: &Value) -> Result<()> {
                         | "fp_setter_tail_pending"
                         | "fp_dispatch_tail_pending"
                         | "initial_action_suffix_pending"
+                        | "action_dispatch_repeat_pending"
                 )
             ),
         "TP command parent stage differs"

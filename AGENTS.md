@@ -58,7 +58,11 @@ range76 and FPS30; active count grows to two. Both bodies return before FP
 selection returns 0x0900000b. The setter stores the requested generic/mapped
 0x0900071e pair, compares the real new primary head and clears secondary history.
 Its slot1 coordinate helper returns before FP dispatch returns. The enclosing
-initial-action suffix's attribute masks and parameter writes remain next.
+initial-action suffix now resolves both ordered animation masks, writes physical
+slot masks/flags and applies the fresh FP/TP parameters before returning the first
+action invocation. Retained history stays separate from later header changes.
+The enclosing player callback still requires a second action dispatch, fresh
+generic `0x09000765` with parameter `f32::MAX`. That request is retained but not executed.
 Factory and update traces stay separate,
 with bounded diagnostic history independent of simulation lifetime. Pose postprocess targets
 are assigned, but their body and frame scheduling remain unavailable.

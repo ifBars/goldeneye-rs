@@ -8,6 +8,7 @@ use ge_core::mission::player::{
 };
 mod first_person;
 mod selector;
+mod suffix;
 mod tail;
 pub(super) struct Owned {
     pub state: actions::Pending,
@@ -108,6 +109,13 @@ pub(super) fn initialize(
         .is_some_and(|a| a.state.stage() == actions::Stage::AwaitingFirstPersonDispatch)
     {
         first_person::initialize(player, hook)?;
+    }
+    if player
+        .action
+        .as_ref()
+        .is_some_and(|a| a.state.stage() == actions::Stage::AwaitingActionSuffix)
+    {
+        suffix::initialize(player, world, hook)?;
     }
     Ok(())
 }

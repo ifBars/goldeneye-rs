@@ -54,6 +54,10 @@ pub(super) fn boundary(
         Stage::AwaitingActionSuffix => {
             Ok(("initial_action_suffix_pending", "initial_action_suffix"))
         }
+        Stage::ApplyingActionSuffix => {
+            Ok(("initial_action_suffix_pending", "initial_action_suffix"))
+        }
+        Stage::Returned => Ok(("action_dispatch_repeat_pending", "initial_action_repeat")),
         _ => anyhow::bail!("initial action has no reportable pending boundary"),
     }
 }
@@ -84,7 +88,9 @@ pub(super) fn build(player: &Owned) -> Result<ThirdPersonSelector> {
         | Stage::AwaitingThirdPersonDispatchTail
         | Stage::AwaitingFirstPersonDispatch
         | Stage::FirstPersonDispatch
-        | Stage::AwaitingActionSuffix => {
+        | Stage::AwaitingActionSuffix
+        | Stage::ApplyingActionSuffix
+        | Stage::Returned => {
             ensure!(
                 cursor.stage() == runtime::Stage::Complete
                     && pending.is_none()

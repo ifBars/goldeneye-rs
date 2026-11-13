@@ -2365,6 +2365,93 @@ function withReturnedFp(report) {
   }
   return report;
 }
+
+function withReturnedSuffix(report) {
+  withNativeFp(report);
+  for(const probe of [...report.menu.details.game_session.difficulty_probes,report.menu.details.game_session.cancel_reentry]) {
+    const player=probe.window.game_session.active.world_initialization.player_initialization,c=player.component_initialization,a=c.initial_action;
+    player.pending_dependency='initial_action_repeat';c.stage='action_dispatch_repeat_pending';c.pending_dependency=player.pending_dependency;a.stage=c.stage;
+    a.action_invocation_returned=true;
+    const resident=index=>({outcome:'resident',directory_index:index,attribute_present:true,state_sha256:'a'.repeat(64)});
+    const helper=target=>({target,receiver_searched:true,receiver_bound:true,lookups:[resident(0),resident(1)],
+      applied_slots:target==='first_person'?[0,1,2]:[0,1,2,3],returned:true,state_sha256:'b'.repeat(64)});
+    a.suffix={stage:'returned',classification:1,mask_helpers:[helper('first_person'),helper('third_person')],
+      parameter_visits:11,parameter_writes:11,pending_dependency:null,repeat_generic:0x09000765,repeat_parameter_bits:0x7f7fffff,state_sha256:'c'.repeat(64)};
+  }
+  return report;
+}
+
+test('first action return shows masks and parameters while its repeat and player callback stay pending',async()=>{
+  await inspect(embed(withReturnedSuffix(withPlayerPrelude(gameSessionFixture()))),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.match(text,/First action invocation returned/);
+    assert.match(text,/3 FP and 4 TP physical slot masks were applied/);
+    assert.match(text,/11 parameter writes completed across 11 visits/);
+    assert.match(text,/Next action request prepared: 0x9000765 with argument bits 0x7f7fffff; execution is pending/);
+    assert.match(text,/enclosing player callback has not returned/);
+    assert.doesNotMatch(text,/has not been recorded completely|undefined|initial action suffix is pending/);
+    assert.equal(d.querySelector('#parity-count').textContent,'0 of 3 tracked criteria verified');
+  });
+});
+
+test('pending second animation mask keeps both helper ordering and invocation return incomplete',async()=>{
+  const report=withReturnedSuffix(withPlayerPrelude(gameSessionFixture()));
+  for(const probe of [...report.menu.details.game_session.difficulty_probes,report.menu.details.game_session.cancel_reentry]) {
+    const player=probe.window.game_session.active.world_initialization.player_initialization,c=player.component_initialization,a=c.initial_action,s=a.suffix;
+    player.pending_dependency='initial_action_suffix';c.stage='initial_action_suffix_pending';c.pending_dependency=player.pending_dependency;a.stage=c.stage;a.action_invocation_returned=false;
+    Object.assign(s,{stage:'first_person_masks',parameter_visits:0,parameter_writes:0,pending_dependency:'bone_masks',repeat_generic:null,repeat_parameter_bits:null});
+    Object.assign(s.mask_helpers[0],{lookups:[s.mask_helpers[0].lookups[0],{outcome:'pending',directory_index:null,attribute_present:null,state_sha256:'d'.repeat(64)}],applied_slots:[],returned:false});
+    Object.assign(s.mask_helpers[1],{receiver_searched:false,receiver_bound:false,lookups:[null,null],applied_slots:[],returned:false});
+  }
+  await inspect(embed(report),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.match(text,/Action suffix awaits bone masks; 0 of 2 mask helpers returned and 0 parameter writes completed/);
+    assert.doesNotMatch(text,/First action invocation returned|Next action request prepared|has not been recorded completely|undefined/);
+  });
+});
+
+test('confirmed missing mask skips its writes while a missing attribute remains a resident lookup',async()=>{
+  const report=withReturnedSuffix(withPlayerPrelude(gameSessionFixture()));
+  for(const probe of [...report.menu.details.game_session.difficulty_probes,report.menu.details.game_session.cancel_reentry]) {
+    const helpers=probe.window.game_session.active.world_initialization.player_initialization.component_initialization.initial_action.suffix.mask_helpers;
+    Object.assign(helpers[0],{lookups:[{outcome:'missing_body',directory_index:null,attribute_present:null,state_sha256:'e'.repeat(64)},null],applied_slots:[]});
+    helpers[1].lookups[0].attribute_present=false;
+  }
+  await inspect(embed(report),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.match(text,/0 FP and 4 TP physical slot masks were applied/);
+    assert.doesNotMatch(text,/has not been recorded completely|undefined/);
+  });
+});
+
+test('suffix rejects premature returns, reordered slots, private words and mismatched repeat arguments',async()=>{
+  const changes=[a=>{a.callback_returned=true;},a=>{a.action_invocation_returned=false;},a=>{a.suffix=null;},
+    a=>{a.suffix.parameter_writes=12;},a=>{a.suffix.repeat_parameter_bits=0;},a=>{a.suffix.repeat_generic=0x0900071e;},
+    a=>{a.suffix.mask_helpers[0].applied_slots=[0,2,1];},a=>{a.suffix.mask_helpers[1].receiver_searched=false;},
+    a=>{a.suffix.mask_helpers[0].lookups[1].outcome='pending';},a=>{a.suffix.mask_helpers[0].lookups[0].attribute_present=null;},
+    a=>{a.suffix.mask_helpers[0].words=[1,2,3,4];},a=>{delete a.suffix.state_sha256;},a=>{delete a.action_invocation_returned;}];
+  for(const change of changes) {
+    const report=withReturnedSuffix(withPlayerPrelude(gameSessionFixture()));
+    change(report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization.initial_action);
+    await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+  }
+});
+
+test('pending FP secondary parameters cannot claim TP parameter visits',async()=>{
+  const report=withReturnedSuffix(withPlayerPrelude(gameSessionFixture()));
+  for(const probe of [...report.menu.details.game_session.difficulty_probes,report.menu.details.game_session.cancel_reentry]) {
+    const player=probe.window.game_session.active.world_initialization.player_initialization,c=player.component_initialization,a=c.initial_action;
+    player.pending_dependency='initial_action_suffix';c.stage='initial_action_suffix_pending';c.pending_dependency=player.pending_dependency;a.stage=c.stage;a.action_invocation_returned=false;
+    Object.assign(a.suffix,{stage:'first_person_parameters',parameter_visits:3,parameter_writes:3,pending_dependency:'fp_secondary_speed_parameters',repeat_generic:null,repeat_parameter_bits:null});
+  }
+  await inspect(embed(report),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.match(text,/Action suffix awaits fp secondary speed parameters; 2 of 2 mask helpers returned and 3 parameter writes completed/);
+    assert.doesNotMatch(text,/First action invocation returned|has not been recorded completely|undefined/);
+  });
+  report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization.initial_action.suffix.parameter_visits=4;
+  await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+});
 test('FP command keeps TP receipts historical and uses its own uncaptured receiver',async()=>{
   await inspect(embed(withPendingFp(withPlayerPrelude(gameSessionFixture()))),d=>{
     const text=d.querySelector('#game-session-summary').textContent;
@@ -2442,7 +2529,7 @@ test('returned FP dispatcher reports tracked history and leaves action suffix an
       const text=d.querySelector('#game-session-summary').textContent;
       assert.match(text,/FP dispatcher returned; the initial action suffix is pending/);assert.match(text,/FP setter updated mode history/);
       assert.match(text,written ? /slot1 scalar helper wrote the coordinate/ : /slot1 scalar helper skipped an unmatched head/);
-      assert.match(text,/enclosing action, player and camera remain incomplete/);assert.doesNotMatch(text,/has not been recorded completely|undefined/);
+      assert.match(text,/enclosing callback, player and camera remain incomplete/);assert.doesNotMatch(text,/has not been recorded completely|undefined/);
       assert.equal(d.querySelector('#parity-count').textContent,'0 of 3 tracked criteria verified');
     });
   }
@@ -2491,7 +2578,7 @@ test('returned TP dispatcher exposes FP dependency without claiming a player or 
     const text=d.querySelector('#game-session-summary').textContent;
     assert.match(text,/TP setter returned/);assert.match(text,/TP dispatcher returned after 2 update calls; 2 reused existing clips/);
     assert.match(text,/FP dispatch is pending/);assert.match(text,/setter preserved mode history on this branch/);
-    assert.match(text,/initial action callback remains incomplete/);assert.doesNotMatch(text,/has not been recorded completely|undefined|setter tail is pending/);
+    assert.match(text,/enclosing player callback remains incomplete/);assert.doesNotMatch(text,/has not been recorded completely|undefined|setter tail is pending/);
     assert.equal(d.querySelector('#parity-count').textContent,'0 of 3 tracked criteria verified');
   });
 });
@@ -2650,7 +2737,7 @@ function initialActionPlayerFixture() {
   return {stage:'tp_command_pending',generic_request:0x0900071e,parameter_bits:0,direction_raw:255,
     weapon_key:0x020000ab,variant:0,remap_calls:3,map_rows_read:20,fp_mapped:0x090000ab,tp_mapped:0x090000ac,
     tp_secondary_mapped:0x090000ad,source_tables_reused:true,mode_controls_created:4,mode_history_updated:false,
-    callback_returned:false,state_sha256:'a'.repeat(64),mapping_state_sha256:'b'.repeat(64),tp_capture:tpCapturePlayerFixture(),tp_selector:tpSelectorPlayerFixture(),tp_command:tpCommandPlayerFixture(),tp_dispatch:tpDispatchPlayerFixture(),fp_dispatch:null};
+    callback_returned:false,action_invocation_returned:false,state_sha256:'a'.repeat(64),mapping_state_sha256:'b'.repeat(64),tp_capture:tpCapturePlayerFixture(),tp_selector:tpSelectorPlayerFixture(),tp_command:tpCommandPlayerFixture(),tp_dispatch:tpDispatchPlayerFixture(),fp_dispatch:null,suffix:null};
 }
 function firstPersonPlayerFixture() {
   return {helper_returned:true,identity_registered:true,item_list_ordinal:1,ordered_links_bound:true,

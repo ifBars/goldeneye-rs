@@ -21,6 +21,7 @@ pub struct InitialAction {
     pub mode_controls_created: usize,
     pub mode_history_updated: bool,
     pub callback_returned: bool,
+    pub action_invocation_returned: bool,
     pub state_sha256: String,
     pub mapping_state_sha256: String,
     pub tp_capture: super::ThirdPersonCapture,
@@ -28,6 +29,7 @@ pub struct InitialAction {
     pub tp_command: Option<super::CommandBody>,
     pub tp_dispatch: super::dispatch::ThirdPersonDispatch,
     pub fp_dispatch: Option<super::fp_dispatch::FirstPersonDispatch>,
+    pub suffix: Option<super::suffix::ActionSuffix>,
 }
 pub(super) fn build(
     player: &Owned,
@@ -65,6 +67,8 @@ pub(super) fn build(
                 | Stage::AwaitingFirstPersonDispatch
                 | Stage::FirstPersonDispatch
                 | Stage::AwaitingActionSuffix
+                | Stage::ApplyingActionSuffix
+                | Stage::Returned
         ) && state.player() == player.base.player()
             && state.resolved().len() == 3
             && owner.mappings.len() == 3
@@ -167,6 +171,7 @@ pub(super) fn build(
         mode_history_updated: tp_dispatch.history_updated
             || fp_dispatch.as_ref().is_some_and(|fp| fp.history_updated),
         callback_returned: false,
+        action_invocation_returned: state.stage() == Stage::Returned,
         state_sha256: super::super::words(b"ge_player_initial_action_v2\0", |emit| {
             state.visit_state_words(emit)
         }),
@@ -176,5 +181,6 @@ pub(super) fn build(
         tp_command: super::command::build(player)?,
         tp_dispatch,
         fp_dispatch,
+        suffix: super::suffix::build(player)?,
     })
 }

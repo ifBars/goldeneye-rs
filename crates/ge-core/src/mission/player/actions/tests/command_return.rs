@@ -61,6 +61,7 @@ fn only_a_returned_body_can_acknowledge_the_pending_invocation_and_finish_select
         completed_commands: Vec::new(),
         dispatch: None,
         first_person: None,
+        suffix: None,
     };
     assert!(p.acknowledge_third_person_command().is_err());
     assert_eq!(p.selector().unwrap().completed_commands(), 0);

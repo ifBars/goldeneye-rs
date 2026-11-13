@@ -17,6 +17,7 @@ mod player_postbind;
 mod player_refresh;
 mod player_selector;
 mod player_skeleton;
+mod player_suffix;
 
 const CONTROLLER_FIELDS: &[&str] = &[
     "requested",
@@ -1473,6 +1474,7 @@ fn validate_tutorial_dispatch(player: &Value) -> Result<()> {
                         | "fp_setter_tail_pending"
                         | "fp_dispatch_tail_pending"
                         | "initial_action_suffix_pending"
+                        | "action_dispatch_repeat_pending"
                 )
             )
             && action["callback_returned"] == false
@@ -1525,10 +1527,14 @@ fn validate_tutorial_fp(player: &Value) -> Result<()> {
     let position = &phase["position"];
     let mask = &fp["mask_capture"];
     ensure!(
-        player["pending_dependency"] == "initial_action_suffix"
-            && component["stage"] == "initial_action_suffix_pending"
-            && component["pending_dependency"] == "initial_action_suffix"
-            && action["stage"] == "initial_action_suffix_pending"
+        player_selector::dependency(&action["stage"])
+            .is_some_and(|dependency| player["pending_dependency"] == dependency
+                && component["pending_dependency"] == dependency)
+            && component["stage"] == action["stage"]
+            && matches!(
+                action["stage"].as_str(),
+                Some("initial_action_suffix_pending" | "action_dispatch_repeat_pending")
+            )
             && action["mode_history_updated"] == true
             && action["callback_returned"] == false
             && fp["stage"] == "returned"
@@ -1606,6 +1612,51 @@ fn validate_tutorial_fp(player: &Value) -> Result<()> {
             && position["root_motion_pending"] == false,
         "Tutorial FP dispatcher did not return through its real mask, set and tracked setter"
     );
+    Ok(())
+}
+fn validate_tutorial_suffix(player: &Value) -> Result<()> {
+    let c = &player["component_initialization"];
+    let a = &c["initial_action"];
+    let s = &a["suffix"];
+    ensure!(
+        player["pending_dependency"] == "initial_action_repeat"
+            && c["stage"] == "action_dispatch_repeat_pending"
+            && c["pending_dependency"] == "initial_action_repeat"
+            && a["stage"] == "action_dispatch_repeat_pending"
+            && a["action_invocation_returned"] == true
+            && a["callback_returned"] == false
+            && s["stage"] == "returned"
+            && s["classification"] == 1
+            && s["parameter_visits"] == 11
+            && s["parameter_writes"] == 11
+            && s["pending_dependency"].is_null()
+            && s["repeat_generic"] == 0x0900_0765u32
+            && s["repeat_parameter_bits"] == 0x7f7f_ffffu32,
+        "Tutorial first action suffix or required repeat request differs"
+    );
+    for (index, target, slots) in [
+        (0, "first_person", json!([0, 1, 2])),
+        (1, "third_person", json!([0, 1, 2, 3])),
+    ] {
+        let h = &s["mask_helpers"][index];
+        ensure!(
+            h["target"] == target
+                && h["receiver_searched"] == true
+                && h["receiver_bound"] == true
+                && h["returned"] == true
+                && h["applied_slots"] == slots,
+            "Tutorial suffix mask helper did not apply its physical slots"
+        );
+        for row in 0..2 {
+            let lookup = &h["lookups"][row];
+            ensure!(
+                lookup["outcome"] == "resident"
+                    && lookup["directory_index"] == row
+                    && lookup["attribute_present"] == true,
+                "Tutorial suffix mask metadata differs"
+            );
+        }
+    }
     Ok(())
 }
 fn validate_tutorial_world(probe: &Value) -> Result<()> {
@@ -1844,6 +1895,7 @@ fn validate_tutorial_world(probe: &Value) -> Result<()> {
     validate_player_initialization(player, world, &probe["window"]["game_session"]["active"])?;
     validate_tutorial_dispatch(player)?;
     validate_tutorial_fp(player)?;
+    validate_tutorial_suffix(player)?;
     let flag = &player["constructor_flag"];
     let virtual_init = &player["virtual_initialization"];
     ensure!(
@@ -3737,6 +3789,26 @@ mod tests {
             validate_tutorial_fp(&bad).is_err(),
             "replaced historical active count with current set count"
         );
+    }
+
+    #[test]
+    fn native_suffix_return_keeps_callback_false_and_next_invocation_pending() {
+        let action = player_suffix::tests::returned_action();
+        player_action::validate(&action).unwrap();
+        let player = json!({"pending_dependency":"initial_action_repeat","component_initialization":{"stage":"action_dispatch_repeat_pending","pending_dependency":"initial_action_repeat","initial_action":action}});
+        validate_tutorial_suffix(&player).unwrap();
+        for (key, value) in [
+            ("parameter_writes", json!(10)),
+            ("repeat_generic", json!(0x0900_071e)),
+            ("repeat_parameter_bits", json!(0)),
+        ] {
+            let mut bad = player.clone();
+            bad["component_initialization"]["initial_action"]["suffix"][key] = value;
+            assert!(validate_tutorial_suffix(&bad).is_err(), "accepted {key}");
+        }
+        let mut bad = player;
+        bad["component_initialization"]["initial_action"]["callback_returned"] = json!(true);
+        assert!(validate_tutorial_suffix(&bad).is_err());
     }
 
     #[test]

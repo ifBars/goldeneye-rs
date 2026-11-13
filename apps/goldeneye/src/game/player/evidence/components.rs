@@ -19,6 +19,7 @@ mod postbind;
 mod refresh;
 mod selector;
 mod skeleton;
+mod suffix;
 pub use action::InitialAction;
 pub use attachment::AttachmentBinding;
 pub use callbacks::CallbackBinding;
@@ -154,6 +155,6 @@ pub(super) fn build(
         callbacks: callbacks::build(player, world, hook)?,
         first_person: first_person::build(player, world, identities, hook)?,
         initial_action: action,
-        scope: "TP selection and command effects use the same resident component base. Returned class-four factories copy the old head position, insert typed list members and apply scalar/post-word writes in source order. Only returned bodies are acknowledged before selector continuation. The setter preserves its actual tracked/untracked history gates. TP dispatch applies reached blend-coordinate writes and re-enters existing scripts with initflag1, retaining their file/cache/clip owners and separate update traces. Other factory classes, wrapper allocation and cleanup remain explicit dependencies when reached. FP dispatch, callback return, pose postprocessing, scheduling, completed player and camera remain incomplete.",
+        scope: "TP selection and command effects use the same resident component base. Returned class-four factories copy the old head position, insert typed list members and apply scalar/post-word writes in source order. Only returned bodies are acknowledged before selector continuation. The setter preserves its actual tracked/untracked history gates. TP dispatch applies reached blend-coordinate writes and re-enters existing scripts with initflag1, retaining their file/cache/clip owners and separate update traces. Other factory classes, wrapper allocation and cleanup remain explicit dependencies when reached. Reports distinguish TP/FP dispatch, the ordered mask/parameter suffix and the required repeated action request. Callback return, pose postprocessing, scheduling, completed player and camera remain incomplete.",
     }))
 }

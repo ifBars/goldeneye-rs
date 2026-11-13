@@ -405,8 +405,11 @@ Both FP commands return before the cursor returns 0x0900000b. The setter stores
 the requested generic and mapped modes, both 0x0900071e, rather than that returned
 word. Comparing the saved NULL primary head with the new control clears secondary
 history. A final slot-one blend-coordinate helper returns before FP dispatch.
-The initial-action callback still awaits its actual mask-attribute and parameter
-suffix. See [FP dispatch](first-person-mode-dispatch.md) for retained history,
+The first action invocation now completes its ordered mask-attribute and parameter
+suffix. Its enclosing callback still requires another action dispatch, fresh
+generic `0x09000765` with parameter `f32::MAX`. The request is retained and remains
+pending. See [the action suffix](initial-action-suffix.md) and
+[FP dispatch](first-person-mode-dispatch.md) for retained history,
 failure prefixes and the current native checkpoint.
 See [script initialization](animation-script-initialization.md) for the source
 ordering, partial-failure behavior and remaining dependencies.

@@ -126,8 +126,11 @@ command refreshes and captures one control into slot zero, following active
 count rather than the raw mask's highest bit. Its second command initializes one
 slot-one script. Both commands return before selection and the tracked setter
 advance player history. FP dispatch then returns after its scalar helper. The
-enclosing action suffix, pose postprocessing and frame scheduling remain
-incomplete. These returns do not establish player or gameplay
+enclosing action suffix now converts two ordered per-bone masks through each
+actual component file, updates physical headers and applies the fresh parameters.
+The first action invocation returns and retains the enclosing callback's required
+second action request. That repeated dispatch, pose postprocessing and frame
+scheduling remain incomplete. These returns do not establish player or gameplay
 readiness. [Script updates](animation-script-updates.md) describes their separate
 traces and provider boundaries.
 The first class-four factory now allocates its own retained header before any

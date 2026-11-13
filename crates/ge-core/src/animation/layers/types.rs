@@ -70,6 +70,7 @@ pub struct Slot {
     pub(super) nodes: Vec<NodeId>,
     pub(super) weight_bits: u32,
     pub(super) flags_raw: u16,
+    pub(super) bone_mask_words: Option<[u32; 4]>,
 }
 impl Slot {
     /// Tick order. Maintenance/sampling traverse this slice in reverse, subject
@@ -82,5 +83,8 @@ impl Slot {
     }
     pub fn flags_raw(&self) -> u16 {
         self.flags_raw
+    }
+    pub fn bone_mask_words(&self) -> Option<[u32; 4]> {
+        self.bone_mask_words
     }
 }

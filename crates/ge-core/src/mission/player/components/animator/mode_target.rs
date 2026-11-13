@@ -73,7 +73,7 @@ impl Animator {
             }
         }
     }
-    fn bind_empty_mode_layers(&mut self) -> Result<()> {
+    pub(super) fn bind_empty_mode_layers(&mut self) -> Result<()> {
         if self.layers.is_some() {
             return Ok(());
         }

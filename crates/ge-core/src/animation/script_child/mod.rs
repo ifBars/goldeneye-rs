@@ -1,6 +1,7 @@
 //! Retained class-four headers and phase-zero initialization. Source pointer
 //! roles are typed bindings; unwritten bytes and unperformed effects stay unknown.
 pub mod initialization;
+pub mod parameters;
 mod parent;
 pub mod position;
 pub mod rate;

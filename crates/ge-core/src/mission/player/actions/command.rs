@@ -10,6 +10,8 @@ impl Pending {
                     | Stage::AwaitingFirstPersonDispatch
                     | Stage::FirstPersonDispatch
                     | Stage::AwaitingActionSuffix
+                    | Stage::ApplyingActionSuffix
+                    | Stage::Returned
             ) {
                 self.completed_commands.last()
             } else {

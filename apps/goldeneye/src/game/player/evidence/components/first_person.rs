@@ -102,10 +102,22 @@ pub(super) fn build(
             && runtime.auxiliary().iter().all(|&word| word == 0),
         "FP retained resources, bindings or item ownership differ"
     );
-    for start in [0x138, 0x158, 0x178, 0x198] {
+    ensure!(
+        animator.configured_header_flags() == Some([1; 4]),
+        "FP configured header receipt differs"
+    );
+    for (slot, start) in [0x138, 0x158, 0x178, 0x198].into_iter().enumerate() {
+        let flags = animator
+            .byte(start + 8)
+            .zip(animator.byte(start + 9))
+            .map(|(a, b)| u16::from_be_bytes([a, b]));
         ensure!(
-            animator.byte(start + 8) == Some(0)
-                && animator.byte(start + 9) == Some(1)
+            flags
+                == Some(
+                    animator
+                        .layers()
+                        .map_or(1, |layers| layers.slots()[slot].flags_raw())
+                )
                 && animator.byte(start + 10) == Some(3),
             "FP header configuration differs"
         );

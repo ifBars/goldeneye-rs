@@ -74,10 +74,20 @@ pub(super) fn build(player: &Owned, world: &World) -> Result<VisualPostbind> {
             && owner.preparation.third_person_return().is_some(),
         "visual postbind source or owner state differs"
     );
-    for start in [0x138, 0x158, 0x178, 0x198] {
+    ensure!(
+        animator.configured_header_flags() == Some([1; 4]),
+        "TP configured-header receipt absent"
+    );
+    for (index, start) in [0x138, 0x158, 0x178, 0x198].into_iter().enumerate() {
+        let expected = animator
+            .layers()
+            .map_or(1, |layers| layers.slots()[index].flags_raw());
         ensure!(
-            animator.byte(start + 8) == Some(0)
-                && animator.byte(start + 9) == Some(1)
+            animator
+                .byte(start + 8)
+                .zip(animator.byte(start + 9))
+                .map(|(a, b)| u16::from_be_bytes([a, b]))
+                == Some(expected)
                 && animator.byte(start + 10) == Some(3),
             "TP header configuration differs"
         );

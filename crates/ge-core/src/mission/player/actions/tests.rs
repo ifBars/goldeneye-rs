@@ -27,6 +27,7 @@ fn remapping_preserves_fp_tp_secondary_order_and_rejects_wrong_receivers_or_repl
         completed_commands: Vec::new(),
         dispatch: None,
         first_person: None,
+        suffix: None,
     };
     for (ordinal, target, component) in [
         (0, Target::FirstPerson, fp),

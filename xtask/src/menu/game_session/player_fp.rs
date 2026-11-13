@@ -120,7 +120,8 @@ pub(super) fn validate(s: &Value, action: &Value) -> Result<()> {
         _ => anyhow::bail!("unsupported FP dispatcher boundary"),
     };
     ensure!(
-        action["stage"] == parent,
+        action["stage"] == parent
+            || (s["stage"] == "returned" && action["stage"] == "action_dispatch_repeat_pending"),
         "FP dispatcher parent dependency differs"
     );
     let setter = matches!(

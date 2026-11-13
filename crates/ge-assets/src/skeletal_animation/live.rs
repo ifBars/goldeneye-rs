@@ -1,6 +1,8 @@
 //! Metadata and reached scalar fields only. Cached payload bytes do not grant
 //! logical residency, and compressed/channel data is never preflighted here.
 use super::*;
+mod mask;
+pub use mask::BoneMask;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LiveBinding {
     pub directory_index: usize,

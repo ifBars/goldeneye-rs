@@ -31,6 +31,7 @@ pub struct Control {
     rate_bits: u32,
     flags: u32,
     position_bits: u32,
+    speed_bits: u32,
 }
 #[derive(Debug)]
 pub struct Store {
@@ -68,6 +69,7 @@ impl Store {
                 rate_bits: 0,
                 flags: 0,
                 position_bits: 0,
+                speed_bits: 1f32.to_bits(),
             },
         );
         Ok(id)
@@ -123,6 +125,14 @@ impl Store {
     pub fn get(&self, id: NodeId) -> Option<&Control> {
         self.controls.get(&id)
     }
+    /// Inherited virtual +20 stores common header+2c without touching +3c.
+    pub fn set_speed(&mut self, id: NodeId, bits: u32) -> Result<()> {
+        self.controls
+            .get_mut(&id)
+            .context("control speed owner absent")?
+            .speed_bits = bits;
+        Ok(())
+    }
     pub fn len(&self) -> usize {
         self.controls.len()
     }
@@ -130,7 +140,7 @@ impl Store {
         self.controls.is_empty()
     }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(3);
+        emit(4);
         self.component.visit_state_words(&mut emit);
         emit(self.controls.len() as u32);
         for (id, control) in &self.controls {
@@ -141,6 +151,9 @@ impl Store {
     }
 }
 impl Control {
+    pub fn speed_bits(&self) -> u32 {
+        self.speed_bits
+    }
     /// Inherited virtual +10 reads common header+28. Capture and cloning do
     /// not replace this fresh constructor word with pose or transition data.
     pub fn position_bits(&self) -> u32 {
@@ -171,6 +184,7 @@ impl Control {
         emit(self.rate_bits);
         emit(self.flags);
         emit(self.position_bits);
+        emit(self.speed_bits);
         emit(u32::from(self.locals.is_some()));
         if let Some(locals) = &self.locals {
             emit(locals.len() as u32);

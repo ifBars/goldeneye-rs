@@ -148,3 +148,61 @@ fn controls_and_scripts_share_one_sequence_without_aliasing_later_clones() {
     assert!(store.allocate(&mut limited).is_err());
     assert_eq!(store.len(), 2);
 }
+
+#[test]
+fn common_speed_defaults_to_one_and_raw_setter_preserves_other_header_words() {
+    let mut store = store(2);
+    let mut ids = Ids::from_constructor(OwnerId::new(4).unwrap(), 4);
+    let id = store.allocate(&mut ids).unwrap();
+    assert_eq!(store.get(id).unwrap().speed_bits(), 1f32.to_bits());
+    let control = store.controls.get_mut(&id).unwrap();
+    control.rate_bits = 0x3dcc_cccd;
+    control.transition_bits = 0.25f32.to_bits();
+    control.position_bits = 0.75f32.to_bits();
+    control.flags = 0x204;
+    for bits in [(-2f32).to_bits(), 0x8000_0000, 0x7fc0_1234] {
+        store.set_speed(id, bits).unwrap();
+        let control = store.get(id).unwrap();
+        assert_eq!(control.speed_bits(), bits);
+        assert_eq!(control.rate_bits(), 0x3dcc_cccd);
+        assert_eq!(control.transition_bits(), 0.25f32.to_bits());
+        assert_eq!(control.position_bits(), 0.75f32.to_bits());
+        assert_eq!(control.flags(), 0x204);
+        assert!(control.locals().is_err() && control.auxiliary().is_err());
+    }
+}
+
+#[test]
+fn clone_copies_backing_but_uses_fresh_speed_and_scalar_constructor_words() {
+    let mut store = store(2);
+    let mut ids = Ids::from_constructor(OwnerId::new(4).unwrap(), 4);
+    let first = store.allocate(&mut ids).unwrap();
+    store.capture(first, locals(), vec![3, 5, 8]).unwrap();
+    store.set_speed(first, (-2f32).to_bits()).unwrap();
+    let original = store.controls.get_mut(&first).unwrap();
+    original.rate_bits = 0.5f32.to_bits();
+    original.transition_bits = 0.25f32.to_bits();
+    original.position_bits = 0.75f32.to_bits();
+    original.flags = 0x204;
+    let clone = store.clone_control(first, &mut ids).unwrap();
+    let original = store.get(first).unwrap();
+    let cloned = store.get(clone).unwrap();
+    assert_ne!(first, clone);
+    assert_eq!(original.speed_bits(), (-2f32).to_bits());
+    assert_eq!(original.rate_bits(), 0.5f32.to_bits());
+    assert_eq!(cloned.speed_bits(), 1f32.to_bits());
+    assert_eq!(cloned.rate_bits(), 0);
+    assert_eq!(cloned.transition_bits(), 1f32.to_bits());
+    assert_eq!(cloned.position_bits(), 0);
+    assert_eq!(cloned.flags(), 0);
+    assert_eq!(cloned.locals().unwrap(), original.locals().unwrap());
+    assert_eq!(cloned.auxiliary().unwrap(), original.auxiliary().unwrap());
+    assert_ne!(
+        cloned.locals().unwrap().as_ptr(),
+        original.locals().unwrap().as_ptr()
+    );
+    assert_ne!(
+        cloned.auxiliary().unwrap().as_ptr(),
+        original.auxiliary().unwrap().as_ptr()
+    );
+}

@@ -4,6 +4,7 @@ use super::{File, LoadedFile, Owned};
 use anyhow::{Context, Result, ensure};
 use ge_assets::{edb::Edb, resource::GameAssets, skin, target_section};
 use std::{collections::BTreeMap, sync::Arc};
+mod bone_mask;
 mod modes;
 mod script_child;
 

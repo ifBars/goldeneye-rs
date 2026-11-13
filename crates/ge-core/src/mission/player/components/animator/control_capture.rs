@@ -35,6 +35,9 @@ impl Animator {
     pub fn capture_active_count(&self) -> Option<u8> {
         self.capture_active_count
     }
+    pub fn capture_flags(&self) -> Option<[u16; 4]> {
+        self.capture_flags
+    }
     fn capture_fresh_control(&mut self, context: &mut Scratch, arena: &mut Arena) -> Result<()> {
         ensure!(
             self.layers.is_none()
@@ -87,6 +90,7 @@ impl Animator {
             },
         )?);
         self.capture_active_count = self.byte(0x130);
+        self.capture_flags = Some(flags);
         let first = self.controls.allocate(&mut self.node_ids)?;
         // Actual ordinary refresh: no LOD table, children or linked base child.
         // The shared elapsed calculation has no consumer on this empty path.

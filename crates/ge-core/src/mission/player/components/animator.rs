@@ -5,6 +5,7 @@ use super::{
 };
 use anyhow::{Result, ensure};
 use std::sync::Arc;
+mod bone_mask;
 mod child_effects;
 mod child_factory;
 mod control_capture;
@@ -12,6 +13,7 @@ mod dispatch_tail;
 mod mask_control;
 mod mode_command;
 mod mode_target;
+mod parameters;
 
 pub const SOURCE_BYTES: usize = 0x1b8;
 
@@ -35,6 +37,8 @@ pub struct Animator {
     layers: Option<crate::animation::layers::State>,
     capture_refresh: Option<crate::animation::scratch::Refresh>,
     capture_active_count: Option<u8>,
+    capture_flags: Option<[u16; 4]>,
+    configured_header_flags: Option<[u16; 4]>,
 }
 impl Animator {
     pub(super) fn from_constructor(identity: Identity) -> Self {
@@ -66,6 +70,8 @@ impl Animator {
             layers: None,
             capture_refresh: None,
             capture_active_count: None,
+            capture_flags: None,
+            configured_header_flags: None,
         };
         for offset in [
             0, 4, 8, 0x10, 0x14, 0x1c, 0x20, 0x28, 0x5c, 0x60, 0x94, 0x114, 0x118, 0x11c, 0x120,
@@ -268,6 +274,10 @@ impl Animator {
             self.bytes[start + 10] = Some(3);
         }
         self.bytes[0x8c] = self.bytes[0x8c].map(|bits| bits | 1);
+        self.configured_header_flags = Some([1; 4]);
+    }
+    pub fn configured_header_flags(&self) -> Option<[u16; 4]> {
+        self.configured_header_flags
     }
     pub fn component(&self) -> Option<ResourceBinding> {
         self.component
@@ -341,7 +351,7 @@ impl Animator {
         (self.flag_8f_known_mask, 0)
     }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(7);
+        emit(8);
         self.identity.visit_state_words(&mut emit);
         emit(u32::from(self.item.is_some()));
         if let Some(item) = self.item {
@@ -391,6 +401,14 @@ impl Animator {
         emit(u32::from(self.capture_active_count.is_some()));
         if let Some(count) = self.capture_active_count {
             emit(u32::from(count));
+        }
+        for flags in [self.capture_flags, self.configured_header_flags] {
+            emit(u32::from(flags.is_some()));
+            if let Some(flags) = flags {
+                for word in flags {
+                    emit(u32::from(word));
+                }
+            }
         }
         if let Some(refresh) = &self.capture_refresh {
             refresh.visit_state_words(emit);

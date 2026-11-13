@@ -1,7 +1,7 @@
 # First-person mode dispatch
 
-The native New Game path now completes FP dispatch and waits for the enclosing
-initial-action suffix. It still shows **Preparing player**. This does not complete
+The native New Game path now completes FP dispatch and waits for the rest of the
+enclosing player callback. It still shows **Preparing player**. This does not complete
 the player, camera, pose evaluation or playable mission.
 
 ## Receiver and history
@@ -53,6 +53,7 @@ partial allocations, refresh/backing order and acknowledgement guards. Native
 probes check the reached image path; original timing and numerical parity remain
 unverified.
 
-Next, the enclosing callback must execute its real packed animation-mask lookups
-and FP/TP parameter writes before returning. Later player completion, frame
+The first action invocation now completes its packed animation-mask lookups and
+FP/TP parameter writes. The enclosing callback still requires a second action
+dispatch. See [the action suffix](initial-action-suffix.md). Later player completion, frame
 scheduling, camera setup and mission execution remain required.

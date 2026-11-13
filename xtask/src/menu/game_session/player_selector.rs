@@ -17,6 +17,7 @@ pub(super) fn dependency(stage: &Value) -> Option<&'static str> {
         "fp_setter_tail_pending" => Some("fp_mode_setter_tail"),
         "fp_dispatch_tail_pending" => Some("fp_dispatch_tail"),
         "initial_action_suffix_pending" => Some("initial_action_suffix"),
+        "action_dispatch_repeat_pending" => Some("initial_action_repeat"),
         _ => None,
     }
 }
@@ -34,6 +35,7 @@ pub(super) fn validate(state: &Value, action: &Value) -> Result<()> {
                         | "fp_setter_tail_pending"
                         | "fp_dispatch_tail_pending"
                         | "initial_action_suffix_pending"
+                        | "action_dispatch_repeat_pending"
                 )
             ),
         "TP selector parent stage differs"

@@ -57,6 +57,7 @@ pub(super) fn build(player: &Owned, hook: &world_hooks::Attempt) -> Result<Third
         owner.controls().len() == 4
             && !layers.failed()
             && owner.capture_active_count() == Some(1)
+            && owner.capture_flags() == Some([1; 4])
             && owner.byte(0x130) == Some(layers.active_count())
             && owner.byte(0xc) == Some(0)
             && owner.byte(0xd) == Some(3)
@@ -82,7 +83,11 @@ pub(super) fn build(player: &Owned, hook: &world_hooks::Attempt) -> Result<Third
                 == 1
                 && owner.word(start).is_none()
                 && owner.word(start + 4).is_none()
-                && slot.flags_raw() == 1
+                && Some(slot.flags_raw())
+                    == owner
+                        .byte(start + 8)
+                        .zip(owner.byte(start + 9))
+                        .map(|(a, b)| u16::from_be_bytes([a, b]))
                 && owner.word(start + 12) == Some(slot.weight_bits()),
             "TP physical capture membership differs"
         );
@@ -146,7 +151,13 @@ pub(super) fn build(player: &Owned, hook: &world_hooks::Attempt) -> Result<Third
                 refresh.visit_state_words(emit)
             }),
         },
-        state_sha256: super::super::words(b"ge_player_tp_control_capture_v2\0", |mut emit| {
+        state_sha256: super::super::words(b"ge_player_tp_control_capture_v3\0", |mut emit| {
+            for flag in owner
+                .capture_flags()
+                .expect("validated capture flag receipt")
+            {
+                emit(u32::from(flag));
+            }
             owner.controls().visit_state_words(&mut emit);
             layers.visit_state_words(emit);
         }),

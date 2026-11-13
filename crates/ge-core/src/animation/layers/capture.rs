@@ -81,7 +81,7 @@ impl State {
         Ok(())
     }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(1);
+        emit(2);
         emit(u32::from(self.active_count));
         emit(u32::from(self.selection_mask));
         emit(u32::from(self.clear_mask));
@@ -89,6 +89,12 @@ impl State {
         for slot in &self.slots {
             emit(slot.weight_bits);
             emit(u32::from(slot.flags_raw));
+            emit(u32::from(slot.bone_mask_words.is_some()));
+            if let Some(words) = slot.bone_mask_words {
+                for word in words {
+                    emit(word);
+                }
+            }
             emit(slot.nodes.len() as u32);
             for id in &slot.nodes {
                 emit((id.get() >> 32) as u32);

@@ -16,6 +16,7 @@ mod factory;
 mod first_person;
 mod selector;
 mod setter;
+pub mod suffix;
 mod third_person_tail;
 pub use first_person::{FirstPersonDispatch, FirstPersonStage};
 pub use setter::SetterReturn;
@@ -38,6 +39,8 @@ pub enum Stage {
     AwaitingFirstPersonDispatch,
     FirstPersonDispatch,
     AwaitingActionSuffix,
+    ApplyingActionSuffix,
+    Returned,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Target {
@@ -77,6 +80,7 @@ pub struct Pending {
     completed_commands: Vec<crate::animation::layers::command::Pending>,
     dispatch: Option<ThirdPersonDispatch>,
     first_person: Option<FirstPersonDispatch>,
+    suffix: Option<suffix::Suffix>,
 }
 impl Pending {
     pub fn begin(base: &base_handler::Owner, reset: &mut PendingReset) -> Result<Self> {
@@ -98,6 +102,7 @@ impl Pending {
             completed_commands: Vec::new(),
             dispatch: None,
             first_person: None,
+            suffix: None,
         })
     }
     pub fn stage(&self) -> Stage {
@@ -244,7 +249,7 @@ impl Pending {
         Ok(())
     }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(7);
+        emit(8);
         emit(self.stage as u32);
         emit((self.player.get() >> 32) as u32);
         emit(self.player.get() as u32);
@@ -309,6 +314,10 @@ impl Pending {
         emit(u32::from(self.first_person.is_some()));
         if let Some(fp) = &self.first_person {
             fp.visit_state_words(&mut emit);
+        }
+        emit(u32::from(self.suffix.is_some()));
+        if let Some(suffix) = &self.suffix {
+            suffix.visit_state_words(&mut emit);
         }
     }
 }

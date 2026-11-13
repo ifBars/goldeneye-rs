@@ -6,6 +6,7 @@ use crate::{
 };
 use anyhow::{Context, Result, ensure};
 pub mod live;
+pub use live::BoneMask;
 
 const STRIDE: usize = 0x20;
 const HEADER_BYTES: usize = 0x98;

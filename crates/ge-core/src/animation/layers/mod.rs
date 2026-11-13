@@ -43,6 +43,7 @@ impl State {
                 nodes: Vec::new(),
                 weight_bits: snapshot.weight_bits[i],
                 flags_raw: snapshot.slot_flags[i],
+                bone_mask_words: None,
             }),
             active_count: snapshot.active_count,
             selection_mask: snapshot.selection_mask,
@@ -56,6 +57,24 @@ impl State {
     }
     pub fn slots(&self) -> &[Slot; 4] {
         &self.slots
+    }
+    pub(crate) fn set_slot_weight(&mut self, slot: usize, bits: u32) -> Result<()> {
+        anyhow::ensure!(slot < self.slots.len(), "weight physical slot exceeds four");
+        self.slots[slot].weight_bits = bits;
+        Ok(())
+    }
+    pub(crate) fn set_slot_mask_words(&mut self, slot: usize, words: [u32; 4]) -> Result<()> {
+        anyhow::ensure!(
+            slot < self.slots.len(),
+            "bone mask physical slot exceeds four"
+        );
+        self.slots[slot].bone_mask_words = Some(words);
+        Ok(())
+    }
+    pub(crate) fn or_slot_flags(&mut self, slot: usize, bits: u16) -> Result<()> {
+        anyhow::ensure!(slot < self.slots.len(), "flags physical slot exceeds four");
+        self.slots[slot].flags_raw |= bits;
+        Ok(())
     }
     pub fn active_count(&self) -> u8 {
         self.active_count
