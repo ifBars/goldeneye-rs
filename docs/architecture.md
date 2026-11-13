@@ -129,8 +129,11 @@ advance player history. FP dispatch then returns after its scalar helper. The
 enclosing action suffix now converts two ordered per-bone masks through each
 actual component file, updates physical headers and applies the fresh parameters.
 The first action invocation returns and retains the enclosing callback's required
-second action request. That repeated dispatch, pose postprocessing and frame
-scheduling remain incomplete. These returns do not establish player or gameplay
+second action request. The repeated dispatch now executes its three separate
+setter calls, seek and slot overrides, then returns through a second suffix.
+A separate callback-tail receipt proves its actual base/reset/physics writes and
+return. Subsequent constructor helpers, pose postprocessing and frame scheduling
+remain incomplete. These returns do not establish player or gameplay
 readiness. [Script updates](animation-script-updates.md) describes their separate
 traces and provider boundaries.
 The first class-four factory now allocates its own retained header before any

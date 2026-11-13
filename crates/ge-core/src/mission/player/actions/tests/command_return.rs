@@ -48,6 +48,7 @@ fn only_a_returned_body_can_acknowledge_the_pending_invocation_and_finish_select
         player: PlayerId::new(4).unwrap(),
         stage: Stage::AwaitingThirdPersonCommand,
         generic: 0x0900_00aa,
+        parameter_bits: 0,
         components: None,
         weapon: None,
         variant: None,

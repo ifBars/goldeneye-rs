@@ -163,12 +163,20 @@ pub(super) fn build(player: &Owned) -> Result<Option<ActionSuffix>> {
         .as_ref()
         .context("suffix action owner absent")?
         .state;
+    build_for(player, state)
+}
+pub(super) fn build_for(
+    player: &Owned,
+    state: &ge_core::mission::player::actions::Pending,
+) -> Result<Option<ActionSuffix>> {
     let Some(s) = state.action_suffix() else {
         return Ok(None);
     };
+    let repeated_secondary =
+        state.generic() == 0x0900_0765 && player.reset.word(0x710) == Some(0x0900_0765);
     if s.stage() == SuffixStage::Returned
         && s.classification() == 1
-        && state.generic() == 0x0900_071e
+        && (state.generic() == 0x0900_071e || repeated_secondary)
         && [0x99c, 0x9a0, 0x9a4, 0xc8c]
             .into_iter()
             .all(|at| player.reset.word(at) == Some(0))
@@ -202,6 +210,14 @@ pub(super) fn build(player: &Owned) -> Result<Option<ActionSuffix>> {
                 && script_word(fp, 1, 0x64)? == 0,
             "returned suffix script speed/coordinate differs"
         );
+        if repeated_secondary {
+            ensure!(
+                script_word(fp, 0, 0x64)? == 0
+                    && script_word(tp, 0, 0x64)? == 0
+                    && script_word(tp, 1, 0x64)? == 0,
+                "returned secondary suffix script coordinates differ"
+            );
+        }
     }
     let stage = match s.stage() {
         SuffixStage::FirstPersonMasks => "first_person_masks",

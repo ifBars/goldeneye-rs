@@ -1,6 +1,7 @@
 //! Reached derived reset writes before the shared scratch-capacity operation.
 //! This owns only known bytes; the rest of the player remains uninitialized.
 mod action;
+mod callback_tail;
 mod components;
 mod selection;
 mod tail;

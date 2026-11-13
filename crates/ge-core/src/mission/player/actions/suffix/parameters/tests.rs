@@ -32,3 +32,38 @@ fn parameter_attempt_counts_keep_the_reached_prefix_on_late_failure() {
     assert_eq!(suffix.parameter_visits(), 3);
     assert_eq!(suffix.parameter_writes(), 1);
 }
+
+#[test]
+fn unavailable_secondary_globals_skip_the_reached_player_scalar_provider() {
+    assert_eq!(
+        secondary_coordinate(None, || panic!("unreached ec4/9a0 reads")).unwrap(),
+        None
+    );
+}
+
+#[test]
+fn secondary_parameters_use_suffix_bound_and_read_player_inputs_once() {
+    let globals = Globals {
+        dispatch_lower_bits: 0.25f32.to_bits(),
+        suffix_lower_bits: 0.375f32.to_bits(),
+        ..Globals::from_boot()
+    };
+    let mut calls = 0;
+    let bits = secondary_coordinate(Some(&globals), || {
+        calls += 1;
+        Ok((1f32.to_bits(), 0))
+    })
+    .unwrap();
+    assert_eq!(calls, 1);
+    assert_eq!(bits, Some(0.375f32.to_bits()));
+}
+
+#[test]
+fn supplied_secondary_globals_do_not_hide_unknown_reached_player_scalars() {
+    let globals = Globals::from_boot();
+    let error = secondary_coordinate(Some(&globals), || {
+        anyhow::bail!("required ec4 field unavailable")
+    })
+    .unwrap_err();
+    assert_eq!(error.to_string(), "required ec4 field unavailable");
+}

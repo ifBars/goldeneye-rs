@@ -38,7 +38,7 @@ fn first_action_return_keeps_enclosing_callback_and_repeat_execution_pending() {
     for (key, value) in [
         ("repeat_generic", json!(0x0900_071e)),
         ("repeat_parameter_bits", json!(0)),
-        ("parameter_visits", json!(14)),
+        ("parameter_visits", json!(15)),
         ("parameter_writes", json!(12)),
         ("pending_dependency", json!("still_pending")),
         ("classification", json!(4)),

@@ -52,6 +52,9 @@ impl Owned {
     pub fn physics(&self) -> Option<&physics::Owner> {
         self.physics.as_ref()
     }
+    pub fn physics_mut(&mut self) -> Option<&mut physics::Owner> {
+        self.physics.as_mut()
+    }
     pub fn origin(&self) -> Option<zone::Context> {
         self.origin
     }

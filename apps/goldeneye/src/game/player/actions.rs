@@ -7,10 +7,12 @@ use ge_core::mission::player::{
     world::World,
 };
 mod first_person;
+pub(super) mod repeat;
 mod selector;
 mod suffix;
 mod tail;
 pub(super) struct Owned {
+    pub completed_evidence: Option<super::evidence::InitialAction>,
     pub state: actions::Pending,
     pub mappings: Vec<ge_assets::weapon_static::Remap>,
     pub tp_command: Option<ge_assets::animation_modes::CommandLocation>,
@@ -32,6 +34,7 @@ pub(super) fn initialize(
         "initial action callback was already entered"
     );
     player.action = Some(Owned {
+        completed_evidence: None,
         state: actions::Pending::begin(&player.base, &mut player.reset)?,
         mappings: Vec::new(),
         tp_command: None,
@@ -116,6 +119,13 @@ pub(super) fn initialize(
         .is_some_and(|a| a.state.stage() == actions::Stage::AwaitingActionSuffix)
     {
         suffix::initialize(player, world, hook)?;
+    }
+    if player
+        .action
+        .as_ref()
+        .is_some_and(|action| action.state.stage() == actions::Stage::Returned)
+    {
+        repeat::initialize(player, world, hook)?;
     }
     Ok(())
 }

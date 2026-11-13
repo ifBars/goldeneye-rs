@@ -73,10 +73,11 @@ flag then selects a second action request: fresh zero selects `0x09000765`, with
 parameter bits `0x7f7fffff` (`f32::MAX`). A nonzero alternate flag selects
 `0x090007a7`.
 
-The current boundary retains that required request. It does not execute the
-second dispatch, complete the enclosing callback or advance player readiness.
-The callback's later state writes and subsequent constructor/pose work still
-require implementation and evidence.
+The first invocation retains that required request separately. The
+[repeated-action path](repeated-player-action.md) now executes the second dispatch
+and its suffix on the same owners, then returns through the callback's final
+state writes. Subsequent constructor and pose work remain incomplete, so these
+returns do not advance player or camera readiness.
 
 ## Evidence boundaries
 

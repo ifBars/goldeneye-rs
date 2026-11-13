@@ -14,6 +14,7 @@ fn remapping_preserves_fp_tp_secondary_order_and_rejects_wrong_receivers_or_repl
         player,
         stage: Stage::Remapping,
         generic: 0x0900_00ab,
+        parameter_bits: 0,
         components: Some([fp, tp]),
         weapon: Some(0x0200_00ab),
         variant: Some(1),

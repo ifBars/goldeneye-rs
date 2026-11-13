@@ -406,9 +406,12 @@ the requested generic and mapped modes, both 0x0900071e, rather than that return
 word. Comparing the saved NULL primary head with the new control clears secondary
 history. A final slot-one blend-coordinate helper returns before FP dispatch.
 The first action invocation now completes its ordered mask-attribute and parameter
-suffix. Its enclosing callback still requires another action dispatch, fresh
-generic `0x09000765` with parameter `f32::MAX`. The request is retained and remains
-pending. See [the action suffix](initial-action-suffix.md) and
+suffix. The repeated generic `0x09000765` action with parameter `f32::MAX` now
+executes its two TP setters, seek, forced-slot override and tracked FP secondary
+setter. Its second suffix returns before the actual callback tail mutates the
+existing base, reset and physics owners and returns. Later constructor helpers
+remain pending. See [the repeated action](repeated-player-action.md),
+[the first action suffix](initial-action-suffix.md) and
 [FP dispatch](first-person-mode-dispatch.md) for retained history,
 failure prefixes and the current native checkpoint.
 See [script initialization](animation-script-initialization.md) for the source

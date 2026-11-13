@@ -18,6 +18,8 @@ pub(super) fn dependency(stage: &Value) -> Option<&'static str> {
         "fp_dispatch_tail_pending" => Some("fp_dispatch_tail"),
         "initial_action_suffix_pending" => Some("initial_action_suffix"),
         "action_dispatch_repeat_pending" => Some("initial_action_repeat"),
+        "player_callback_tail_pending" => Some("player_callback_tail"),
+        "player_constructor_tail_pending" => Some("player_constructor_tail"),
         _ => None,
     }
 }
@@ -53,6 +55,25 @@ pub(super) fn validate_for(
     fallback: &Value,
     pending: bool,
 ) -> Result<()> {
+    validate_inputs(state, requested, fallback, &Value::from(0), pending, false)
+}
+pub(super) fn validate_repeated(
+    state: &Value,
+    requested: &Value,
+    fallback: &Value,
+    previous: &Value,
+    pending: bool,
+) -> Result<()> {
+    validate_inputs(state, requested, fallback, previous, pending, true)
+}
+fn validate_inputs(
+    state: &Value,
+    requested: &Value,
+    fallback: &Value,
+    previous: &Value,
+    pending: bool,
+    allow_selecting: bool,
+) -> Result<()> {
     closed(
         state,
         &[
@@ -80,12 +101,17 @@ pub(super) fn validate_for(
     ensure!(
         word(&state["requested"])
             && state["requested"] == *requested
-            && state["previous"] == 0
+            && word(&state["previous"])
+            && state["previous"] == *previous
             && state["fallback"] == *fallback
             && state["tracks_player_modes"].is_boolean()
             && (state["target_index"].is_null() || word(&state["target_index"]))
             && attempts <= 2
-            && count(state, "lookups")? == attempts + 1
+            && (count(state, "lookups")? == attempts + 1
+                || (allow_selecting
+                    && state["stage"] == "selecting"
+                    && attempts == 0
+                    && state["lookups"] == 0))
             && rows <= 65536
             && count(state, "commands_executed")? <= 4096
             && count(state, "commands_issued")? <= 4096
@@ -100,6 +126,16 @@ pub(super) fn validate_for(
         "TP selector input, residency or effect evidence differs"
     );
     match state["stage"].as_str() {
+        Some("selecting") => ensure!(
+            allow_selecting
+                && !pending
+                && state["commands_issued"] == state["commands_executed"]
+                && state["pending_ordinal"].is_null()
+                && state["pending_opcode"].is_null()
+                && state["return_word"].is_null()
+                && state["command_effects_complete"] == false,
+            "selecting repeat cursor claims a pending body or return"
+        ),
         Some("command_pending") => ensure!(
             pending
                 && !state["target_index"].is_null()

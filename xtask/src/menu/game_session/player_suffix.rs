@@ -137,10 +137,21 @@ fn helper(h: &Value, target: &str) -> Result<()> {
     Ok(())
 }
 pub(super) fn validate(s: &Value, action: &Value) -> Result<()> {
+    validate_context(s, action, false)
+}
+pub(super) fn validate_repeated(s: &Value, action: &Value) -> Result<()> {
+    validate_context(s, action, true)
+}
+fn validate_context(s: &Value, action: &Value, repeated: bool) -> Result<()> {
     if s.is_null() {
         ensure!(
             action["action_invocation_returned"] == false
-                && action["stage"] != "action_dispatch_repeat_pending",
+                && action["stage"]
+                    != if repeated {
+                        "returned"
+                    } else {
+                        "action_dispatch_repeat_pending"
+                    },
             "returned first invocation has no suffix proof"
         );
         return Ok(());
@@ -167,10 +178,14 @@ pub(super) fn validate(s: &Value, action: &Value) -> Result<()> {
     helper(&helpers[1], "third_person")?;
     ensure!(
         count(s, "classification")? <= 3
-            && count(s, "parameter_visits")? <= 13
+            && count(s, "parameter_visits")? <= 14
             && count(s, "parameter_writes")? <= count(s, "parameter_visits")?
             && hash(&s["state_sha256"])
-            && action["fp_dispatch"]["stage"] == "returned",
+            && if repeated {
+                action["dispatch"]["phase"] == "returned"
+            } else {
+                action["fp_dispatch"]["stage"] == "returned"
+            },
         "suffix classification, parameters or FP caller return differs"
     );
     let returned = s["stage"] == "returned";
@@ -178,13 +193,21 @@ pub(super) fn validate(s: &Value, action: &Value) -> Result<()> {
         action["action_invocation_returned"] == returned
             && action["stage"]
                 == if returned {
-                    "action_dispatch_repeat_pending"
+                    if repeated {
+                        "returned"
+                    } else {
+                        "action_dispatch_repeat_pending"
+                    }
                 } else {
-                    "initial_action_suffix_pending"
+                    if repeated {
+                        "suffix_pending"
+                    } else {
+                        "initial_action_suffix_pending"
+                    }
                 },
         "suffix and enclosing first-invocation return differ"
     );
-    if !returned {
+    if !returned || repeated {
         ensure!(
             s["repeat_generic"].is_null() && s["repeat_parameter_bits"].is_null(),
             "repeat request prepared before first invocation returned"
@@ -209,7 +232,7 @@ pub(super) fn validate(s: &Value, action: &Value) -> Result<()> {
         ),
         Some("first_person_parameters") => ensure!(
             helpers.iter().all(|h| h["returned"] == true)
-                && count(s, "parameter_visits")? <= 3
+                && count(s, "parameter_visits")? <= 4
                 && matches!(
                     s["pending_dependency"].as_str(),
                     Some("action_parameters" | "fp_secondary_speed_parameters")

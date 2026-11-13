@@ -61,8 +61,13 @@ Its slot1 coordinate helper returns before FP dispatch returns. The enclosing
 initial-action suffix now resolves both ordered animation masks, writes physical
 slot masks/flags and applies the fresh FP/TP parameters before returning the first
 action invocation. Retained history stays separate from later header changes.
-The enclosing player callback still requires a second action dispatch, fresh
-generic `0x09000765` with parameter `f32::MAX`. That request is retained but not executed.
+The second action now maps again and executes two ordered TP secondary-intent
+setters around a live-position seek and temporary slot override. FP then uses
+tracked secondary history, and its second suffix completes 14 parameter writes.
+The first action's completed evidence stays immutable. The actual callback tail
+now clears the derived timer and retained physics fields, writes handler state
+and flags, and returns. Subsequent constructor selection, cleanup and pose work
+remain required; no player completion or camera readiness is inferred.
 Factory and update traces stay separate,
 with bounded diagnostic history independent of simulation lifetime. Pose postprocess targets
 are assigned, but their body and frame scheduling remain unavailable.

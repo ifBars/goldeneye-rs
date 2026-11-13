@@ -3,6 +3,7 @@
 use super::{Attempt, State};
 use anyhow::Result;
 use ge_core::mission::player::components::Preparation;
+mod repeat;
 
 impl Attempt {
     pub fn finish_initial_fp_mask(

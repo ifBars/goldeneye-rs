@@ -7,6 +7,7 @@ use ge_core::mission::player::{
 use serde::Serialize;
 mod action;
 mod attachment;
+mod callback_tail;
 mod callbacks;
 mod child;
 mod command;
@@ -17,6 +18,7 @@ mod fp_dispatch;
 mod mask;
 mod postbind;
 mod refresh;
+mod repeat;
 mod selector;
 mod skeleton;
 mod suffix;
@@ -31,6 +33,13 @@ pub use postbind::VisualPostbind;
 pub use refresh::BindRefresh;
 pub use selector::ThirdPersonSelector;
 pub use skeleton::SkeletonBinding;
+
+pub(super) fn capture_initial_action(
+    player: &Owned,
+    hook: &crate::game::world_hooks::Attempt,
+) -> Result<InitialAction> {
+    action::build(player, hook)
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ComponentInitialization {
@@ -61,6 +70,8 @@ pub struct ComponentInitialization {
     pub callbacks: CallbackBinding,
     pub first_person: FirstPersonBinding,
     pub initial_action: InitialAction,
+    pub repeat_action: Option<repeat::RepeatAction>,
+    pub callback_tail: Option<callback_tail::CallbackTail>,
     pub scope: &'static str,
 }
 pub(super) fn build(
@@ -119,8 +130,19 @@ pub(super) fn build(
         "TP owner, source or attachment boundary differs"
     );
     let action = action::build(player, hook)?;
-    let (stage, pending_dependency) =
-        selector::boundary(&player.action.as_ref().context("TP action absent")?.state)?;
+    let repeat_action = repeat::build(player)?;
+    let callback_tail = callback_tail::build(player, world)?;
+    let (stage, pending_dependency) = if callback_tail.as_ref().is_some_and(|t| t.callback_returned)
+    {
+        ("player_constructor_tail_pending", "player_constructor_tail")
+    } else if repeat_action
+        .as_ref()
+        .is_some_and(|r| r.action_invocation_returned)
+    {
+        ("player_callback_tail_pending", "player_callback_tail")
+    } else {
+        selector::boundary(&player.action.as_ref().context("TP action absent")?.state)?
+    };
     Ok(Some(ComponentInitialization {
         stage,
         pending_dependency,
@@ -155,6 +177,8 @@ pub(super) fn build(
         callbacks: callbacks::build(player, world, hook)?,
         first_person: first_person::build(player, world, identities, hook)?,
         initial_action: action,
-        scope: "TP selection and command effects use the same resident component base. Returned class-four factories copy the old head position, insert typed list members and apply scalar/post-word writes in source order. Only returned bodies are acknowledged before selector continuation. The setter preserves its actual tracked/untracked history gates. TP dispatch applies reached blend-coordinate writes and re-enters existing scripts with initflag1, retaining their file/cache/clip owners and separate update traces. Other factory classes, wrapper allocation and cleanup remain explicit dependencies when reached. Reports distinguish TP/FP dispatch, the ordered mask/parameter suffix and the required repeated action request. Callback return, pose postprocessing, scheduling, completed player and camera remain incomplete.",
+        repeat_action,
+        callback_tail,
+        scope: "TP selection and command effects use the same resident component base. Returned class-four factories copy the old head position, insert typed list members and apply scalar/post-word writes in source order. Only returned bodies are acknowledged before selector continuation. The setter preserves its actual tracked/untracked history gates. TP dispatch applies reached blend-coordinate writes and re-enters existing scripts with initflag1, retaining their file/cache/clip owners and separate update traces. Other factory classes, wrapper allocation and cleanup remain explicit dependencies when reached. The first action receipt stays immutable while the repeated action records its own setters, captured seek, override stores and second suffix. Callback return comes only from its separate tail receipt. Constructor continuation, pose postprocessing, scheduling, completed player and camera remain incomplete.",
     }))
 }

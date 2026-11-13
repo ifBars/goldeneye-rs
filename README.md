@@ -20,14 +20,15 @@ Windows. The long-term goal is to reproduce the original game's behavior.
 | Player, camera, movement and combat | **Not playable yet.** |
 | Campaign missions and multiplayer | **Unavailable.** |
 
-**Latest checkpoint:** player startup completes its first animation action.
-**Next:** finish the remaining player startup actions, then continue toward the
-gameplay camera and a playable Tutorial.
+**Latest checkpoint:** both player startup animation actions and their callback
+now complete.
+**Next:** finish the remaining player constructor and pose setup, then continue
+toward the gameplay camera and a playable Tutorial.
 
 A reliable whole-game completion percentage isn't available yet. Progress is
 tracked by working features and playable missions; test coverage is separate.
 
-[Detailed checkpoint](docs/initial-action-suffix.md) ·
+[Detailed checkpoint](docs/repeated-player-action.md) ·
 [Build and coverage reports](https://github.com/ifBars/goldeneye-rs/actions/workflows/ci.yml) ·
 [Open the local progress dashboard](#development)
 

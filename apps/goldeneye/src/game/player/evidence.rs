@@ -4,6 +4,7 @@ mod owners;
 use crate::game::world_hooks::Attempt;
 use anyhow::{Result, ensure};
 pub use components::ComponentInitialization;
+pub(super) use components::InitialAction;
 use ge_core::mission::{
     player::{base_handler, world::World},
     spawn::SelectionResult,
@@ -11,6 +12,17 @@ use ge_core::mission::{
 pub use owners::{ConstructorFlag, VirtualInitialization};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
+
+/// Capture the completed invocation before another action changes its receivers.
+pub(super) fn capture_initial_action(owned: &Owned, hook: &Attempt) -> Result<InitialAction> {
+    ensure!(
+        owned.action.as_ref().is_some_and(
+            |action| action.state.stage() == ge_core::mission::player::actions::Stage::Returned
+        ),
+        "initial action snapshot requires a returned invocation"
+    );
+    components::capture_initial_action(owned, hook)
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Evidence {

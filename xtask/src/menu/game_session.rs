@@ -5,6 +5,7 @@ use serde_json::{Value, json};
 use std::path::Path;
 mod player_action;
 mod player_attachment;
+mod player_callback_tail;
 mod player_callbacks;
 mod player_capture;
 mod player_child;
@@ -15,6 +16,7 @@ mod player_fp;
 mod player_mask;
 mod player_postbind;
 mod player_refresh;
+mod player_repeat;
 mod player_selector;
 mod player_skeleton;
 mod player_suffix;
@@ -1036,20 +1038,17 @@ fn validate_player_components(component: &Value, reached: bool) -> Result<()> {
             "callbacks",
             "first_person",
             "initial_action",
+            "repeat_action",
+            "callback_tail",
             "scope",
         ],
     )?;
     ensure!(
         player_selector::dependency(&component["stage"])
             .is_some_and(|dependency| component["pending_dependency"] == dependency)
-            && component["stage"] == component["initial_action"]["stage"]
             && component["native_component_bytes"] == 0x1b8
             && component["constructed_slots"] == 4
             && (1..=4).contains(&count(component, "active_slots")?)
-            && count(component, "active_slots")?
-                == component["initial_action"]["tp_command"]["active_slots"]
-                    .as_u64()
-                    .unwrap_or(1)
             && component["third_person_constructed"] == true
             && component["third_person_attached"] == true
             && component["skin_request_resolved"] == true
@@ -1098,6 +1097,8 @@ fn validate_player_components(component: &Value, reached: bool) -> Result<()> {
     player_callbacks::validate(&component["callbacks"])?;
     player_first_person::validate(&component["first_person"])?;
     player_action::validate(&component["initial_action"])?;
+    player_repeat::validate(&component["repeat_action"], component)?;
+    player_callback_tail::validate(&component["callback_tail"], component)?;
     let capture = &component["initial_action"]["tp_capture"];
     ensure!(
         capture["bones_per_control"] == component["skeleton_binding"]["bones"]
@@ -1461,10 +1462,9 @@ fn validate_tutorial_dispatch(player: &Value) -> Result<()> {
     let command = &action["tp_command"];
     let dispatch = &action["tp_dispatch"];
     ensure!(
-        player_selector::dependency(&action["stage"])
+        player_selector::dependency(&component["stage"])
             .is_some_and(|dependency| player["pending_dependency"] == dependency
                 && component["pending_dependency"] == dependency)
-            && component["stage"] == action["stage"]
             && component["active_slots"] == 4
             && matches!(
                 action["stage"].as_str(),
@@ -1527,10 +1527,9 @@ fn validate_tutorial_fp(player: &Value) -> Result<()> {
     let position = &phase["position"];
     let mask = &fp["mask_capture"];
     ensure!(
-        player_selector::dependency(&action["stage"])
+        player_selector::dependency(&component["stage"])
             .is_some_and(|dependency| player["pending_dependency"] == dependency
                 && component["pending_dependency"] == dependency)
-            && component["stage"] == action["stage"]
             && matches!(
                 action["stage"].as_str(),
                 Some("initial_action_suffix_pending" | "action_dispatch_repeat_pending")
@@ -1619,9 +1618,17 @@ fn validate_tutorial_suffix(player: &Value) -> Result<()> {
     let a = &c["initial_action"];
     let s = &a["suffix"];
     ensure!(
-        player["pending_dependency"] == "initial_action_repeat"
-            && c["stage"] == "action_dispatch_repeat_pending"
-            && c["pending_dependency"] == "initial_action_repeat"
+        player_selector::dependency(&c["stage"])
+            .is_some_and(|dependency| player["pending_dependency"] == dependency
+                && c["pending_dependency"] == dependency)
+            && matches!(
+                c["stage"].as_str(),
+                Some(
+                    "action_dispatch_repeat_pending"
+                        | "player_callback_tail_pending"
+                        | "player_constructor_tail_pending"
+                )
+            )
             && a["stage"] == "action_dispatch_repeat_pending"
             && a["action_invocation_returned"] == true
             && a["callback_returned"] == false
@@ -1634,6 +1641,9 @@ fn validate_tutorial_suffix(player: &Value) -> Result<()> {
             && s["repeat_parameter_bits"] == 0x7f7f_ffffu32,
         "Tutorial first action suffix or required repeat request differs"
     );
+    validate_tutorial_suffix_masks(s)
+}
+fn validate_tutorial_suffix_masks(s: &Value) -> Result<()> {
     for (index, target, slots) in [
         (0, "first_person", json!([0, 1, 2])),
         (1, "third_person", json!([0, 1, 2, 3])),
@@ -1657,6 +1667,134 @@ fn validate_tutorial_suffix(player: &Value) -> Result<()> {
             );
         }
     }
+    Ok(())
+}
+fn validate_tutorial_repeat(player: &Value) -> Result<()> {
+    let component = &player["component_initialization"];
+    let action = &component["repeat_action"];
+    let dispatch = &action["dispatch"];
+    let suffix = &action["suffix"];
+    player_repeat::validate(action, component)?;
+    ensure!(
+        player_selector::dependency(&component["stage"])
+            .is_some_and(|dependency| player["pending_dependency"] == dependency
+                && component["pending_dependency"] == dependency)
+            && matches!(
+                component["stage"].as_str(),
+                Some("player_callback_tail_pending" | "player_constructor_tail_pending")
+            )
+            && action["stage"] == "returned"
+            && action["action_invocation_returned"] == true
+            && action["callback_returned"] == false
+            && action["generic_request"] == 0x0900_0765u32
+            && action["parameter_bits"] == 0x7f7f_ffffu32
+            && action["remap_calls"] == 3
+            && action["map_rows_read"] == 3
+            && action["fp_mapped"] == 0x0900_0b70u32
+            && action["tp_mapped"] == 0x0900_0b70u32
+            && action["tp_secondary_mapped"] == 0x0900_0b73u32
+            && dispatch["phase"] == "returned"
+            && dispatch["captured_position_bits"] == 0
+            && dispatch["captured_head_present"] == true
+            && dispatch["captured_matched"] == true
+            && dispatch["tp_coordinate_written"] == true
+            && dispatch["seek_bits"] == 0
+            && dispatch["seek_node_present"] == true
+            && dispatch["seek_returned"] == true
+            && dispatch["override_writes"] == 2
+            && dispatch["fp_coordinate_bits"] == 0
+            && dispatch["fp_coordinate_written"] == true
+            && dispatch["tp_active_slots"] == 4
+            && dispatch["fp_active_slots"] == 2
+            && suffix["stage"] == "returned"
+            && suffix["classification"] == 1
+            && suffix["parameter_visits"] == 14
+            && suffix["parameter_writes"] == 14
+            && suffix["pending_dependency"].is_null()
+            && suffix["repeat_generic"].is_null()
+            && suffix["repeat_parameter_bits"].is_null(),
+        "Tutorial repeated action did not complete its real setters, seek and second suffix"
+    );
+    for (ordinal, index, attempts, lookups, rows, set, tracked, previous) in [
+        (0, 169, 2, 3, 150, 156, false, 0x0900_071eu32),
+        (1, 172, 2, 3, 153, 159, false, 0x0900_071eu32),
+        (2, 143, 1, 2, 139, 85, true, 0),
+    ] {
+        let call = &dispatch["calls"][ordinal];
+        let selector = &call["selector"];
+        let commands = call["completed_commands"]
+            .as_array()
+            .context("Tutorial repeat command history absent")?;
+        ensure!(
+            call["stage"] == "returned"
+                && call["tracks_player_modes"] == tracked
+                && call["previous"] == previous
+                && call["fallback"] == 0x0900_000bu32
+                && call["setter_return_word"] == 0x0900_000bu32
+                && call["history_updated"] == tracked
+                && call["pending_command"].is_null()
+                && selector["stage"] == "returned"
+                && selector["target_index"] == index
+                && selector["attempts"] == attempts
+                && selector["lookups"] == lookups
+                && selector["transition_rows"] == rows
+                && selector["commands_issued"] == 1
+                && selector["commands_executed"] == 1
+                && selector["return_word"] == 0x0900_000bu32
+                && commands.len() == 1,
+            "Tutorial repeat setter selection or history differs"
+        );
+        let body = &commands[0];
+        ensure!(
+            body["stage"] == "returned"
+                && body["opcode"] == 0x0c00_0002u32
+                && body["set_reference"] == set
+                && body["set_index"] == set
+                && [
+                    "set_groups",
+                    "groups_visited",
+                    "weight_writes",
+                    "children_created",
+                    "children_completed",
+                    "children_inserted"
+                ]
+                .iter()
+                .all(|key| body[key] == 1)
+                && body["head_copies"] == 0
+                && body["effective_flags_or"] == 35
+                && body["command_returned"] == true
+                && body["selector_acknowledged"] == true,
+            "Tutorial repeat set-command effects differ"
+        );
+    }
+    ensure!(
+        dispatch["calls"][0]["fallback_writes"] == dispatch["calls"][1]["fallback_writes"],
+        "Tutorial TP setters did not share the actual repeat entry fallback"
+    );
+    validate_tutorial_suffix_masks(suffix)
+}
+fn validate_tutorial_callback_tail(player: &Value) -> Result<()> {
+    let component = &player["component_initialization"];
+    let tail = &component["callback_tail"];
+    player_callback_tail::validate(tail, component)?;
+    ensure!(
+        player["pending_dependency"] == "player_constructor_tail"
+            && component["stage"] == "player_constructor_tail_pending"
+            && component["pending_dependency"] == "player_constructor_tail"
+            && tail["stage"] == "returned"
+            && tail["logging_noop_returned"] == true
+            && tail["e59_raw"] == 0
+            && tail["initial_state_704"] == 0
+            && tail["state_704"] == 2
+            && tail["physics_outcome"] == "flags_cleared"
+            && tail["physics_flags_before"] == 0x4000
+            && tail["physics_flags_after"] == 0x4000
+            && tail["word_708"] == 1
+            && tail["flags_220_before"] == 0x17
+            && tail["flags_220_after"] == 0x17
+            && tail["callback_returned"] == true,
+        "Tutorial initial callback did not return through its real timer, state and physics tail"
+    );
     Ok(())
 }
 fn validate_tutorial_world(probe: &Value) -> Result<()> {
@@ -1896,6 +2034,8 @@ fn validate_tutorial_world(probe: &Value) -> Result<()> {
     validate_tutorial_dispatch(player)?;
     validate_tutorial_fp(player)?;
     validate_tutorial_suffix(player)?;
+    validate_tutorial_repeat(player)?;
+    validate_tutorial_callback_tail(player)?;
     let flag = &player["constructor_flag"];
     let virtual_init = &player["virtual_initialization"];
     ensure!(
@@ -3634,7 +3774,7 @@ mod tests {
             "visual_postbind":player_postbind::tests::fixture(),
             "callbacks":player_callbacks::tests::fixture(),
             "first_person":player_first_person::tests::fixture(),
-            "initial_action":player_action::tests::fixture(),
+            "initial_action":player_action::tests::fixture(),"repeat_action":null,"callback_tail":null,
             "scope":"Authored TP control capture; TP mode selector remains pending"});
         probe
     }

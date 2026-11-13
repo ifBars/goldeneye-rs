@@ -1,6 +1,12 @@
 use super::*;
 use anyhow::Context;
 impl Owner {
+    pub(crate) fn begin_secondary_mode_update(&mut self) -> Result<()> {
+        self.require(Stage::VirtualBasicComplete)?;
+        self.w(0x1c0, 0);
+        Ok(())
+    }
+
     pub(crate) fn begin_primary_mode_update(&mut self) -> Result<()> {
         self.require(Stage::VirtualBasicComplete)?;
         self.w(0x1c0, 0);

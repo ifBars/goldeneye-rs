@@ -14,6 +14,8 @@ mod mask_control;
 mod mode_command;
 mod mode_target;
 mod parameters;
+mod repeat;
+pub use repeat::AnimationPosition;
 
 pub const SOURCE_BYTES: usize = 0x1b8;
 

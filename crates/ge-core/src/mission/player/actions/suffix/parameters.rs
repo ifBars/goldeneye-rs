@@ -1,5 +1,6 @@
 use super::*;
 use crate::animation::script_child::parameters::blended_speeds;
+use crate::mission::player::actions::secondary_parameters::{self, Globals, LowerKind};
 
 /// Source ordered comparisons preserve NaN and the sign of the selected zero.
 fn blend_weights(bits: u32) -> [u32; 2] {
@@ -8,6 +9,22 @@ fn blend_weights(bits: u32) -> [u32; 2] {
     let difference = input - 0.5f32;
     let second = if 0f32 >= difference { 0f32 } else { difference };
     [(2f32 * first).to_bits(), (2f32 * second).to_bits()]
+}
+
+fn secondary_coordinate(
+    globals: Option<&Globals>,
+    inputs: impl FnOnce() -> Result<(u32, u32)>,
+) -> Result<Option<u32>> {
+    let Some(globals) = globals else {
+        return Ok(None);
+    };
+    let (ec4, coordinate) = inputs()?;
+    Ok(Some(secondary_parameters::coordinate_bits(
+        ec4,
+        coordinate,
+        *globals,
+        LowerKind::Suffix,
+    )))
 }
 
 impl Suffix {
@@ -22,6 +39,7 @@ impl Suffix {
         reset: &PendingReset,
         preparation: &mut Preparation,
         item: &Item,
+        globals: Option<&Globals>,
     ) -> Result<()> {
         let Some(receiver) = find_receiver(preparation, item, reset.player(), 0x0102_0016)? else {
             self.stage = SuffixStage::ThirdPersonParameters;
@@ -48,8 +66,20 @@ impl Suffix {
             .word(0x710)
             .context("FP parameter secondary history unknown")?;
         if matches!(secondary, 0x0900_0765 | 0x0900_07a7) {
-            self.parameter_dependency = Some("fp_secondary_speed_parameters");
-            return Ok(());
+            let Some(bits) = secondary_coordinate(globals, || {
+                let ec4 = reset
+                    .word(0xec4)
+                    .context("FP secondary coordinate blend unknown")?;
+                let coordinate = reset
+                    .word(0x9a0)
+                    .context("FP secondary coordinate input unknown")?;
+                Ok((ec4, coordinate))
+            })?
+            else {
+                self.parameter_dependency = Some("fp_secondary_speed_parameters");
+                return Ok(());
+            };
+            self.apply_parameter(|| preparation.write_mode_dispatch_scalar(receiver, 0, bits))?;
         }
         self.stage = SuffixStage::ThirdPersonParameters;
         Ok(())
@@ -149,6 +179,16 @@ impl Pending {
         preparation: &mut Preparation,
         item: &Item,
     ) -> Result<()> {
+        self.finish_action_parameters_with_globals(reset, preparation, item, None)
+    }
+
+    pub fn finish_action_parameters_with_globals(
+        &mut self,
+        reset: &PendingReset,
+        preparation: &mut Preparation,
+        item: &Item,
+        globals: Option<&Globals>,
+    ) -> Result<()> {
         ensure!(
             self.stage == Stage::ApplyingActionSuffix && reset.player() == self.player,
             "action parameter owner/order differs"
@@ -160,7 +200,7 @@ impl Pending {
             "action parameters replay or precede masks"
         );
         let result = (|| {
-            suffix.first_person_parameters(reset, preparation, item)?;
+            suffix.first_person_parameters(reset, preparation, item, globals)?;
             if suffix.stage == SuffixStage::ThirdPersonParameters {
                 suffix.third_person_parameters(reset, preparation, item)?;
             }

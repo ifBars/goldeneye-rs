@@ -1,5 +1,6 @@
 //! Sparse owned constructor state for the source player physics item. No
 //! collision step, elapsed clock, player completion or camera is implied.
+mod callback_tail;
 mod handler_scalar;
 use super::identity::ItemId;
 use crate::mission::world_hooks::buffer::Buffer;

@@ -40,6 +40,18 @@ pub(super) fn build(
         .as_ref()
         .context("initial action owner is absent")?;
     let state = &owner.state;
+    if let Some(snapshot) = &owner.completed_evidence {
+        ensure!(
+            state.stage() == Stage::Returned
+                && state.player() == player.base.player()
+                && state.generic() == snapshot.generic_request
+                && snapshot.action_invocation_returned
+                && !snapshot.callback_returned
+                && snapshot.stage == "action_dispatch_repeat_pending",
+            "initial action snapshot differs from its completed invocation"
+        );
+        return Ok(snapshot.clone());
+    }
     let tp = player
         .components
         .preparation

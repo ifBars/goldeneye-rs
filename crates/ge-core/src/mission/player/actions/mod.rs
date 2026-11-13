@@ -9,11 +9,16 @@ use super::{
     item::Item,
 };
 use anyhow::{Context, Result, ensure};
+pub mod callback_tail;
 mod capture;
 mod child_effects;
 mod command;
 mod factory;
 mod first_person;
+pub mod mode_call;
+pub mod repeat;
+pub mod secondary_parameters;
+mod secondary_setter;
 mod selector;
 mod setter;
 pub mod suffix;
@@ -41,6 +46,7 @@ pub enum Stage {
     AwaitingActionSuffix,
     ApplyingActionSuffix,
     Returned,
+    RepeatedDispatch,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Target {
@@ -67,6 +73,7 @@ pub struct Pending {
     player: PlayerId,
     stage: Stage,
     generic: u32,
+    parameter_bits: u32,
     components: Option<[Identity; 2]>,
     weapon: Option<u32>,
     variant: Option<u32>,
@@ -85,10 +92,14 @@ pub struct Pending {
 impl Pending {
     pub fn begin(base: &base_handler::Owner, reset: &mut PendingReset) -> Result<Self> {
         let generic = reset.begin_fresh_action(base)?;
-        Ok(Self {
-            player: base.player(),
+        Ok(Self::with_request(base.player(), generic, 0))
+    }
+    fn with_request(player: PlayerId, generic: u32, parameter_bits: u32) -> Self {
+        Self {
+            player,
             stage: Stage::AwaitingComponents,
             generic,
+            parameter_bits,
             components: None,
             weapon: None,
             variant: None,
@@ -103,7 +114,49 @@ impl Pending {
             dispatch: None,
             first_person: None,
             suffix: None,
-        })
+        }
+    }
+    pub fn begin_repeated(&self, base: &base_handler::Owner, reset: &PendingReset) -> Result<Self> {
+        ensure!(
+            self.stage == Stage::Returned
+                && self.player == base.player()
+                && self.player == reset.player()
+                && reset.stage() == super::constructor::DerivedResetStage::Complete,
+            "repeat invocation precedes first return or changes player"
+        );
+        let request = self
+            .suffix
+            .as_ref()
+            .and_then(|suffix| suffix.repeat_request())
+            .context("proven repeat request absent")?;
+        Ok(Self::with_request(
+            self.player,
+            request.generic,
+            request.parameter_bits,
+        ))
+    }
+    pub fn parameter_bits(&self) -> u32 {
+        self.parameter_bits
+    }
+    pub fn begin_repeat_dispatch(&mut self) -> Result<()> {
+        ensure!(
+            self.stage == Stage::AwaitingThirdPersonDispatch
+                && self.generic == 0x0900_0765
+                && self.parameter_bits == f32::MAX.to_bits(),
+            "unsupported repeat dispatch or entry order"
+        );
+        self.stage = Stage::RepeatedDispatch;
+        Ok(())
+    }
+    pub fn finish_repeat_dispatch(&mut self, dispatch: &repeat::Dispatch) -> Result<()> {
+        ensure!(
+            self.stage == Stage::RepeatedDispatch
+                && dispatch.stage() == repeat::Stage::Returned
+                && dispatch.player() == self.player,
+            "repeat dispatch has not returned"
+        );
+        self.stage = Stage::AwaitingActionSuffix;
+        Ok(())
     }
     pub fn stage(&self) -> Stage {
         self.stage
@@ -249,11 +302,12 @@ impl Pending {
         Ok(())
     }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(8);
+        emit(9);
         emit(self.stage as u32);
         emit((self.player.get() >> 32) as u32);
         emit(self.player.get() as u32);
         emit(self.generic);
+        emit(self.parameter_bits);
         emit(u32::from(self.components.is_some()));
         if let Some(components) = self.components {
             for component in components {

@@ -2394,6 +2394,197 @@ test('first action return shows masks and parameters while its repeat and player
   });
 });
 
+function repeatModeCallFixture(target,requested,tracks,previous) {
+  return {target,component_file:target==='first_person'?0x01020016:0x01020017,
+    generic_request:0x09000765,requested,parameter_bits:0x7f7fffff,tracks_player_modes:tracks,
+    fallback:0x0900000b,fallback_writes:target==='first_person'?8:7,previous,stage:'returned',
+    selector:{stage:'returned',requested,previous,fallback:0x0900000b,tracks_player_modes:tracks,
+      target_index:0,attempts:1,lookups:2,transition_rows:1,commands_issued:0,commands_executed:0,
+      pending_ordinal:null,pending_opcode:null,return_word:requested,base_only:true,command_effects_complete:false,state_sha256:'d'.repeat(64)},
+    completed_commands:[],pending_command:null,setter_return_word:requested,history_updated:tracks,state_sha256:'e'.repeat(64)};
+}
+function withRepeatedAction(report,stage='returned') {
+  withReturnedSuffix(report);
+  for(const probe of [...report.menu.details.game_session.difficulty_probes,report.menu.details.game_session.cancel_reentry]) {
+    const player=probe.window.game_session.active.world_initialization.player_initialization,c=player.component_initialization,a=c.initial_action;
+    const suffix=structuredClone(a.suffix);
+    Object.assign(suffix,{parameter_visits:14,parameter_writes:14,repeat_generic:null,repeat_parameter_bits:null});
+    const dispatch={phase:'returned',captured_position_bits:0,captured_head_present:true,captured_matched:true,
+      tp_coordinate_written:false,seek_bits:0,seek_node_present:false,seek_returned:true,override_writes:2,
+      fp_coordinate_bits:0,fp_coordinate_written:false,tp_active_slots:3,fp_active_slots:2,
+      calls:[repeatModeCallFixture('third_person',0x090000a1,false,0x0900071e),repeatModeCallFixture('third_person_secondary',0x090000a2,false,0x0900071e),repeatModeCallFixture('first_person',0x090000a3,true,0)],state_sha256:'f'.repeat(64)};
+    c.repeat_action={stage,generic_request:0x09000765,parameter_bits:0x7f7fffff,weapon_key:a.weapon_key,variant:a.variant,
+      remap_calls:3,map_rows_read:3,fp_mapped:0x090000a3,tp_mapped:0x090000a1,tp_secondary_mapped:0x090000a2,
+      mapping_state_sha256:'a'.repeat(64),dispatch,suffix,action_invocation_returned:stage==='returned',callback_returned:false,state_sha256:'b'.repeat(64)};
+    c.active_slots=3;
+    if(stage==='returned') {
+      player.pending_dependency='player_callback_tail';c.stage='player_callback_tail_pending';c.pending_dependency=player.pending_dependency;
+    } else if(stage==='suffix_pending') {
+      Object.assign(suffix,{stage:'first_person_masks',parameter_visits:0,parameter_writes:0,pending_dependency:'bone_masks'});
+      Object.assign(suffix.mask_helpers[0],{lookups:[null,null],applied_slots:[],returned:false});
+      Object.assign(suffix.mask_helpers[1],{receiver_searched:false,receiver_bound:false,lookups:[null,null],applied_slots:[],returned:false});
+    } else {
+      c.repeat_action.suffix=null;dispatch.phase='first_third_person';dispatch.calls=dispatch.calls.slice(0,1);
+      const call=dispatch.calls[0];Object.assign(call,{stage:'selecting',setter_return_word:null,history_updated:false});
+      Object.assign(call.selector,{stage:'selecting',target_index:null,attempts:0,lookups:0,transition_rows:0,return_word:null});
+      Object.assign(dispatch,{tp_coordinate_written:null,seek_bits:null,seek_node_present:false,seek_returned:false,override_writes:0,fp_coordinate_bits:null,fp_coordinate_written:null});
+    }
+  }
+  return report;
+}
+
+test('second invocation preserves first receipts and reports its own returned suffix',async()=>{
+  await inspect(embed(withRepeatedAction(withPlayerPrelude(gameSessionFixture()))),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.match(text,/First action invocation returned/);
+    assert.match(text,/Second action 0x9000765 has its own three resolved mappings/);
+    assert.match(text,/3 of 3 setter calls returned; 0 command bodies returned and were acknowledged/);
+    assert.match(text,/Current active slots: 3 TP and 2 FP/);
+    assert.match(text,/Second action invocation returned after 14 parameter writes across 14 visits/);
+    assert.match(text,/player callback tail remains pending/);
+    assert.doesNotMatch(text,/has not been recorded completely|undefined|execution is pending/);
+    assert.equal(d.querySelector('#parity-count').textContent,'0 of 3 tracked criteria verified');
+  });
+});
+
+test('repeat selecting and suffix checkpoints never claim a returned second invocation',async()=>{
+  for(const stage of ['dispatch_pending','suffix_pending']) {
+    await inspect(embed(withRepeatedAction(withPlayerPrelude(gameSessionFixture()),stage)),d=>{
+      const text=d.querySelector('#game-session-summary').textContent;
+      assert.match(text,stage==='dispatch_pending'?/Repeated dispatch awaits first third person/:/Its suffix awaits bone masks/);
+      assert.doesNotMatch(text,/Second action invocation returned|has not been recorded completely|undefined/);
+    });
+  }
+});
+
+test('repeat command acknowledgements retain trace counts without rebuilding old child headers',async()=>{
+  const report=withRepeatedAction(withPlayerPrelude(gameSessionFixture()));
+  for(const probe of [...report.menu.details.game_session.difficulty_probes,report.menu.details.game_session.cancel_reentry]) {
+    const call=probe.window.game_session.active.world_initialization.player_initialization.component_initialization.repeat_action.dispatch.calls[0];
+    Object.assign(call.selector,{commands_issued:1,commands_executed:1,command_effects_complete:true});
+    call.completed_commands=[{stage:'returned',opcode:0x0c000002,set_reference:0x0a000001,set_index:0,set_groups:1,groups_visited:1,weight_writes:1,
+      mask:null,pending_slot:null,child_reference:null,children_created:1,children_completed:1,children_inserted:1,head_copies:0,effective_flags_or:32,
+      command_returned:true,selector_acknowledged:true,state_sha256:'c'.repeat(64)}];
+  }
+  await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/1 command bodies returned and were acknowledged/));
+  report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization.repeat_action.dispatch.calls[0].completed_commands[0].selector_acknowledged=false;
+  await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+});
+
+test('repeat pending effects preserve insertion before completion and raw directory indices',async()=>{
+  const report=withRepeatedAction(withPlayerPrelude(gameSessionFixture()),'dispatch_pending');
+  for(const probe of [...report.menu.details.game_session.difficulty_probes,report.menu.details.game_session.cancel_reentry]) {
+    const call=probe.window.game_session.active.world_initialization.player_initialization.component_initialization.repeat_action.dispatch.calls[0];
+    call.stage='command_pending';
+    Object.assign(call.selector,{stage:'command_pending',target_index:0,attempts:1,lookups:2,transition_rows:1,commands_issued:1,pending_ordinal:0,pending_opcode:0x0c000002});
+    call.pending_command={stage:'child_factory_pending',opcode:0x0c000002,set_reference:0x0a000001,set_index:0x80000001,set_groups:1,groups_visited:1,weight_writes:1,
+      mask:null,pending_slot:0,child_reference:0x84000001,children_created:1,children_completed:0,children_inserted:1,head_copies:0,effective_flags_or:32,
+      command_returned:false,selector_acknowledged:false,state_sha256:'c'.repeat(64)};
+  }
+  await inspect(embed(report),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.match(text,/0 of 3 setter calls returned; 0 command bodies returned and were acknowledged/);
+    assert.doesNotMatch(text,/has not been recorded completely|undefined/);
+  });
+  report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization.repeat_action.dispatch.calls[0].pending_command.children_inserted=2;
+  await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+});
+
+test('repeat rejects wrong owners, ordering, history, private payloads and premature callback claims',async()=>{
+  const changes=[c=>{c.repeat_action.callback_returned=true;},c=>{c.repeat_action.action_invocation_returned=false;},
+    c=>{c.repeat_action.generic_request=0x0900071e;},c=>{c.repeat_action.parameter_bits=0;},c=>{c.repeat_action.remap_calls=2;},
+    c=>{c.repeat_action.stage='dispatch_pending';},c=>{c.initial_action.stage=c.stage;},c=>{c.active_slots=4;},
+    c=>{c.repeat_action.dispatch.calls.reverse();},c=>{c.repeat_action.dispatch.calls[0].component_file=0x01020016;},
+    c=>{c.repeat_action.dispatch.calls[0].selector.previous=0;},c=>{c.repeat_action.dispatch.calls[0].history_updated=true;},
+    c=>{c.repeat_action.dispatch.calls[2].history_updated=false;},c=>{c.repeat_action.dispatch.calls[2].setter_return_word=0;},
+    c=>{c.repeat_action.dispatch.override_writes=1;},c=>{c.repeat_action.dispatch.seek_returned=false;},
+    c=>{c.repeat_action.dispatch.seek_bits=0x3f800000;},c=>{c.repeat_action.dispatch.calls[0].fallback_writes=0;},
+    c=>{c.repeat_action.dispatch.calls[0].fallback_writes=c.initial_action.fp_dispatch.fallback_writes;},
+    c=>{c.repeat_action.dispatch.calls[1].fallback_writes=6;},c=>{c.repeat_action.dispatch.calls[2].fallback_writes=7;},
+    c=>{c.repeat_action.dispatch.captured_head_present=false;},c=>{c.repeat_action.dispatch.calls[0].completed_commands=[{}];},
+    c=>{c.repeat_action.suffix.repeat_generic=0x09000765;},c=>{c.repeat_action.suffix.parameter_visits=15;},
+    c=>{c.repeat_action.dispatch.pose=[1,2,3];},c=>{delete c.repeat_action.state_sha256;},c=>{delete c.repeat_action;}];
+  for(const change of changes) {
+    const report=withRepeatedAction(withPlayerPrelude(gameSessionFixture()));
+    change(report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization);
+    await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+  }
+});
+
+function withCallbackTail(report,stage='returned',e59=0,physics='flags_cleared') {
+  withRepeatedAction(report);
+  const ordinal=['logging','derived_timer','state_704','physics','final_flags','returned'].indexOf(stage);
+  for(const probe of [...report.menu.details.game_session.difficulty_probes,report.menu.details.game_session.cancel_reentry]) {
+    const player=probe.window.game_session.active.world_initialization.player_initialization,c=player.component_initialization;
+    c.callback_tail={stage,logging_noop_returned:ordinal>=1,e59_raw:ordinal>=2?e59:null,
+      initial_state_704:ordinal>=3?0:null,state_704:ordinal>=3?(e59===0?2:3):null,
+      physics_outcome:ordinal>=4?physics:null,physics_flags_before:ordinal>=4&&physics==='flags_cleared'?0xffff:null,
+      physics_flags_after:ordinal>=4&&physics==='flags_cleared'?0xfcfc:null,word_708:ordinal>=5?1:null,
+      flags_220_before:ordinal>=5?0x80000000:null,flags_220_after:ordinal>=5?0x80000001:null,
+      callback_returned:ordinal===5,state_sha256:'d'.repeat(64)};
+    c.stage=ordinal===5?'player_constructor_tail_pending':'player_callback_tail_pending';
+    player.pending_dependency=ordinal===5?'player_constructor_tail':'player_callback_tail';
+    c.pending_dependency=player.pending_dependency;
+  }
+  return report;
+}
+
+test('callback return is separate from historical action flags and player completion',async()=>{
+  for(const [e59,physics] of [[0,'flags_cleared'],[0xff,'absent']]) {
+    await inspect(embed(withCallbackTail(withPlayerPrelude(gameSessionFixture()),'returned',e59,physics)),d=>{
+      const text=d.querySelector('#game-session-summary').textContent;
+      assert.match(text,/Player action callback returned/);
+      assert.match(text,e59===0?/timer clear, state 2/:/timer clear, state 3/);
+      assert.match(text,physics==='absent'?/absent-physics branch/:/physics motion clear/);
+      assert.match(text,/historical callback flag/);
+      assert.match(text,/Player construction and camera output remain incomplete/);
+      assert.doesNotMatch(text,/has not been recorded completely|undefined|enclosing player callback has not returned|callback remains incomplete|callback tail remains pending/);
+      assert.equal(d.querySelector('#parity-count').textContent,'0 of 3 tracked criteria verified');
+    });
+  }
+});
+
+test('each callback tail prefix remains pending until its final stores return',async()=>{
+  for(const stage of ['logging','derived_timer','state_704','physics','final_flags']) {
+    await inspect(embed(withCallbackTail(withPlayerPrelude(gameSessionFixture()),stage)),d=>{
+      const text=d.querySelector('#game-session-summary').textContent;
+      assert.match(text,new RegExp(`Player action callback tail awaits ${stage.replaceAll('_',' ')}`));
+      assert.doesNotMatch(text,/Player action callback returned|has not been recorded completely|undefined/);
+    });
+  }
+});
+
+test('callback return does not require the diagnostic value overwritten at 704',async()=>{
+  const report=withCallbackTail(withPlayerPrelude(gameSessionFixture()));
+  for(const probe of [...report.menu.details.game_session.difficulty_probes,report.menu.details.game_session.cancel_reentry]) {
+    probe.window.game_session.active.world_initialization.player_initialization.component_initialization.callback_tail.initial_state_704=null;
+  }
+  await inspect(embed(report),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.match(text,/Player action callback returned/);
+    assert.doesNotMatch(text,/has not been recorded completely|undefined/);
+  });
+});
+
+test('callback tail rejects missing receipts, out-of-order stores and premature readiness',async()=>{
+  const changes=[c=>{c.callback_tail=null;},c=>{c.repeat_action=null;},c=>{c.repeat_action.action_invocation_returned=false;},
+    c=>{c.initial_action.callback_returned=true;},c=>{c.repeat_action.callback_returned=true;},
+    c=>{c.callback_tail.callback_returned=false;},c=>{c.callback_tail.logging_noop_returned=false;},
+    c=>{c.callback_tail.e59_raw=null;},c=>{c.callback_tail.e59_raw=256;},c=>{c.callback_tail.initial_state_704=-1;},
+    c=>{c.callback_tail.state_704=3;},c=>{c.callback_tail.physics_outcome=null;},c=>{c.callback_tail.physics_flags_before=null;},
+    c=>{c.callback_tail.physics_flags_after=0xffff;},c=>{c.callback_tail.word_708=0;},c=>{c.callback_tail.flags_220_after=1;},
+    c=>{c.callback_tail.flags_220_before=-1;},c=>{c.callback_tail.stage='final_flags';},c=>{c.callback_tail.pose=[1,2,3];},
+    c=>{c.stage='player_callback_tail_pending';c.pending_dependency='player_callback_tail';}];
+  const keys=Object.keys(withCallbackTail(withPlayerPrelude(gameSessionFixture())).menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization.callback_tail);
+  for(const key of keys) changes.push(c=>{delete c.callback_tail[key];});
+  changes.push(c=>{delete c.callback_tail;});
+  for(const change of changes) {
+    const report=withCallbackTail(withPlayerPrelude(gameSessionFixture()));
+    change(report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization);
+    await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+  }
+});
+
 test('pending second animation mask keeps both helper ordering and invocation return incomplete',async()=>{
   const report=withReturnedSuffix(withPlayerPrelude(gameSessionFixture()));
   for(const probe of [...report.menu.details.game_session.difficulty_probes,report.menu.details.game_session.cancel_reentry]) {
@@ -2450,6 +2641,8 @@ test('pending FP secondary parameters cannot claim TP parameter visits',async()=
     assert.doesNotMatch(text,/First action invocation returned|has not been recorded completely|undefined/);
   });
   report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization.initial_action.suffix.parameter_visits=4;
+  await inspect(embed(report),d=>assert.doesNotMatch(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+  report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization.initial_action.suffix.parameter_visits=5;
   await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
 });
 test('FP command keeps TP receipts historical and uses its own uncaptured receiver',async()=>{
@@ -2777,7 +2970,7 @@ function componentPlayerFixture() {
     texture_dependencies_enumerated:true,component_binding_complete:true,
     texture_directory_outcome:'enumerated',texture_requests:3,texture_targets_resident:3,
     texture_residency_complete:true,texture_requests_state_sha256:'f'.repeat(64),preparation_state_sha256:'d'.repeat(64),
-    target_state_sha256:'e'.repeat(64),skeleton_binding:skeletonPlayerFixture(),bind_refresh:refreshPlayerFixture(),attachment:attachmentPlayerFixture(),visual_postbind:postbindPlayerFixture(),callbacks:callbacksPlayerFixture(),first_person:firstPersonPlayerFixture(),initial_action:initialActionPlayerFixture(),scope:'Authored initial action; TP control dispatch pending'};
+    target_state_sha256:'e'.repeat(64),skeleton_binding:skeletonPlayerFixture(),bind_refresh:refreshPlayerFixture(),attachment:attachmentPlayerFixture(),visual_postbind:postbindPlayerFixture(),callbacks:callbacksPlayerFixture(),first_person:firstPersonPlayerFixture(),initial_action:initialActionPlayerFixture(),repeat_action:null,callback_tail:null,scope:'Authored initial action; TP control dispatch pending'};
 }
 function virtualPlayerFixture() {
   return {stage:'player_basic_complete',pending_dependency:'tp_fp_components',

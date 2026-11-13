@@ -31,6 +31,7 @@ struct State {
     animation_fallback: ge_core::animation::dispatch::Fallback,
     animation_slot_override: ge_core::animation::layers::SlotOverride,
     animation_rate_globals: ge_core::animation::script_child::rate::Inputs,
+    animation_parameter_globals: ge_core::mission::player::actions::secondary_parameters::Globals,
 }
 
 struct SharedState {
@@ -67,6 +68,8 @@ impl Shared {
                 final_owners: final_reset::Owners::fresh(),
                 constructor_clock_reads,
                 animation_rate_globals,
+                animation_parameter_globals:
+                    ge_core::mission::player::actions::secondary_parameters::Globals::from_boot(),
                 loader: loader::Persistent::new(),
                 player: player::Persistent::from_constructor(),
                 animation_context: ge_core::animation::scratch::Context::default(),
