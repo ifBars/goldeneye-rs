@@ -1,9 +1,13 @@
 # Native extensions after parity
 
 This note records features the native Windows build could add once the
-reconstruction is close to parity. None of this work has started. It is a plan,
-not a commitment or a progress claim, and writing it does not resume paused game
-development.
+reconstruction is close to parity. These features are not implemented. Planning
+does not count as feature progress or resume paused game development.
+
+The reusable networking foundation can be developed in parallel using synthetic
+simulations. See the [networking crate implementation plan](networking-crate-plan.md)
+for that workstream. Live game integration still depends on the simulation and
+parity foundations below.
 
 Extensions are kept separate from the parity scope in `progress/roadmap.json`.
 They never count toward a parity percentage, and a working extension is not
