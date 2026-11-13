@@ -409,8 +409,12 @@ The first action invocation now completes its ordered mask-attribute and paramet
 suffix. The repeated generic `0x09000765` action with parameter `f32::MAX` now
 executes its two TP setters, seek, forced-slot override and tracked FP secondary
 setter. Its second suffix returns before the actual callback tail mutates the
-existing base, reset and physics owners and returns. Later constructor helpers
-remain pending. See [the repeated action](repeated-player-action.md),
+existing base, reset and physics owners and returns. The following constructor
+continuation now selects script `0x04001dac` through the retained metadata and
+current record. Its supported cleanup path returns 1 before the actual signed
+pose-input read. Pose setup remains pending. See
+[constructor continuation](constructor-continuation.md),
+[the repeated action](repeated-player-action.md),
 [the first action suffix](initial-action-suffix.md) and
 [FP dispatch](first-person-mode-dispatch.md) for retained history,
 failure prefixes and the current native checkpoint.
@@ -424,7 +428,7 @@ once with the controller, rather than recreated on each load. Native removal and
 destructor/cache cleanup remain required; retained cancelled objects do not imply
 completed native lifetime behavior or active simulation.
 
-Player completion, TP/FP component initialization, camera/view setup and gameplay
+Player completion, pose setup, camera/view setup and gameplay
 remain incomplete. The native checkpoint says **Preparing player**. Progress
 evidence reports the reached constructor prefix and pending dependency, with
 original history and timing explicitly unverified. It hashes private state and

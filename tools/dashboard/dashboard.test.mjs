@@ -2511,6 +2511,90 @@ test('repeat rejects wrong owners, ordering, history, private payloads and prema
   }
 });
 
+function withConstructorContinuation(report,stage='awaiting_pose') {
+  withCallbackTail(report);
+  for(const probe of [...report.menu.details.game_session.difficulty_probes,report.menu.details.game_session.cancel_reentry]) {
+    const player=probe.window.game_session.active.world_initialization.player_initialization,c=player.component_initialization;
+    c.constructor_tail={stage,pending_dependency:'constructor_pose',saved_state_704:0,state_restored:false,script_reference:0x04001dac,
+      metadata_reads:[{slot:23,field:'type',value:0x4b200000},{slot:23,field:'inventory_key',value:0x02000830},{slot:23,field:'primary_key',value:0x4b00002c}],
+      current_slot:0,current_record_present:true,current_inventory_key:0x02000830,variant:0,cleanup_checks:[true,true,true,true,true],
+      b84_written:true,bd1_written:true,actor_absent:true,override_removals:[{key:0x0600056d,count_raw:0,removed:false},{key:0x0600067b,count_raw:0,removed:false}],
+      helper_return:1,pose_input_raw:254,pose_input_signed:-2,state_sha256:'c'.repeat(64)};
+    c.stage='player_pose_setup_pending';player.pending_dependency='player_pose_setup';c.pending_dependency=player.pending_dependency;
+    if(stage==='child_cleanup') {
+      Object.assign(c.constructor_tail,{pending_dependency:'constructor_child_cleanup',cleanup_checks:[true,true,false,null,null],bd1_written:false,
+        actor_absent:null,override_removals:[null,null],helper_return:null,pose_input_raw:null,pose_input_signed:null});
+    } else if(stage==='pose_input') Object.assign(c.constructor_tail,{pending_dependency:null,pose_input_raw:null,pose_input_signed:null});
+    if(stage!=='awaiting_pose') {c.stage='player_constructor_tail_pending';player.pending_dependency='player_constructor_tail';c.pending_dependency=player.pending_dependency;}
+  }
+  return report;
+}
+
+test('constructor helpers return before pending pose setup without completing the player',async()=>{
+  const report=withConstructorContinuation(withPlayerPrelude(gameSessionFixture()));
+  const component=report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization;
+  const snapshots=JSON.stringify([component.initial_action,component.repeat_action,component.callback_tail]);
+  await inspect(embed(report),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.match(text,/Constructor selected script 0x04001dac/);
+    assert.match(text,/cleanup helper returned 1; pose setup is pending with signed argument -2/);
+    assert.match(text,/2 count-only override removals returned without changing entries or generation/);
+    assert.match(text,/Player and camera remain incomplete/);
+    assert.doesNotMatch(text,/has not been recorded completely|undefined/);
+    assert.equal(d.querySelector('#parity-count').textContent,'0 of 3 tracked criteria verified');
+  });
+  assert.equal(JSON.stringify([component.initial_action,component.repeat_action,component.callback_tail]),snapshots);
+});
+
+test('constructor child cleanup preserves only the source prefix before its pending release',async()=>{
+  const report=withConstructorContinuation(withPlayerPrelude(gameSessionFixture()),'child_cleanup');
+  await inspect(embed(report),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.match(text,/Continuation awaits constructor child cleanup/);
+    assert.match(text,/b84 word clear is retained/);
+    assert.match(text,/bd1 store has not run/);
+    assert.doesNotMatch(text,/pose setup is pending|has not been recorded completely|undefined/);
+  });
+  report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization.constructor_tail.b84_written=false;
+  await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+});
+
+test('constructor helper return still waits for the actual signed pose input',async()=>{
+  await inspect(embed(withConstructorContinuation(withPlayerPrelude(gameSessionFixture()),'pose_input')),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.match(text,/Continuation awaits pose input/);
+    assert.doesNotMatch(text,/pose setup is pending|has not been recorded completely|undefined/);
+  });
+});
+
+test('constructor saved entry and signed empty counts remain separate from callback diagnostics',async()=>{
+  const report=withConstructorContinuation(withPlayerPrelude(gameSessionFixture()));
+  for(const probe of [...report.menu.details.game_session.difficulty_probes,report.menu.details.game_session.cancel_reentry]) {
+    const c=probe.window.game_session.active.world_initialization.player_initialization.component_initialization;
+    c.constructor_tail.saved_state_704=5;c.constructor_tail.state_restored=true;c.callback_tail.initial_state_704=null;
+    c.constructor_tail.override_removals[0].count_raw=0xffffffff;
+  }
+  await inspect(embed(report),d=>assert.doesNotMatch(d.querySelector('#game-session-summary').textContent,/has not been recorded completely|undefined/));
+});
+
+test('constructor rejects missing fields, early reads, false returns and mutation claims',async()=>{
+  const changes=[c=>{delete c.constructor_tail;},c=>{delete c.constructor_tail.state_sha256;},c=>{c.constructor_tail.stage='complete';},
+    c=>{c.constructor_tail.pending_dependency=null;},c=>{c.constructor_tail.script_reference=0;},c=>{c.constructor_tail.helper_return=0;},
+    c=>{c.constructor_tail.pose_input_signed=254;},c=>{c.constructor_tail.pose_input_raw=256;},c=>{c.constructor_tail.state_restored=true;},
+    c=>{c.constructor_tail.cleanup_checks[2]=false;},c=>{c.constructor_tail.bd1_written=false;},c=>{c.constructor_tail.actor_absent=false;},
+    c=>{c.constructor_tail.override_removals[0].removed=true;},c=>{c.constructor_tail.override_removals[0].count_raw=1;},
+    c=>{c.constructor_tail.override_removals.reverse();},c=>{c.constructor_tail.override_removals[0].generation=2;},
+    c=>{c.constructor_tail.metadata_reads[0].slot=128;},c=>{c.constructor_tail.metadata_reads[0].field='primary_key';},
+    c=>{c.constructor_tail.metadata_reads[1].value=0;},c=>{c.constructor_tail.metadata_reads[2].value=0x4b00001b;},
+    c=>{c.constructor_tail.current_slot=-1;},c=>{c.constructor_tail.current_record_present=false;},c=>{c.constructor_tail.variant=2;},
+    c=>{c.constructor_tail.pose=[1,2,3];},c=>{c.callback_tail=null;}];
+  for(const change of changes) {
+    const report=withConstructorContinuation(withPlayerPrelude(gameSessionFixture()));
+    change(report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization);
+    await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+  }
+});
+
 function withCallbackTail(report,stage='returned',e59=0,physics='flags_cleared') {
   withRepeatedAction(report);
   const ordinal=['logging','derived_timer','state_704','physics','final_flags','returned'].indexOf(stage);
@@ -2970,7 +3054,7 @@ function componentPlayerFixture() {
     texture_dependencies_enumerated:true,component_binding_complete:true,
     texture_directory_outcome:'enumerated',texture_requests:3,texture_targets_resident:3,
     texture_residency_complete:true,texture_requests_state_sha256:'f'.repeat(64),preparation_state_sha256:'d'.repeat(64),
-    target_state_sha256:'e'.repeat(64),skeleton_binding:skeletonPlayerFixture(),bind_refresh:refreshPlayerFixture(),attachment:attachmentPlayerFixture(),visual_postbind:postbindPlayerFixture(),callbacks:callbacksPlayerFixture(),first_person:firstPersonPlayerFixture(),initial_action:initialActionPlayerFixture(),repeat_action:null,callback_tail:null,scope:'Authored initial action; TP control dispatch pending'};
+    target_state_sha256:'e'.repeat(64),skeleton_binding:skeletonPlayerFixture(),bind_refresh:refreshPlayerFixture(),attachment:attachmentPlayerFixture(),visual_postbind:postbindPlayerFixture(),callbacks:callbacksPlayerFixture(),first_person:firstPersonPlayerFixture(),initial_action:initialActionPlayerFixture(),repeat_action:null,callback_tail:null,constructor_tail:null,scope:'Authored initial action; TP control dispatch pending'};
 }
 function virtualPlayerFixture() {
   return {stage:'player_basic_complete',pending_dependency:'tp_fp_components',

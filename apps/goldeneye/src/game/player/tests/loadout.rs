@@ -177,3 +177,30 @@ fn admission_or_callback_failure_keeps_actual_reached_container_and_slot_state()
     assert!(inventory.slots().pose_bits.is_some());
     assert!(inventory.selection().is_none());
 }
+
+#[test]
+fn constructor_metadata_requires_the_actual_selected_retained_row() {
+    let row = adapt_metadata(metadata());
+    let mut inventory = Inventory::from_constructor();
+    assert!(selected_metadata(&row, 5, &inventory).is_err());
+    initialize(
+        &mut inventory,
+        &row,
+        &[DEFAULT_ITEM],
+        &[],
+        inputs(),
+        &mut Flags::default(),
+    )
+    .unwrap();
+    assert!(std::ptr::eq(
+        selected_metadata(&row, 5, &inventory).unwrap(),
+        &row
+    ));
+    assert!(selected_metadata(&row, 4, &inventory).is_err());
+    assert!(selected_metadata(&row, 0xff, &inventory).is_err());
+    let mut foreign_row = row;
+    foreign_row.native_sorted_index = 4;
+    assert!(selected_metadata(&foreign_row, 5, &inventory).is_err());
+    inventory.reset();
+    assert!(selected_metadata(&row, 5, &inventory).is_err());
+}

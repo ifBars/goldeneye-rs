@@ -66,8 +66,11 @@ setters around a live-position seek and temporary slot override. FP then uses
 tracked secondary history, and its second suffix completes 14 parameter writes.
 The first action's completed evidence stays immutable. The actual callback tail
 now clears the derived timer and retained physics fields, writes handler state
-and flags, and returns. Subsequent constructor selection, cleanup and pose work
-remain required; no player completion or camera readiness is inferred.
+and flags, and returns. Constructor continuation now selects script04001dac
+through the retained metadata and current inventory. Its supported cleanup path
+preserves NULL skips, word/byte store widths and count-only override removals.
+The helper returns1 before the actual signedc7d read. Pose setup remains next;
+no player completion or camera readiness is inferred.
 Factory and update traces stay separate,
 with bounded diagnostic history independent of simulation lifetime. Pose postprocess targets
 are assigned, but their body and frame scheduling remain unavailable.

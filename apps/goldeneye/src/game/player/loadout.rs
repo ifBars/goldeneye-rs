@@ -52,6 +52,9 @@ pub(super) struct Sources {
 }
 
 impl Sources {
+    pub fn metadata_at_selected_slot(&self, slot: u8, inventory: &Inventory) -> Result<&Metadata> {
+        selected_metadata(&self.metadata, slot, inventory)
+    }
     pub fn map_initial_action(
         &self,
         request: ge_core::mission::player::actions::Request,
@@ -158,6 +161,26 @@ impl Sources {
             flags,
         )
     }
+}
+
+/// Only the retained selected row is available here. A different positive slot
+/// needs its actual row provider, even if its values might match the default.
+fn selected_metadata<'a>(
+    metadata: &'a Metadata,
+    slot: u8,
+    inventory: &Inventory,
+) -> Result<&'a Metadata> {
+    let selection = inventory
+        .selection()
+        .context("constructor metadata selection is unavailable")?;
+    ensure!(
+        (slot as i8) >= 0
+            && inventory.slots().c98 == Some(slot)
+            && usize::from(slot) == selection.metadata_sorted_index
+            && selection.metadata_sorted_index == metadata.native_sorted_index,
+        "constructor selected metadata row is unavailable or differs from the retained inventory"
+    );
+    Ok(metadata)
 }
 
 fn validate_session(session: &Session, level: u32) -> Result<()> {

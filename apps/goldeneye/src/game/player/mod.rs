@@ -2,6 +2,7 @@
 //! The reset precedes still-required constructor flags and virtual initialization.
 mod actions;
 pub(super) mod components;
+mod constructor_tail;
 mod evidence;
 mod loadout;
 mod providers;
@@ -12,7 +13,7 @@ pub use evidence::Evidence;
 use ge_core::mission::{
     player::{
         base_handler,
-        constructor::{Lease, PendingPrelude, PendingReset},
+        constructor::{Lease, PendingPrelude, PendingReset, continuation},
         identity::PlayerId,
         world::World,
     },
@@ -38,6 +39,9 @@ pub(super) struct Owned {
     components: components::Owned,
     action: Option<actions::Owned>,
     repeat_action: Option<actions::repeat::Owned>,
+    callback_entry: Option<continuation::CallbackEntry>,
+    completed_callback_evidence: Option<evidence::CallbackTail>,
+    constructor_tail: Option<continuation::Pending>,
     operations: usize,
     catalog_entries: usize,
     rng_reads: usize,
@@ -141,6 +145,9 @@ impl Owned {
             components: components::Owned::new(),
             action: None,
             repeat_action: None,
+            callback_entry: None,
+            completed_callback_evidence: None,
+            constructor_tail: None,
             operations,
             catalog_entries,
             rng_reads: provider.rng_reads,
@@ -211,6 +218,16 @@ impl Owned {
         hook: &world_hooks::Attempt,
     ) -> Result<()> {
         components::initialize(self, sources, world, hook)?;
-        actions::initialize(self, world, hook)
+        if self.flag.is_some() {
+            ensure!(
+                self.callback_entry.is_none(),
+                "constructor callback entry replays"
+            );
+            // Save state704 after the FP masks and before the initial callback.
+            // The callback's later tail overwrites the live field.
+            self.callback_entry = Some(continuation::CallbackEntry::capture(&self.base)?);
+        }
+        actions::initialize(self, world, hook)?;
+        constructor_tail::initialize(self, world, hook)
     }
 }

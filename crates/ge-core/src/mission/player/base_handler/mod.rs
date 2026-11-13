@@ -7,6 +7,7 @@ mod callback_tail;
 mod mode_setter;
 pub use animation::AnimationInterface;
 mod constructor_flag;
+mod constructor_tail;
 mod generic;
 mod reset;
 mod runtime_reset;

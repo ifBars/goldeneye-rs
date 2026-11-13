@@ -34,6 +34,34 @@ pub(super) fn build(player: &Owned, world: &World) -> Result<Option<CallbackTail
         tail.player() == player.base.player(),
         "callback tail player differs"
     );
+    if let Some(snapshot) = &player.completed_callback_evidence {
+        let (outcome, before, after) = match tail.physics_outcome() {
+            None => (None, None, None),
+            Some(PhysicsOutcome::Absent) => (Some("absent"), None, None),
+            Some(PhysicsOutcome::Cleared {
+                flags_before,
+                flags_after,
+                ..
+            }) => (Some("flags_cleared"), Some(flags_before), Some(flags_after)),
+        };
+        ensure!(
+            tail.callback_returned()
+                && snapshot.stage == "returned"
+                && snapshot.callback_returned
+                && snapshot.logging_noop_returned == tail.logging_noop_returned()
+                && snapshot.e59_raw == tail.e59_raw()
+                && snapshot.initial_state_704 == tail.initial_state_704()
+                && snapshot.state_704 == tail.state_704()
+                && snapshot.physics_outcome == outcome
+                && snapshot.physics_flags_before == before
+                && snapshot.physics_flags_after == after
+                && snapshot.word_708 == tail.word_708()
+                && snapshot.flags_220_before == tail.flags_220_before()
+                && snapshot.flags_220_after == tail.flags_220_after(),
+            "callback snapshot differs from its actual returned receipt"
+        );
+        return Ok(Some(snapshot.clone()));
+    }
     let item = world.item(player.base.item().context("callback tail item absent")?)?;
     if let Some(e59) = tail.e59_raw() {
         ensure!(

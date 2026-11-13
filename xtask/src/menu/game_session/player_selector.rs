@@ -20,6 +20,7 @@ pub(super) fn dependency(stage: &Value) -> Option<&'static str> {
         "action_dispatch_repeat_pending" => Some("initial_action_repeat"),
         "player_callback_tail_pending" => Some("player_callback_tail"),
         "player_constructor_tail_pending" => Some("player_constructor_tail"),
+        "player_pose_setup_pending" => Some("player_pose_setup"),
         _ => None,
     }
 }

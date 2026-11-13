@@ -132,9 +132,14 @@ The first action invocation returns and retains the enclosing callback's require
 second action request. The repeated dispatch now executes its three separate
 setter calls, seek and slot overrides, then returns through a second suffix.
 A separate callback-tail receipt proves its actual base/reset/physics writes and
-return. Subsequent constructor helpers, pose postprocessing and frame scheduling
-remain incomplete. These returns do not establish player or gameplay
-readiness. [Script updates](animation-script-updates.md) describes their separate
+return. A separate constructor continuation now selects the default script through
+retained metadata and the actual inventory record. Its immediate cleanup preserves
+NULL skips, word/byte stores and count-only override removals. Only the returned
+helper permits the signed pose-input read. Pose setup, pose postprocessing and
+frame scheduling remain incomplete. These returns do not establish player or
+gameplay readiness. [Constructor continuation](constructor-continuation.md)
+describes the reached cleanup and next dependency.
+[Script updates](animation-script-updates.md) describes their separate
 traces and provider boundaries.
 The first class-four factory now allocates its own retained header before any
 script-provider call. A component-local ID allocator covers both control snapshots

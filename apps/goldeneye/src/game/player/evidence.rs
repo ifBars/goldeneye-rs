@@ -3,6 +3,7 @@ mod components;
 mod owners;
 use crate::game::world_hooks::Attempt;
 use anyhow::{Result, ensure};
+pub(super) use components::CallbackTail;
 pub use components::ComponentInitialization;
 pub(super) use components::InitialAction;
 use ge_core::mission::{
@@ -22,6 +23,18 @@ pub(super) fn capture_initial_action(owned: &Owned, hook: &Attempt) -> Result<In
         "initial action snapshot requires a returned invocation"
     );
     components::capture_initial_action(owned, hook)
+}
+/// Retain the returned callback before constructor helpers mutate its owners.
+pub(super) fn capture_callback_tail(owned: &Owned, world: &World) -> Result<CallbackTail> {
+    ensure!(
+        owned
+            .repeat_action
+            .as_ref()
+            .and_then(|r| r.callback_tail.as_ref())
+            .is_some_and(|tail| tail.callback_returned()),
+        "callback snapshot requires a returned callback"
+    );
+    components::capture_callback_tail(owned, world)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

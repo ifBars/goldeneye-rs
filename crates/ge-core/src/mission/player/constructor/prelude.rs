@@ -1,6 +1,10 @@
 use super::super::{base_handler::BasicReceipt, identity::PlayerId, inventory::Inventory};
 use crate::mission::world_hooks::buffer::Buffer;
 
+#[cfg(test)]
+#[path = "tests/continuation_prelude_fixture.rs"]
+mod continuation_fixture;
+
 /// The derived constructor prelude after an actual base-constructor receipt.
 /// This is neither a completed reset nor an initialized PlayerNew.
 #[derive(Debug)]

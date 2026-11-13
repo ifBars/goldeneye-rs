@@ -15,7 +15,10 @@ fn hash(v: &Value) -> bool {
 pub(super) fn validate(t: &Value, component: &Value) -> Result<()> {
     if t.is_null() {
         ensure!(
-            component["stage"] != "player_constructor_tail_pending",
+            !matches!(
+                component["stage"].as_str(),
+                Some("player_constructor_tail_pending" | "player_pose_setup_pending")
+            ),
             "constructor continuation precedes callback return"
         );
         return Ok(());
@@ -56,12 +59,14 @@ pub(super) fn validate(t: &Value, component: &Value) -> Result<()> {
             && t["logging_noop_returned"] == (stage > 0)
             && t["callback_returned"] == (stage == 5)
             && hash(&t["state_sha256"])
-            && component["stage"]
-                == if stage == 5 {
-                    "player_constructor_tail_pending"
-                } else {
-                    "player_callback_tail_pending"
-                },
+            && if stage == 5 {
+                matches!(
+                    component["stage"].as_str(),
+                    Some("player_constructor_tail_pending" | "player_pose_setup_pending")
+                )
+            } else {
+                component["stage"] == "player_callback_tail_pending"
+            },
         "callback tail caller, logging return or current boundary differs"
     );
     if stage >= 2 {
@@ -129,4 +134,4 @@ pub(super) fn validate(t: &Value, component: &Value) -> Result<()> {
 }
 
 #[cfg(test)]
-mod tests;
+pub(super) mod tests;

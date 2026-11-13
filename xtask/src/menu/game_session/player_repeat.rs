@@ -424,7 +424,11 @@ pub(super) fn validate(r: &Value, component: &Value) -> Result<()> {
             && if returned {
                 matches!(
                     component["stage"].as_str(),
-                    Some("player_callback_tail_pending" | "player_constructor_tail_pending")
+                    Some(
+                        "player_callback_tail_pending"
+                            | "player_constructor_tail_pending"
+                            | "player_pose_setup_pending"
+                    )
                 )
             } else {
                 component["stage"] == "action_dispatch_repeat_pending"

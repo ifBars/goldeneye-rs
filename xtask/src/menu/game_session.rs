@@ -10,6 +10,7 @@ mod player_callbacks;
 mod player_capture;
 mod player_child;
 mod player_command;
+mod player_constructor_tail;
 mod player_dispatch;
 mod player_first_person;
 mod player_fp;
@@ -1040,6 +1041,7 @@ fn validate_player_components(component: &Value, reached: bool) -> Result<()> {
             "initial_action",
             "repeat_action",
             "callback_tail",
+            "constructor_tail",
             "scope",
         ],
     )?;
@@ -1099,6 +1101,7 @@ fn validate_player_components(component: &Value, reached: bool) -> Result<()> {
     player_action::validate(&component["initial_action"])?;
     player_repeat::validate(&component["repeat_action"], component)?;
     player_callback_tail::validate(&component["callback_tail"], component)?;
+    player_constructor_tail::validate(&component["constructor_tail"], component)?;
     let capture = &component["initial_action"]["tp_capture"];
     ensure!(
         capture["bones_per_control"] == component["skeleton_binding"]["bones"]
@@ -1627,6 +1630,7 @@ fn validate_tutorial_suffix(player: &Value) -> Result<()> {
                     "action_dispatch_repeat_pending"
                         | "player_callback_tail_pending"
                         | "player_constructor_tail_pending"
+                        | "player_pose_setup_pending"
                 )
             )
             && a["stage"] == "action_dispatch_repeat_pending"
@@ -1681,7 +1685,11 @@ fn validate_tutorial_repeat(player: &Value) -> Result<()> {
                 && component["pending_dependency"] == dependency)
             && matches!(
                 component["stage"].as_str(),
-                Some("player_callback_tail_pending" | "player_constructor_tail_pending")
+                Some(
+                    "player_callback_tail_pending"
+                        | "player_constructor_tail_pending"
+                        | "player_pose_setup_pending"
+                )
             )
             && action["stage"] == "returned"
             && action["action_invocation_returned"] == true
@@ -1778,9 +1786,13 @@ fn validate_tutorial_callback_tail(player: &Value) -> Result<()> {
     let tail = &component["callback_tail"];
     player_callback_tail::validate(tail, component)?;
     ensure!(
-        player["pending_dependency"] == "player_constructor_tail"
-            && component["stage"] == "player_constructor_tail_pending"
-            && component["pending_dependency"] == "player_constructor_tail"
+        player_selector::dependency(&component["stage"])
+            .is_some_and(|dependency| player["pending_dependency"] == dependency
+                && component["pending_dependency"] == dependency)
+            && matches!(
+                component["stage"].as_str(),
+                Some("player_constructor_tail_pending" | "player_pose_setup_pending")
+            )
             && tail["stage"] == "returned"
             && tail["logging_noop_returned"] == true
             && tail["e59_raw"] == 0
@@ -1795,6 +1807,52 @@ fn validate_tutorial_callback_tail(player: &Value) -> Result<()> {
             && tail["callback_returned"] == true,
         "Tutorial initial callback did not return through its real timer, state and physics tail"
     );
+    Ok(())
+}
+fn validate_tutorial_constructor_tail(player: &Value) -> Result<()> {
+    let component = &player["component_initialization"];
+    let tail = &component["constructor_tail"];
+    player_constructor_tail::validate(tail, component)?;
+    ensure!(
+        player["pending_dependency"] == "player_pose_setup"
+            && component["stage"] == "player_pose_setup_pending"
+            && component["pending_dependency"] == "player_pose_setup"
+            && tail["stage"] == "awaiting_pose"
+            && tail["pending_dependency"] == "constructor_pose"
+            && tail["saved_state_704"] == 0
+            && tail["state_restored"] == false
+            && tail["script_reference"] == 0x0400_1dacu32
+            && tail["current_slot"] == 0
+            && tail["current_record_present"] == true
+            && tail["current_inventory_key"] == 0x0200_0830u32
+            && tail["variant"] == 0
+            && tail["cleanup_checks"] == json!([true, true, true, true, true])
+            && tail["b84_written"] == true
+            && tail["bd1_written"] == true
+            && tail["actor_absent"] == true
+            && tail["helper_return"] == 1
+            && tail["pose_input_raw"] == 1
+            && tail["pose_input_signed"] == 1,
+        "Tutorial constructor continuation did not return its real cleanup helper before pose setup"
+    );
+    for (i, field, value) in [
+        (0, "type", 0x4b20_0000u32),
+        (1, "inventory_key", 0x0200_0830),
+        (2, "primary_key", 0x4b00_002c),
+    ] {
+        let read = &tail["metadata_reads"][i];
+        ensure!(
+            read["slot"] == 23 && read["field"] == field && read["value"] == value,
+            "Tutorial constructor metadata differs from the actual selected row"
+        );
+    }
+    for (i, key) in [0x0600_056du32, 0x0600_067b].into_iter().enumerate() {
+        let removal = &tail["override_removals"][i];
+        ensure!(
+            removal["key"] == key && removal["count_raw"] == 0 && removal["removed"] == false,
+            "Tutorial override removals did not take their count-only empty returns"
+        );
+    }
     Ok(())
 }
 fn validate_tutorial_world(probe: &Value) -> Result<()> {
@@ -2036,6 +2094,7 @@ fn validate_tutorial_world(probe: &Value) -> Result<()> {
     validate_tutorial_suffix(player)?;
     validate_tutorial_repeat(player)?;
     validate_tutorial_callback_tail(player)?;
+    validate_tutorial_constructor_tail(player)?;
     let flag = &player["constructor_flag"];
     let virtual_init = &player["virtual_initialization"];
     ensure!(
@@ -3774,7 +3833,7 @@ mod tests {
             "visual_postbind":player_postbind::tests::fixture(),
             "callbacks":player_callbacks::tests::fixture(),
             "first_person":player_first_person::tests::fixture(),
-            "initial_action":player_action::tests::fixture(),"repeat_action":null,"callback_tail":null,
+            "initial_action":player_action::tests::fixture(),"repeat_action":null,"callback_tail":null,"constructor_tail":null,
             "scope":"Authored TP control capture; TP mode selector remains pending"});
         probe
     }
