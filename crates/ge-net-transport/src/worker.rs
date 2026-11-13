@@ -7,7 +7,7 @@
 use std::collections::{HashMap, VecDeque};
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::thread::JoinHandle;
 use std::time::Duration;
 
@@ -17,12 +17,12 @@ use ge_net::{
 };
 use quinn::crypto::rustls::{QuicClientConfig, QuicServerConfig};
 use quinn::{
-    Connection, ConnectionError, Endpoint, IdleTimeout, RecvStream, SendDatagramError, SendStream,
-    VarInt,
+    Connection, ConnectionError, Endpoint, IdleTimeout, ReadError, ReadExactError, RecvStream,
+    SendDatagramError, SendStream, VarInt, WriteError,
 };
 use rustls::crypto::CryptoProvider;
-use tokio::sync::mpsc;
-use tokio::time::timeout;
+use tokio::sync::{Semaphore, mpsc, oneshot};
+use tokio::time::{sleep, timeout};
 
 use crate::identity::{Fingerprint, HostIdentity, PinnedVerifier, SERVER_NAME};
 use crate::{ALPN, QuicConfig, TransportError};
@@ -31,6 +31,11 @@ use crate::{ALPN, QuicConfig, TransportError};
 const CLOSE_NORMAL: u32 = 0;
 /// Close code when the peer broke this backend's framing or limits.
 const CLOSE_PROTOCOL: u32 = 2;
+/// Close code when a reliable lane failed or could not be flushed in time.
+/// The peer reports it as `ReliableDeliveryFailed`.
+const CLOSE_RELIABLE: u32 = 3;
+/// Close code when the host could not report a new connection in time.
+const CLOSE_BUSY: u32 = 4;
 /// The first byte on each stream names its lane.
 const TAG_CONTROL: u8 = 0;
 const TAG_BULK: u8 = 1;
@@ -55,10 +60,15 @@ enum Command {
 }
 
 /// What the application thread can reach of one connection.
+///
+/// Removing it from the connection table is how the application closes the
+/// attempt: the lane queues end, and dropping `_closing` starts the
+/// connection's flush deadline.
 struct Handle {
     control: mpsc::Sender<Vec<u8>>,
     bulk: mpsc::Sender<Vec<u8>>,
     connection: Connection,
+    _closing: oneshot::Sender<()>,
 }
 
 enum Entry {
@@ -91,6 +101,8 @@ struct Context {
     transport: Arc<quinn::TransportConfig>,
     /// Host attempts are numbered in the order their `Connected` is queued.
     next_host_attempt: tokio::sync::Mutex<u64>,
+    /// One permit per admitted host connection, from handshake to teardown.
+    admission: Arc<Semaphore>,
 }
 
 /// The application-side handle to a running worker.
@@ -285,6 +297,9 @@ fn validate(config: &QuicConfig) -> Result<(), TransportError> {
     if config.keep_alive >= config.idle_timeout {
         return Err(TransportError::InvalidConfig("keep_alive"));
     }
+    if config.max_connections == 0 || config.max_connections > Semaphore::MAX_PERMITS {
+        return Err(TransportError::InvalidConfig("max_connections"));
+    }
     Ok(())
 }
 
@@ -379,6 +394,7 @@ fn run(
         };
         let _ = ready.send(Ok(address));
         let flush = config.close_flush_timeout;
+        let admission = Arc::new(Semaphore::new(config.max_connections));
         let context = Arc::new(Context {
             shared,
             events,
@@ -386,6 +402,7 @@ fn run(
             provider,
             transport,
             next_host_attempt: tokio::sync::Mutex::new(1),
+            admission,
         });
         if matches!(role, Role::Host { .. }) {
             tokio::spawn(accept_loop(endpoint.clone(), context.clone()));
@@ -435,8 +452,16 @@ fn datagrams_fit(connection: &Connection, config: &QuicConfig) -> bool {
 
 async fn accept_loop(endpoint: Endpoint, context: Arc<Context>) {
     while let Some(incoming) = endpoint.accept().await {
+        // Admission is checked before any work is spent on the connection.
+        // The permit lives as long as the connection's task, so it covers
+        // the handshake, the pending report and the established connection.
+        let Ok(permit) = context.admission.clone().try_acquire_owned() else {
+            incoming.refuse();
+            continue;
+        };
         let context = context.clone();
         tokio::spawn(async move {
+            let _permit = permit;
             let setup = async {
                 let connection = incoming.await.ok()?;
                 let lanes = accept_lanes(&connection).await?;
@@ -452,7 +477,7 @@ async fn accept_loop(endpoint: Endpoint, context: Arc<Context>) {
                 connection.close(VarInt::from_u32(CLOSE_PROTOCOL), b"datagram size");
                 return;
             }
-            let (handle, receivers) = handle_for(&connection, &context.config);
+            let (handle, parts) = handle_for(&connection, &context.config);
             let attempt = {
                 let mut next = context.next_host_attempt.lock().await;
                 let attempt = *next;
@@ -463,17 +488,43 @@ async fn accept_loop(endpoint: Endpoint, context: Arc<Context>) {
                     .lock()
                     .expect("connection table lock")
                     .insert(attempt, Entry::Open(handle));
-                // Queued under the lock, so attempts appear in increasing order.
-                let connected = TransportEvent::Connected {
-                    attempt: AttemptId::new(attempt),
-                };
-                if context.events.send(connected).await.is_err() {
+                // Queued under the lock, so attempts appear in increasing
+                // order. The wait is bounded: an application that stops
+                // polling cannot hold the lock, and its new connections are
+                // turned away instead of piling up.
+                if !report_connected(&context, attempt, &connection).await {
                     return;
                 }
                 attempt
             };
-            drive(attempt, connection, lanes, receivers, context).await;
+            drive(attempt, connection, lanes, parts, context).await;
         });
+    }
+}
+
+/// Queue `Connected` for an attempt already in the connection table. On
+/// failure the attempt is removed and its connection closed.
+async fn report_connected(context: &Context, attempt: u64, connection: &Connection) -> bool {
+    let connected = TransportEvent::Connected {
+        attempt: AttemptId::new(attempt),
+    };
+    match timeout(
+        context.config.connect_timeout,
+        context.events.send(connected),
+    )
+    .await
+    {
+        Ok(Ok(())) => true,
+        Ok(Err(_)) => {
+            context.shared.remove(attempt);
+            connection.close(VarInt::from_u32(CLOSE_NORMAL), b"shutdown");
+            false
+        }
+        Err(_) => {
+            context.shared.remove(attempt);
+            connection.close(VarInt::from_u32(CLOSE_BUSY), b"event queue full");
+            false
+        }
     }
 }
 
@@ -517,7 +568,7 @@ async fn connect(
             return;
         }
     };
-    let (handle, receivers) = handle_for(&connection, &context.config);
+    let (handle, parts) = handle_for(&connection, &context.config);
     {
         let mut connections = context
             .shared
@@ -533,26 +584,54 @@ async fn connect(
             }
         }
     }
-    let connected = TransportEvent::Connected {
-        attempt: AttemptId::new(attempt),
-    };
-    if context.events.send(connected).await.is_err() {
+    if !report_connected(&context, attempt, &connection).await {
         return;
     }
-    drive(attempt, connection, lanes, receivers, context).await;
+    drive(attempt, connection, lanes, parts, context).await;
 }
 
-type LaneReceivers = (mpsc::Receiver<Vec<u8>>, mpsc::Receiver<Vec<u8>>);
+/// The worker's side of a [`Handle`].
+struct HandleParts {
+    control: mpsc::Receiver<Vec<u8>>,
+    bulk: mpsc::Receiver<Vec<u8>>,
+    /// Resolves when the handle is removed, for any reason.
+    closing: oneshot::Receiver<()>,
+}
 
-fn handle_for(connection: &Connection, config: &QuicConfig) -> (Handle, LaneReceivers) {
+fn handle_for(connection: &Connection, config: &QuicConfig) -> (Handle, HandleParts) {
     let (control, control_rx) = mpsc::channel(config.send_queue_messages);
     let (bulk, bulk_rx) = mpsc::channel(config.send_queue_messages);
+    let (closing, closing_rx) = oneshot::channel();
     let handle = Handle {
         control,
         bulk,
         connection: connection.clone(),
+        _closing: closing,
     };
-    (handle, (control_rx, bulk_rx))
+    let parts = HandleParts {
+        control: control_rx,
+        bulk: bulk_rx,
+        closing: closing_rx,
+    };
+    (handle, parts)
+}
+
+/// Why this side ended a connection, when it ended it for a failure. The
+/// first recorded reason wins and is reported instead of the generic
+/// "closed locally" that QUIC returns.
+#[derive(Clone, Default)]
+struct Failure(Arc<OnceLock<TransportFailure>>);
+
+impl Failure {
+    /// Record `failure` and close the connection with `code`.
+    fn close(&self, connection: &Connection, failure: TransportFailure, code: u32, reason: &[u8]) {
+        let _ = self.0.set(failure);
+        connection.close(VarInt::from_u32(code), reason);
+    }
+
+    fn get(&self) -> Option<TransportFailure> {
+        self.0.get().copied()
+    }
 }
 
 /// The client opens both lanes and names each with its first byte.
@@ -588,19 +667,35 @@ async fn accept_lanes(connection: &Connection) -> Option<Lanes> {
 }
 
 /// Run one established connection until it ends.
+///
+/// Both reliable lanes are required. If either fails, the whole attempt
+/// ends with `ReliableDeliveryFailed`; nothing waits for the other lane.
 async fn drive(
     attempt: u64,
     connection: Connection,
     lanes: Lanes,
-    receivers: LaneReceivers,
+    parts: HandleParts,
     context: Arc<Context>,
 ) {
     let flush = context.config.close_flush_timeout;
+    let failure = Failure::default();
     let (control_send, control_recv) = lanes.control;
     let (bulk_send, bulk_recv) = lanes.bulk;
     let writers = [
-        tokio::spawn(write_lane(control_send, receivers.0, flush)),
-        tokio::spawn(write_lane(bulk_send, receivers.1, flush)),
+        tokio::spawn(write_lane(
+            control_send,
+            parts.control,
+            flush,
+            connection.clone(),
+            failure.clone(),
+        )),
+        tokio::spawn(write_lane(
+            bulk_send,
+            parts.bulk,
+            flush,
+            connection.clone(),
+            failure.clone(),
+        )),
     ];
     let readers = [
         tokio::spawn(read_lane(
@@ -609,6 +704,7 @@ async fn drive(
             attempt,
             connection.clone(),
             context.clone(),
+            failure.clone(),
         )),
         tokio::spawn(read_lane(
             Lane::Bulk,
@@ -616,6 +712,7 @@ async fn drive(
             attempt,
             connection.clone(),
             context.clone(),
+            failure.clone(),
         )),
         tokio::spawn(read_datagrams(attempt, connection.clone(), context.clone())),
     ];
@@ -630,8 +727,27 @@ async fn drive(
             connection.close(VarInt::from_u32(CLOSE_NORMAL), b"");
         })
     };
+    // The flush deadline starts when the application removes the handle,
+    // never while the attempt is active. It bounds draining the lane queues
+    // and waiting for acknowledgements: a peer that stops reading but keeps
+    // the connection alive cannot hold a closing attempt open.
+    let deadline = {
+        let connection = connection.clone();
+        let failure = failure.clone();
+        tokio::spawn(async move {
+            let _ = parts.closing.await;
+            sleep(flush).await;
+            failure.close(
+                &connection,
+                TransportFailure::ReliableDeliveryFailed,
+                CLOSE_RELIABLE,
+                b"flush deadline",
+            );
+        })
+    };
 
     let reason = connection.closed().await;
+    deadline.abort();
     // Still registered means the application did not ask for this close.
     let unrequested = context.shared.remove(attempt).is_some();
     let _ = closer.await;
@@ -642,22 +758,65 @@ async fn drive(
     if unrequested {
         let closed = TransportEvent::Closed {
             attempt: AttemptId::new(attempt),
-            failure: close_failure(&reason),
+            failure: failure.get().unwrap_or_else(|| close_failure(&reason)),
         };
         let _ = context.events.send(closed).await;
     }
 }
 
-async fn write_lane(mut send: SendStream, mut queue: mpsc::Receiver<Vec<u8>>, flush: Duration) {
+async fn write_lane(
+    mut send: SendStream,
+    mut queue: mpsc::Receiver<Vec<u8>>,
+    flush: Duration,
+    connection: Connection,
+    failure: Failure,
+) {
     while let Some(message) = queue.recv().await {
         let length = (message.len() as u32).to_be_bytes();
-        if send.write_all(&length).await.is_err() || send.write_all(&message).await.is_err() {
-            return;
+        let written = match send.write_all(&length).await {
+            Ok(()) => send.write_all(&message).await,
+            Err(error) => Err(error),
+        };
+        match written {
+            Ok(()) => {}
+            // The connection is ending; its own reason is reported.
+            Err(WriteError::ConnectionLost(_)) => return,
+            // The peer stopped a required lane: queued messages can no
+            // longer be delivered, so the attempt cannot continue.
+            Err(_) => {
+                failure.close(
+                    &connection,
+                    TransportFailure::ReliableDeliveryFailed,
+                    CLOSE_RELIABLE,
+                    b"lane stopped",
+                );
+                return;
+            }
         }
     }
     // The queue ended: wait, within a bound, for the peer to receive it all.
     if send.finish().is_ok() {
         let _ = timeout(flush, send.stopped()).await;
+    }
+}
+
+/// How one framed read on a reliable lane ended.
+enum LaneRead {
+    Done,
+    /// The peer finished the stream cleanly between frames.
+    Finished,
+    /// The connection is ending; its own reason is reported.
+    ConnectionLost,
+    /// Truncated frame, reset stream or another stream-level failure.
+    Failed,
+}
+
+async fn read_frame_part(recv: &mut RecvStream, buf: &mut [u8], at_boundary: bool) -> LaneRead {
+    match recv.read_exact(buf).await {
+        Ok(()) => LaneRead::Done,
+        Err(ReadExactError::FinishedEarly(0)) if at_boundary => LaneRead::Finished,
+        Err(ReadExactError::ReadError(ReadError::ConnectionLost(_))) => LaneRead::ConnectionLost,
+        Err(_) => LaneRead::Failed,
     }
 }
 
@@ -667,21 +826,49 @@ async fn read_lane(
     attempt: u64,
     connection: Connection,
     context: Arc<Context>,
+    failure: Failure,
 ) {
+    let lane_failed = |failure: &Failure| {
+        failure.close(
+            &connection,
+            TransportFailure::ReliableDeliveryFailed,
+            CLOSE_RELIABLE,
+            b"lane failed",
+        );
+    };
     loop {
         let mut length = [0; 4];
-        if recv.read_exact(&mut length).await.is_err() {
-            return;
+        match read_frame_part(&mut recv, &mut length, true).await {
+            LaneRead::Done => {}
+            LaneRead::ConnectionLost => return,
+            LaneRead::Failed => return lane_failed(&failure),
+            LaneRead::Finished => {
+                // A peer finishes its lanes only while closing, and closes
+                // the connection once both are flushed. One that finishes a
+                // lane and stays connected has broken the lane contract.
+                let grace = context.config.close_flush_timeout.saturating_mul(2);
+                if timeout(grace, connection.closed()).await.is_err() {
+                    lane_failed(&failure);
+                }
+                return;
+            }
         }
         let length = u32::from_be_bytes(length);
         // Checked before allocating.
         if length > context.config.max_reliable_message_bytes {
-            connection.close(VarInt::from_u32(CLOSE_PROTOCOL), b"message too large");
+            failure.close(
+                &connection,
+                TransportFailure::Other,
+                CLOSE_PROTOCOL,
+                b"message too large",
+            );
             return;
         }
         let mut bytes = vec![0; length as usize];
-        if recv.read_exact(&mut bytes).await.is_err() {
-            return;
+        match read_frame_part(&mut recv, &mut bytes, false).await {
+            LaneRead::Done => {}
+            LaneRead::ConnectionLost => return,
+            LaneRead::Failed | LaneRead::Finished => return lane_failed(&failure),
         }
         let message = TransportEvent::Message {
             attempt: AttemptId::new(attempt),
@@ -735,9 +922,14 @@ fn connect_failure(error: &ConnectionError) -> TransportFailure {
 
 fn close_failure(error: &ConnectionError) -> TransportFailure {
     match error {
-        ConnectionError::ApplicationClosed(_)
-        | ConnectionError::ConnectionClosed(_)
-        | ConnectionError::Reset => TransportFailure::RemoteClosed,
+        ConnectionError::ApplicationClosed(close) => match close.error_code.into_inner() {
+            code if code == u64::from(CLOSE_NORMAL) => TransportFailure::RemoteClosed,
+            code if code == u64::from(CLOSE_RELIABLE) => TransportFailure::ReliableDeliveryFailed,
+            _ => TransportFailure::Other,
+        },
+        ConnectionError::ConnectionClosed(_) | ConnectionError::Reset => {
+            TransportFailure::RemoteClosed
+        }
         ConnectionError::TimedOut => TransportFailure::TimedOut,
         _ => TransportFailure::Other,
     }

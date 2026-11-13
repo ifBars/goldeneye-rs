@@ -15,7 +15,8 @@ pub(crate) enum PushError {
 /// every channel of a connection.
 ///
 /// Any message first evicts older unreliable messages to make room; reliable
-/// messages are never evicted. A reliable message that still does not fit is
+/// messages are never evicted. The fragments of one message are queued as a
+/// unit, so they never evict each other. A reliable message that still does not fit is
 /// an error for the caller to turn into an explicit connection failure.
 #[derive(Debug)]
 pub(crate) struct OutboundQueues {
@@ -70,29 +71,51 @@ impl OutboundQueues {
 
     /// Queue one encoded envelope. Returns how many older unreliable
     /// messages were evicted to make room.
+    #[cfg(test)]
     pub(crate) fn push(
         &mut self,
         channel: ChannelId,
         message: Vec<u8>,
     ) -> Result<usize, PushError> {
-        let len = message.len();
-        let mut evicted = 0;
+        self.push_all(channel, vec![message])
+    }
+
+    /// Queue several envelopes of one logical message, all or none.
+    ///
+    /// Room for the whole set is made before any of it is queued, so the
+    /// fragments of one state update never evict each other. If the set
+    /// cannot fit beside the reliable backlog, nothing is queued and nothing
+    /// is evicted. Returns how many older unreliable messages were evicted.
+    pub(crate) fn push_all(
+        &mut self,
+        channel: ChannelId,
+        messages: Vec<Vec<u8>>,
+    ) -> Result<usize, PushError> {
+        let len: usize = messages.iter().map(Vec::len).sum();
         if !self.has_room(len) {
-            // Oldest first. An unreliable message starts with its own
-            // channel; a reliable one evicts only unreliable messages.
-            let own = (channel.delivery() == Delivery::UnreliableSequenced).then_some(channel);
-            let others = [ChannelId::Probe, ChannelId::State, ChannelId::Input];
-            for victim in own.into_iter().chain(others) {
-                while !self.has_room(len) && self.pop(victim).is_some() {
-                    evicted += 1;
-                }
-            }
-            if !self.has_room(len) {
+            // Only unreliable messages can make room; check first, so a set
+            // that cannot fit evicts nothing.
+            let evictable: usize = [ChannelId::Input, ChannelId::State, ChannelId::Probe]
+                .iter()
+                .map(|victim| self.bytes(*victim))
+                .sum();
+            if self.total_bytes() - evictable + len > self.max_bytes {
                 return Err(PushError::Overflow);
             }
         }
+        let mut evicted = 0;
+        // Oldest first. An unreliable message starts with its own channel;
+        // a reliable one evicts only unreliable messages.
+        let own = (channel.delivery() == Delivery::UnreliableSequenced).then_some(channel);
+        let others = [ChannelId::Probe, ChannelId::State, ChannelId::Input];
+        for victim in own.into_iter().chain(others) {
+            while !self.has_room(len) && self.pop(victim).is_some() {
+                evicted += 1;
+            }
+        }
+        debug_assert!(self.has_room(len), "room was checked above");
         self.bytes[channel.index()] += len;
-        self.queues[channel.index()].push_back(message);
+        self.queues[channel.index()].extend(messages);
         self.high_water = self.high_water.max(self.total_bytes());
         Ok(evicted)
     }

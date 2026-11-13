@@ -224,3 +224,37 @@ fn fragments_are_bounded_and_must_agree() {
         Admission::Violation(Violation::AssembledMessageTooLarge)
     ));
 }
+
+#[test]
+fn the_fragments_of_one_message_are_queued_whole_or_not_at_all() {
+    let mut queues = OutboundQueues::new(100);
+    // An older update and a probe sit in the queue.
+    assert_eq!(queues.push(ChannelId::State, vec![1; 20]), Ok(0));
+    assert_eq!(queues.push(ChannelId::Probe, vec![2; 20]), Ok(0));
+    // A four-fragment update needs the whole budget. Room is made from the
+    // older messages, never from its own fragments, and all four arrive.
+    let fragments: Vec<Vec<u8>> = (0..4u8).map(|tag| vec![10 + tag; 25]).collect();
+    assert_eq!(queues.push_all(ChannelId::State, fragments), Ok(2));
+    assert_eq!(queues.len(ChannelId::State), 4);
+    for tag in 0..4u8 {
+        assert_eq!(queues.pop(ChannelId::State), Some(vec![10 + tag; 25]));
+    }
+
+    // Behind a reliable backlog the same update cannot fit: nothing of it is
+    // queued, and nothing already queued is evicted for it.
+    assert_eq!(queues.push(ChannelId::Control, vec![7; 50]), Ok(0));
+    assert_eq!(queues.push(ChannelId::Probe, vec![2; 20]), Ok(0));
+    let fragments: Vec<Vec<u8>> = (0..4u8).map(|tag| vec![10 + tag; 15]).collect();
+    assert!(queues.push_all(ChannelId::State, fragments).is_err());
+    assert_eq!(queues.len(ChannelId::State), 0);
+    assert_eq!(
+        queues.len(ChannelId::Probe),
+        1,
+        "nothing was evicted for it"
+    );
+    assert_eq!(queues.total_bytes(), 70);
+    // A smaller update fits by evicting the probe.
+    let fragments: Vec<Vec<u8>> = (0..2u8).map(|tag| vec![10 + tag; 20]).collect();
+    assert_eq!(queues.push_all(ChannelId::State, fragments), Ok(1));
+    assert_eq!(queues.total_bytes(), 90);
+}

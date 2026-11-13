@@ -82,13 +82,21 @@ pub struct QuicConfig {
     pub keep_alive: Duration,
     /// Time allowed for the handshake and lane setup.
     pub connect_timeout: Duration,
-    /// Time a closing connection waits for its reliable data to be received.
+    /// Time a closing connection has, from the moment it is closed, to hand
+    /// over and have acknowledged its queued reliable data. When it runs out
+    /// the connection is closed anyway and the peer reports
+    /// `ReliableDeliveryFailed`.
     pub close_flush_timeout: Duration,
     /// Messages queued per reliable lane before `send` reports `Blocked`.
     pub send_queue_messages: usize,
     /// Events queued for the application. Reliable lanes stop reading when
-    /// it is full; datagrams are dropped.
+    /// it is full; datagrams are dropped. A host turns away a new connection
+    /// that cannot be reported within `connect_timeout`.
     pub event_queue_messages: usize,
+    /// Connections a host admits at once, counting handshakes in progress.
+    /// Further connections are refused before any work is spent on them.
+    /// Clients ignore it.
+    pub max_connections: usize,
 }
 
 impl Default for QuicConfig {
@@ -102,6 +110,7 @@ impl Default for QuicConfig {
             close_flush_timeout: Duration::from_secs(2),
             send_queue_messages: 64,
             event_queue_messages: 4_096,
+            max_connections: 64,
         }
     }
 }

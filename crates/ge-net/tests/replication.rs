@@ -964,6 +964,9 @@ fn a_partitioned_client_rejoins_as_a_new_attempt_and_converges() {
 #[test]
 fn a_blocked_datagram_lane_stays_bounded_and_recovers() {
     let mut budget = SessionBudget::small_session();
+    // The smallest queue that holds a reliable message and one whole
+    // three-fragment update.
+    budget.max_update_fragments = 3;
     budget.max_queued_bytes_per_peer = 8 * 1024;
     let mut pair = Pair::new(budget, 0, 65);
     pair.establish(1, filled(100, 0));

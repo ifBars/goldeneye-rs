@@ -802,11 +802,17 @@ fn transporting_a_command_does_not_make_it_valid() {
         .session
         .submit_command(slots[0], tick, &[0xee])
         .unwrap();
+    // The most negative step, whose absolute value does not fit an `i8`.
+    let wrapped = Command::Move { dx: i8::MIN, dy: 0 }.encode();
+    harness.clients[0]
+        .session
+        .submit_command(slots[0], tick, &wrapped)
+        .unwrap();
     harness.run_ticks(20);
-    assert_eq!(harness.world.rejected_commands, 2);
+    assert_eq!(harness.world.rejected_commands, 3);
     assert_eq!(
         harness.world.executed().len(),
-        executed + 2,
+        executed + 3,
         "released once each"
     );
     let after = harness.world.actor(avatar).unwrap();

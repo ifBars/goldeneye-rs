@@ -172,7 +172,8 @@ impl World {
         match decoded {
             Command::Move { dx, dy } => {
                 // A rule the host enforces: one step per axis per command.
-                if dx.abs() > 1 || dy.abs() > 1 {
+                // Range checks, not `abs()`: `i8::MIN.abs()` overflows.
+                if !(-1..=1).contains(&dx) || !(-1..=1).contains(&dy) {
                     self.rejected_commands += 1;
                     return;
                 }

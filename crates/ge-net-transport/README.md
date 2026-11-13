@@ -32,8 +32,10 @@ own. Dependency licenses are collected by `cargo xtask notices`.
 | Datagram lane, unreliable | QUIC datagrams; never carried on a stream |
 | Usable datagram size | Declared as 1100 bytes by default. A connection whose path cannot carry it is refused at setup |
 | Congestion | A full lane queue makes `send` return `Blocked`; nothing is buffered without bound |
-| Inbound pressure | Reliable lanes stop reading when the event queue is full, which stalls the sender through QUIC flow control. Datagrams are dropped and counted |
-| Closing | Reliable messages already accepted are flushed, within a bound, before the connection closes |
+| Inbound pressure | Reliable lanes stop reading when the event queue is full, which stalls the sender through QUIC flow control. Datagrams are dropped and counted. A host that cannot report a new connection within `connect_timeout` closes it |
+| Lane failure | Both reliable lanes are required. A lane the peer resets, stops or truncates ends the whole attempt at once with `ReliableDeliveryFailed`. A lane the peer finishes cleanly is allowed twice the flush time for the connection close that normally follows |
+| Admission | A host admits at most `max_connections` connections, counting handshakes in progress. Further connections are refused before any work is spent on them |
+| Closing | Reliable messages already accepted are flushed before the connection closes. The flush deadline starts when the attempt is closed; if it runs out, for example because the peer stopped reading but stayed connected, the connection is closed anyway and the peer reports `ReliableDeliveryFailed` |
 | Shutdown | `shutdown` or drop flushes, closes every connection and joins the worker thread |
 
 ## Identity
@@ -94,6 +96,11 @@ cargo test --locked -p ge-net-transport
   path, a reliable lane blocks under backpressure without dropping or
   reordering, a backed-up bulk lane does not block the control lane, a wrong
   pin fails authentication, closing flushes first, and shutdown joins.
+- `tests/misbehaving_peer.rs` uses a raw QUIC peer to break the contract on
+  purpose: finishing, resetting or stopping one lane while staying connected,
+  and stopping reading while a close is flushing. It also checks the admission
+  limit and a host whose application stops polling. Each case must end in a
+  bounded time with a typed failure.
 - `tests/processes.rs` runs one host and two clients as separate
   operating-system processes (`ge-net-loopback`), on a port the operating
   system assigns. Every state a client applied must equal what the host

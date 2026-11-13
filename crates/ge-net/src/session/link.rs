@@ -213,38 +213,29 @@ impl Link {
             Lane::Datagram => limits.datagram_bytes,
             Lane::Control | Lane::Bulk => limits.reliable_bytes,
         };
+        let mut envelopes = Vec::new();
         if header.encoded_len() + payload.len() <= max {
-            return self.push(&header, payload, max, diagnostics);
+            envelopes.push(encode(&header, payload, max)?);
+        } else {
+            if !kind.fragmentable() {
+                return Err(QueueOverflow);
+            }
+            let count = payload.len().div_ceil(limits.fragment_payload);
+            let Ok(count) = u8::try_from(count) else {
+                return Err(QueueOverflow);
+            };
+            for (index, part) in payload.chunks(limits.fragment_payload).enumerate() {
+                header.fragment = Some(Fragment {
+                    index: index as u8,
+                    count,
+                });
+                envelopes.push(encode(&header, part, max)?);
+            }
         }
-        if !kind.fragmentable() {
-            return Err(QueueOverflow);
-        }
-        let count = payload.len().div_ceil(limits.fragment_payload);
-        let Ok(count) = u8::try_from(count) else {
-            return Err(QueueOverflow);
-        };
-        for (index, part) in payload.chunks(limits.fragment_payload).enumerate() {
-            header.fragment = Some(Fragment {
-                index: index as u8,
-                count,
-            });
-            self.push(&header, part, max, diagnostics)?;
-        }
-        Ok(())
-    }
-
-    fn push(
-        &mut self,
-        header: &Header,
-        payload: &[u8],
-        max: usize,
-        diagnostics: &mut Diagnostics,
-    ) -> Result<(), QueueOverflow> {
-        let mut bytes = Vec::with_capacity(header.encoded_len() + payload.len());
-        envelope::encode(header, payload, max, &mut bytes).map_err(|_| QueueOverflow)?;
+        // Every fragment, or none: a partial update is useless to the peer.
         let evicted = self
             .out
-            .push(header.channel, bytes)
+            .push_all(channel, envelopes)
             .map_err(|_| QueueOverflow)?;
         diagnostics.drop_many(DropReason::QueueEvicted, evicted as u64);
         Ok(())
@@ -425,6 +416,12 @@ impl Link {
             }
         }
     }
+}
+
+fn encode(header: &Header, payload: &[u8], max: usize) -> Result<Vec<u8>, QueueOverflow> {
+    let mut bytes = Vec::with_capacity(header.encoded_len() + payload.len());
+    envelope::encode(header, payload, max, &mut bytes).map_err(|_| QueueOverflow)?;
+    Ok(bytes)
 }
 
 /// Maximum command bytes one input datagram can carry after its headers.

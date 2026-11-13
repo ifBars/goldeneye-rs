@@ -413,7 +413,14 @@ fn a_host_that_is_not_there_is_reported_within_the_connect_timeout() {
 #[test]
 fn configuration_limits_are_checked_before_a_socket_is_opened() {
     let identity = HostIdentity::generate().unwrap();
-    let cases: [(QuicConfig, &str); 5] = [
+    let cases: [(QuicConfig, &str); 6] = [
+        (
+            QuicConfig {
+                max_connections: 0,
+                ..QuicConfig::default()
+            },
+            "max_connections",
+        ),
         (
             QuicConfig {
                 max_datagram_bytes: 1_400,

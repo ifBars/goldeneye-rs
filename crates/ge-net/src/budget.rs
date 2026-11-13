@@ -40,7 +40,9 @@ pub struct SessionBudget {
     pub max_message_bytes: u16,
     /// Largest datagram envelope; the transport's limit may be lower.
     pub max_datagram_bytes: u16,
-    /// Outbound bytes queued for one connection across all channels.
+    /// Outbound bytes queued for one connection across all channels. It
+    /// must hold the larger of one reliable message and four snapshot
+    /// chunks, plus one whole fragmented state update.
     pub max_queued_bytes_per_peer: u32,
     /// Messages `ingest` accepts between two `advance` calls.
     pub max_inbound_messages_per_update: u32,
@@ -269,7 +271,16 @@ impl Limits {
         if (budget.bulk_burst_bytes as usize) < chunk_envelope {
             return Err(ConfigError::InvalidBudget("bulk_burst_bytes"));
         }
-        if (budget.max_queued_bytes_per_peer as usize) < reliable_bytes.max(4 * chunk_envelope) {
+        // The largest state update, with every fragment's envelope.
+        let update_envelopes = if budget.max_update_fragments >= 2 {
+            datagram_bytes * usize::from(budget.max_update_fragments)
+        } else {
+            datagram_bytes
+        };
+        // The queue must hold a whole update beside a reliable message, or a
+        // fragmented update could never be queued while control traffic waits.
+        let queue_floor = reliable_bytes.max(4 * chunk_envelope) + update_envelopes;
+        if (budget.max_queued_bytes_per_peer as usize) < queue_floor {
             return Err(ConfigError::InvalidBudget("max_queued_bytes_per_peer"));
         }
 

@@ -79,6 +79,12 @@ pub fn encode(
     max_message_bytes: usize,
     out: &mut Vec<u8>,
 ) -> Result<(), EncodeError> {
+    if header.encoded_len() > max_message_bytes {
+        return Err(EncodeError::HeaderTooLarge {
+            len: header.encoded_len(),
+            max: max_message_bytes,
+        });
+    }
     let total = header.encoded_len() + payload.len();
     let max_payload = max_message_bytes
         .saturating_sub(header.encoded_len())

@@ -106,6 +106,8 @@ pub enum EncodeError {
     PayloadTooLarge { len: usize, max: usize },
     /// A count does not fit its wire field.
     CountTooLarge(&'static str),
+    /// The header alone exceeds the message limit.
+    HeaderTooLarge { len: usize, max: usize },
 }
 
 impl fmt::Display for EncodeError {
@@ -115,6 +117,9 @@ impl fmt::Display for EncodeError {
                 write!(f, "payload of {len} bytes exceeds limit {max}")
             }
             Self::CountTooLarge(name) => write!(f, "count too large: {name}"),
+            Self::HeaderTooLarge { len, max } => {
+                write!(f, "header of {len} bytes exceeds limit {max}")
+            }
         }
     }
 }

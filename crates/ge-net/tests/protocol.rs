@@ -433,6 +433,17 @@ fn encoding_refuses_payloads_beyond_the_limit() {
         Err(EncodeError::PayloadTooLarge { len: 100, max: 50 })
     );
     assert!(out.is_empty());
+    // A header that alone exceeds the limit is refused, even with no
+    // payload, and nothing is written.
+    let tick_header = self::header(MessageKind::Activate, 1, 0, Some(600));
+    assert_eq!(
+        envelope::encode(&tick_header, &[], 21, &mut out),
+        Err(EncodeError::HeaderTooLarge { len: 22, max: 21 })
+    );
+    assert!(out.is_empty());
+    envelope::encode(&tick_header, &[], 22, &mut out).unwrap();
+    assert_eq!(envelope::decode(&out, 22).unwrap().header, tick_header);
+    out.clear();
     // The 16-bit length field bounds the payload even under a larger limit.
     assert_eq!(
         envelope::encode(&header, &vec![0; 70_000], 1 << 20, &mut out),
@@ -736,6 +747,27 @@ fn transports_must_declare_both_delivery_contracts() {
     assert_eq!(
         build(chunk, caps),
         Err(ConfigError::InvalidBudget("snapshot_chunk_bytes"))
+    );
+    // The queue must hold a whole fragmented update beside a reliable
+    // message; a smaller one could only ever deliver partial updates.
+    // Four snapshot-chunk envelopes (4 x 1044) outweigh one 4096-byte
+    // reliable message; eight 1200-byte fragments are the largest update.
+    let floor = 4 * (14 + 6 + 1_024) + 8 * 1_200;
+    for (bytes, valid) in [(5_000, false), (floor - 1, false), (floor, true)] {
+        let mut queue = config();
+        queue.budget.max_queued_bytes_per_peer = bytes;
+        let expected = if valid {
+            Ok(())
+        } else {
+            Err(ConfigError::InvalidBudget("max_queued_bytes_per_peer"))
+        };
+        assert_eq!(build(queue, caps), expected, "{bytes} queued bytes");
+    }
+    let mut history = config();
+    history.budget.baseline_history = 1;
+    assert_eq!(
+        build(history, caps),
+        Err(ConfigError::InvalidBudget("baseline_history"))
     );
     let mut slots = config();
     slots.requested_slots = 5;
@@ -1315,6 +1347,7 @@ fn every_failure_explains_itself_without_payloads_or_addresses() {
         [
             EncodeError::PayloadTooLarge { len: 9, max: 8 },
             EncodeError::CountTooLarge("slots"),
+            EncodeError::HeaderTooLarge { len: 22, max: 21 },
         ]
         .iter()
         .map(ToString::to_string),
