@@ -153,6 +153,27 @@ impl Attempt {
         self.ensure_current()?;
         Ok(())
     }
+    pub fn finish_preload_bind(
+        &self,
+        temporary: &mut ge_core::mission::player::components::temporary::Pending,
+    ) -> Result<()> {
+        self.ensure_current()?;
+        let mut state = self
+            .shared
+            .0
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("preload animation scratch owner lock is poisoned"))?;
+        self.ensure_current()?;
+        let State {
+            animation_context,
+            animation_scratch,
+            ..
+        } = &mut *state;
+        temporary.finish_bind_zero_time(animation_context, animation_scratch)?;
+        self.ensure_current()?;
+        Ok(())
+    }
     pub fn animation_callbacks(
         &self,
     ) -> Result<std::sync::Arc<ge_core::mission::player::components::callbacks::Table>> {

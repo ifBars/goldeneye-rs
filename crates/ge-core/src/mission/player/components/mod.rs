@@ -7,6 +7,7 @@ pub mod callbacks;
 mod preparation;
 mod registry;
 mod skeleton;
+pub mod temporary;
 mod visual;
 pub use animator::{AnimationPosition, Animator, EnableWrite};
 pub use preparation::{Attachment, BindReturn, ThirdPersonReturn, VisualPostbind};

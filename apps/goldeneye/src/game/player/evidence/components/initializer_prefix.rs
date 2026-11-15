@@ -1,7 +1,7 @@
 use super::super::super::Owned;
 use anyhow::{Context, Result, ensure};
 use ge_core::mission::player::{
-    constructor::initializer_prefix::Stage,
+    constructor::initializer_prefix::{Pending, Stage},
     transform_cache::{self, Backing, BackingKind, BuildStage, Header, Slot},
     world::World,
 };
@@ -200,6 +200,35 @@ pub(super) fn build(
                 .is_some_and(|t| t.helper_returned && t.helper_return == Some(1)),
         "initializer prefix lacks the actual outer component-helper success snapshot"
     );
+    if let Some(snapshot) = &player.completed_initializer_evidence {
+        ensure!(
+            snapshot
+                == &receipt(
+                    prefix,
+                    snapshot.caches.clone(),
+                    snapshot.state_sha256.clone()
+                ),
+            "historical initializer prefix differs from its actual pure cursor"
+        );
+        match (prefix.cache_snapshot(), &snapshot.caches) {
+            (None, None) => {}
+            (Some(captured), Some(caches)) => {
+                ensure!(
+                    caches.selected == captured.selected.map(slot)
+                        && caches.counts == captured.counts
+                        && caches.matrix_backings == captured.matrix_backings.map(|b| b.is_some())
+                        && caches.associations == captured.associations.map(|p| p.is_some())
+                        && caches.native_bytes == captured.native_bytes
+                        && caches.allocations == captured.allocations
+                        && caches.invocation_count == captured.invocation_count
+                        && caches.trace == prefix.cache_trace().map(trace),
+                    "historical initializer cache receipt differs from its captured owner snapshot"
+                );
+            }
+            _ => anyhow::bail!("historical initializer cache receipt lost its actual snapshot"),
+        }
+        return Ok(Some(snapshot.clone()));
+    }
     let item = world.item(player.base.item().context("initializer item absent")?)?;
     if let Some((before, after)) = prefix.flags() {
         ensure!(
@@ -286,6 +315,22 @@ pub(super) fn build(
             }),
         }))
     })?;
+    Ok(Some(receipt(
+        prefix,
+        caches,
+        super::super::words(b"ge_player_initializer_prefix_v1\0", |mut emit| {
+            prefix.visit_state_words(&mut emit);
+            player.base.visit_state_words(&mut emit);
+            item.visit_state_words(&mut emit);
+        }),
+    )))
+}
+
+fn receipt(
+    prefix: &Pending,
+    caches: Option<CacheState>,
+    state_sha256: String,
+) -> InitializerPrefix {
     let stage = match prefix.stage() {
         Stage::ItemFlags => "item_flags",
         Stage::ItemMode => "item_mode",
@@ -299,7 +344,7 @@ pub(super) fn build(
         Stage::AwaitingPreload => "awaiting_preload",
         Stage::AwaitingTail => "awaiting_tail",
     };
-    Ok(Some(InitializerPrefix {
+    InitializerPrefix {
         stage,
         pending_dependency: prefix.dependency(),
         item_flags_before: prefix.flags().map(|v| v.0),
@@ -312,10 +357,28 @@ pub(super) fn build(
         cache_enabled: prefix.cache_enabled(),
         invalidated: prefix.invalidated(),
         caches,
-        state_sha256: super::super::words(b"ge_player_initializer_prefix_v1\0", |mut emit| {
-            prefix.visit_state_words(&mut emit);
-            player.base.visit_state_words(&mut emit);
-            item.visit_state_words(&mut emit);
+        state_sha256,
+    }
+}
+
+/// Current cache state is separate from the immutable initializer capture.
+pub(super) fn current_caches(owner: &transform_cache::Owner) -> Result<CacheState> {
+    let snapshot = owner.snapshot();
+    Ok(CacheState {
+        selected: snapshot.selected.map(slot),
+        counts: snapshot.counts,
+        matrix_backings: snapshot.matrix_backings.map(|b| b.is_some()),
+        associations: snapshot.associations.map(|p| p.is_some()),
+        native_bytes: snapshot.native_bytes,
+        allocations: snapshot.allocations,
+        invocation_count: snapshot.invocation_count,
+        headers: [
+            header(owner.header(Slot::FirstPerson))?,
+            header(owner.header(Slot::ThirdPerson))?,
+        ],
+        trace: owner.trace().map(trace),
+        state_sha256: super::super::words(b"ge_player_transform_cache_owner_v1\0", |emit| {
+            owner.visit_state_words(emit)
         }),
-    }))
+    })
 }

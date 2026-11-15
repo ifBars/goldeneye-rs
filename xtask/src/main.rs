@@ -1,5 +1,6 @@
 mod menu;
 mod mission;
+mod parity;
 mod report;
 mod startup;
 
@@ -65,11 +66,42 @@ fn main() -> Result<()> {
             &args.next().context("usage: cargo xtask mission <disc>")?,
         )),
         Some("report") => report::generate(),
+        Some("parity") => {
+            let case_set = args.next().context(
+                "usage: cargo xtask parity <cases.json> <reference.json> <candidate.json>",
+            )?;
+            let reference = args.next().context("missing reference pack")?;
+            let candidate = args.next().context("missing candidate pack")?;
+            ensure!(args.next().is_none(), "unexpected parity arguments");
+            let hash = source_hash()?;
+            let summary = parity::compare(
+                root,
+                Path::new(&case_set),
+                Path::new(&reference),
+                Path::new(&candidate),
+                &hash,
+                &executable("release"),
+            )?;
+            ensure!(
+                hash == source_hash()?,
+                "source changed during comparison; result is stale"
+            );
+            println!(
+                "Frontend reference comparisons: {}/{} current cases verified ({})",
+                summary.verified, summary.total, summary.state
+            );
+            report::generate()?;
+            ensure!(
+                summary.verified == summary.total && summary.total > 0,
+                "frontend comparison set is incomplete or did not pass"
+            );
+            Ok(())
+        }
         Some("package") => package(),
         Some("notices") => notices(),
         None | Some("help") | Some("--help") => {
             println!(
-                "cargo xtask <check|coverage|smoke <disc>|resources <disc>|navigation <disc>|paths <disc>|render <disc>|viewer <disc>|menu <disc>|startup <disc>|mission <disc>|report|package|notices>"
+                "cargo xtask <check|coverage|smoke <disc>|resources <disc>|navigation <disc>|paths <disc>|render <disc>|viewer <disc>|menu <disc>|startup <disc>|mission <disc>|parity <cases.json> <reference.json> <candidate.json>|report|package|notices>"
             );
             Ok(())
         }
@@ -117,6 +149,8 @@ fn source_hash() -> Result<String> {
         PathBuf::from("tools/dashboard/package.json"),
         PathBuf::from("tools/dashboard/bun.lock"),
         PathBuf::from("tools/dashboard/dashboard.test.mjs"),
+        PathBuf::from("tools/dashboard/serve.py"),
+        PathBuf::from("tools/dashboard/serve_test.py"),
     ];
     for root in [
         "crates",

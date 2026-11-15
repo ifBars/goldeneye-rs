@@ -1,8 +1,8 @@
 //! Exact observed supplied Tutorial checkpoint, separate from generic schemas.
-use super::{player_component_tail, player_initializer_prefix, player_pose_setup};
+use super::{player_component_tail, player_initializer_prefix, player_pose_setup, player_preload};
 use anyhow::{Result, ensure};
 use serde_json::{Value, json};
-pub(super) fn validate(player: &Value) -> Result<()> {
+pub(super) fn validate(player: &Value, expected_player: u64) -> Result<()> {
     let c = &player["component_initialization"];
     let pose = &c["pose_setup"];
     let outer = &c["component_tail"];
@@ -10,10 +10,11 @@ pub(super) fn validate(player: &Value) -> Result<()> {
     player_pose_setup::validate(pose, c)?;
     player_component_tail::validate(outer, c)?;
     player_initializer_prefix::validate(prefix, c)?;
+    player_preload::validate_native(&c["preload"], c, expected_player)?;
     ensure!(
-        player["pending_dependency"] == "player_animation_preload"
-            && c["stage"] == "player_animation_preload_pending"
-            && c["pending_dependency"] == "player_animation_preload"
+        player["pending_dependency"] == "preload_temporary_bind"
+            && c["stage"] == "player_preload_temporary_pending"
+            && c["pending_dependency"] == "preload_temporary_bind"
             && pose["stage"] == "returned"
             && pose["input_raw"] == 1
             && pose["input_signed"] == 1

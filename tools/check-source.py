@@ -22,6 +22,9 @@ SOURCE_SUFFIXES = {".rs", ".toml", ".md", ".json", ".yml", ".yaml", ".wgsl", ".h
 TOOL_FILES = {
     "tools/check-source.py", "tools/dashboard/package.json",
     "tools/dashboard/bun.lock", "tools/dashboard/dashboard.test.mjs",
+    "tools/dashboard/serve.py", "tools/dashboard/serve_test.py",
+    "xtask/src/dashboard/player-preload.js",
+    "xtask/src/dashboard/reference-parity.js",
 }
 PRIVATE_PARTS = {"local", "target", "dist", "node_modules", ".git", "__pycache__"}
 SECRETS = re.compile(
@@ -38,7 +41,7 @@ def allowed(name: str) -> bool:
         return False
     if path.name == ".env" or path.name.startswith(".env."):
         return False
-    if name in ROOT_FILES or name in TOOL_FILES or name == "progress/roadmap.json":
+    if name in ROOT_FILES or name in TOOL_FILES or name in {"progress/roadmap.json", "progress/parity-cases.json"}:
         return True
     if path.parts[0] == "third-party":
         return path.name.startswith(("LICENSE", "COPYING", "NOTICE")) or path.name == "README.md"

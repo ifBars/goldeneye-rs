@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "id": "startup.warning-artwork.standard",
+      "title": "Sampled wrist-strap and Zapper warning artwork (4:3)",
+      "kind": "image_set",
+      "samples": [
+        {
+          "id": "strap",
+          "width": 640,
+          "height": 480,
+          "roi": null,
+          "minimum_nonblack_fraction": 0.02,
+          "minimum_spatial_range": 16
+        },
+        {
+          "id": "zapper",
+          "width": 640,
+          "height": 480,
+          "roi": null,
+          "minimum_nonblack_fraction": 0.02,
+          "minimum_spatial_range": 16
+        }
+      ],
+      "tolerances": {
+        "max_mae": 1.0,
+        "bad_pixel_delta": 4,
+        "max_bad_pixel_fraction": 0.01
+      }
+    },
+    {
+      "id": "startup.logo-frames.standard",
+      "title": "Sampled Activision, Eurocom and MGM movie appearance (4:3)",
+      "kind": "image_set",
+      "samples": [
+        {
+          "id": "activision",
+          "width": 640,
+          "height": 480,
+          "roi": null,
+          "minimum_nonblack_fraction": 0.02,
+          "minimum_spatial_range": 16
+        },
+        {
+          "id": "eurocom",
+          "width": 640,
+          "height": 480,
+          "roi": null,
+          "minimum_nonblack_fraction": 0.02,
+          "minimum_spatial_range": 16
+        },
+        {
+          "id": "mgm",
+          "width": 640,
+          "height": 480,
+          "roi": null,
+          "minimum_nonblack_fraction": 0.02,
+          "minimum_spatial_range": 16
+        }
+      ],
+      "tolerances": {
+        "max_mae": 1.0,
+        "bad_pixel_delta": 4,
+        "max_bad_pixel_fraction": 0.01
+      }
+    },
+    {
+      "id": "frontend.main-menu.standard",
+      "title": "Initial main-menu appearance after profile selection (4:3)",
+      "kind": "image_set",
+      "samples": [
+        {
+          "id": "main-menu",
+          "width": 640,
+          "height": 480,
+          "roi": null,
+          "minimum_nonblack_fraction": 0.02,
+          "minimum_spatial_range": 16
+        }
+      ],
+      "tolerances": {
+        "max_mae": 1.0,
+        "bad_pixel_delta": 4,
+        "max_bad_pixel_fraction": 0.01
+      }
+    }
+  ]
+}

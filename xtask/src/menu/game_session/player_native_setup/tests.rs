@@ -32,12 +32,17 @@ fn fixture() -> Value {
         b["descendant_visits"] = json!(visits);
         b["descendant_bytes"] = json!(desc);
     }
-    json!({"pending_dependency":"player_animation_preload","component_initialization":c})
+    c["preload"] = super::super::player_preload::tests::native_preload(&c);
+    c["stage"] = json!("player_preload_temporary_pending");
+    c["pending_dependency"] = json!("preload_temporary_bind");
+    c["attachment"] = super::super::player_attachment::tests::fixture();
+    c["attachment"]["registry_identities"] = json!(3);
+    json!({"pending_dependency":"preload_temporary_bind","component_initialization":c})
 }
 #[test]
-fn observed_tutorial_cache_and_nested_returns_remain_preload_pending() {
+fn observed_tutorial_retains_real_temporary_and_unresolved_script_body() {
     let p = fixture();
-    validate(&p).unwrap();
+    validate(&p, 1).unwrap();
     for (key, value) in [
         ("weapon_global_byte", json!(0)),
         ("global_equivalence_used", json!(false)),
@@ -45,15 +50,15 @@ fn observed_tutorial_cache_and_nested_returns_remain_preload_pending() {
     ] {
         let mut bad = p.clone();
         bad["component_initialization"]["pose_setup"][key] = value;
-        assert!(validate(&bad).is_err(), "accepted pose {key}");
+        assert!(validate(&bad, 1).is_err(), "accepted pose {key}");
     }
     let mut bad = p.clone();
     bad["component_initialization"]["pose_setup"]["enable_writes"][0]["flags_before"] = json!(0xb);
-    assert!(validate(&bad).is_err());
+    assert!(validate(&bad, 1).is_err());
     let mut bad = p.clone();
     bad["component_initialization"]["initializer_prefix"]["caches"]["headers"][0]["backings"][0]
         ["matrix_payload_known_bytes"] = json!(64);
-    assert!(validate(&bad).is_err());
+    assert!(validate(&bad, 1).is_err());
     let mut reused = p;
     let cache = &mut reused["component_initialization"]["initializer_prefix"]["caches"];
     cache["invocation_count"] = json!(2);
@@ -63,5 +68,61 @@ fn observed_tutorial_cache_and_nested_returns_remain_preload_pending() {
     trace["reused_selected"] = json!(true);
     trace["selection_returned"] = json!(false);
     trace["builds"] = json!([null, null]);
-    validate(&reused).unwrap();
+    reused["component_initialization"]["preload"] =
+        super::super::player_preload::tests::native_preload(&reused["component_initialization"]);
+    validate(&reused, 1).unwrap();
+}
+#[test]
+fn native_gate_requires_actual_new_owner_and_unknown_body_without_completion() {
+    let p = fixture();
+    validate(&p, 1).unwrap();
+    for (key, value) in [
+        ("stage", json!("awaiting_evaluation")),
+        ("factory_returned", json!(true)),
+        ("head_inserted", json!(true)),
+        ("identity", json!(2)),
+        ("source_receiver", json!(1)),
+        ("skin_file", json!(0x010a_0056)),
+        ("bones", json!(37)),
+        ("attached", json!(true)),
+        ("frame_stamp_known", json!(true)),
+        ("bind_return", json!(1)),
+    ] {
+        let mut bad = p.clone();
+        bad["component_initialization"]["preload"]["temporary"][key] = value;
+        assert!(
+            validate(&bad, 1).is_err(),
+            "accepted native temporary {key}"
+        );
+    }
+    for (key, value) in [
+        ("body_bound", json!(false)),
+        ("body_bound", json!(true)),
+        ("initializer_returned", json!(true)),
+        ("descriptor_index", json!(0)),
+        ("stage", json!("ReturnedWithoutBody")),
+    ] {
+        let mut bad = p.clone();
+        bad["component_initialization"]["preload"]["temporary"]["script"][key] = value;
+        assert!(validate(&bad, 1).is_err(), "accepted native script {key}");
+    }
+    let mut bad = p.clone();
+    bad["component_initialization"]["preload"]["temporary"] = Value::Null;
+    assert!(validate(&bad, 1).is_err());
+    let mut bad = p.clone();
+    bad["component_initialization"]["attachment"]["item_components"] = json!(3);
+    assert!(validate(&bad, 1).is_err());
+    let mut bad = p;
+    bad["component_initialization"]["preload"]["allocations"][0]["known_payload_bytes"] = json!(45);
+    assert!(validate(&bad, 1).is_err());
+}
+
+#[test]
+fn native_gate_binds_player_to_the_current_attempt_after_cancellation() {
+    let mut player = fixture();
+    player["component_initialization"]["preload"]["temporary"]["player"] = json!(2);
+    validate(&player, 2).unwrap();
+    assert!(validate(&player, 1).is_err());
+    player["component_initialization"]["preload"]["temporary"]["player"] = json!(0);
+    assert!(validate(&player, 0).is_err());
 }

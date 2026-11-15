@@ -23,7 +23,7 @@ pub struct PhaseZero {
     pub pending_file: Option<u32>,
     pub position: Option<super::position::Position>,
 }
-pub(super) fn build(header: &Header) -> Result<Option<PhaseZero>> {
+pub(in super::super) fn build(header: &Header) -> Result<Option<PhaseZero>> {
     use anyhow::Context;
     let Some(t) = header.initialization() else {
         return Ok(None);

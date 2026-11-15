@@ -68,7 +68,10 @@ pub fn run(
     game: crate::game::Controller,
 ) -> Result<Viewed> {
     options.validate()?;
-    let size = [960, 720];
+    let size = match options.capture_size.as_slice() {
+        [width, height] => [*width, *height],
+        _ => [960, 720],
+    };
     ensure!(
         size.iter().all(|&n| (1..=4096).contains(&n)),
         "window size must be 1..4096 per axis"

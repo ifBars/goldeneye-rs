@@ -1,5 +1,6 @@
 use anyhow::{Context, Result, ensure};
 use std::{fmt, mem::MaybeUninit};
+mod payload;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
@@ -41,6 +42,9 @@ impl Kind {
 pub struct Allocation {
     kind: Kind,
     storage: Vec<MaybeUninit<u8>>,
+    // Proof values belong to payload offsets, not the native array header.
+    // Untouched allocations need no payload metadata or initialized bytes.
+    payload_written: Option<Vec<Option<u8>>>,
     noop_entries: u32,
 }
 impl fmt::Debug for Allocation {
@@ -66,6 +70,7 @@ impl Allocation {
         let mut allocation = Self {
             kind,
             storage,
+            payload_written: None,
             noop_entries: 0,
         };
         if let Some(stride) = kind.stride() {
@@ -93,6 +98,9 @@ impl Allocation {
     }
     pub fn host_capacity_bytes(&self) -> usize {
         self.storage.capacity()
+            + self.payload_written.as_ref().map_or(0, |written| {
+                written.capacity() * std::mem::size_of::<Option<u8>>()
+            })
     }
     pub fn payload_offset(&self) -> usize {
         if self.kind.stride().is_some() { 16 } else { 0 }
@@ -116,8 +124,9 @@ impl Allocation {
         visit(self.native_bytes() as u32);
         visit(self.payload_offset() as u32);
         visit(self.payload_bytes() as u32);
-        visit((self.host_capacity_bytes() as u64 >> 32) as u32);
-        visit(self.host_capacity_bytes() as u32);
+        // Proof metadata allocation alone is not a native source write.
+        visit((self.storage.capacity() as u64 >> 32) as u32);
+        visit(self.storage.capacity() as u32);
         for offset in [0, 4, 8, 12] {
             let value = self.header_word(offset);
             visit(u32::from(value.is_some()));
@@ -126,7 +135,6 @@ impl Allocation {
             }
         }
         visit(self.noop_entries);
-        // All payload bytes and header8/c remain unknown. No byte accessor or
-        // serialization can accidentally read the actual MaybeUninit storage.
+        self.visit_payload(visit);
     }
 }

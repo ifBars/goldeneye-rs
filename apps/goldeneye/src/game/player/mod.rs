@@ -8,6 +8,7 @@ mod evidence;
 mod initializer;
 mod loadout;
 mod pose;
+mod preload;
 mod providers;
 mod virtual_init;
 use super::{actors::Definitions, resource_states, world_hooks};
@@ -48,10 +49,12 @@ pub(super) struct Owned {
     completed_constructor_evidence: Option<evidence::ConstructorTail>,
     completed_pose_evidence: Option<evidence::PoseSetup>,
     completed_component_evidence: Option<evidence::ComponentTail>,
+    completed_initializer_evidence: Option<evidence::InitializerPrefix>,
     constructor_tail: Option<continuation::Pending>,
     pose_setup: Option<pose::Owned>,
     component_tail: Option<ge_core::mission::player::constructor::component_tail::Pending>,
     initializer_prefix: Option<ge_core::mission::player::constructor::initializer_prefix::Pending>,
+    preload: Option<preload::Owned>,
     operations: usize,
     catalog_entries: usize,
     rng_reads: usize,
@@ -161,10 +164,12 @@ impl Owned {
             completed_constructor_evidence: None,
             completed_pose_evidence: None,
             completed_component_evidence: None,
+            completed_initializer_evidence: None,
             constructor_tail: None,
             pose_setup: None,
             component_tail: None,
             initializer_prefix: None,
+            preload: None,
             operations,
             catalog_entries,
             rng_reads: provider.rng_reads,
@@ -235,7 +240,18 @@ impl Owned {
         hook: &world_hooks::Attempt,
     ) -> Result<()> {
         let session = sources.session;
-        components::initialize(self, sources, world, hook)?;
+        components::initialize(
+            self,
+            components::Sources {
+                session: sources.session,
+                definitions: sources.definitions,
+                resources: &mut *sources.resources,
+                assets: &mut *sources.assets,
+                identities: &mut *sources.identities,
+            },
+            world,
+            hook,
+        )?;
         if self.flag.is_some() {
             ensure!(
                 self.callback_entry.is_none(),
@@ -249,6 +265,7 @@ impl Owned {
         constructor_tail::initialize(self, world, hook)?;
         pose::initialize(self, session, world, hook)?;
         component_tail::initialize(self, session, world, hook)?;
-        initializer::initialize(self, world, hook)
+        initializer::initialize(self, world, hook)?;
+        preload::initialize(self, world, sources.identities, hook)
     }
 }

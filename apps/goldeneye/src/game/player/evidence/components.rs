@@ -21,6 +21,7 @@ mod initializer_prefix;
 mod mask;
 mod pose_setup;
 mod postbind;
+mod preload;
 mod refresh;
 mod repeat;
 mod selector;
@@ -36,8 +37,10 @@ pub use component_tail::ComponentTail;
 pub use constructor_tail::ConstructorTail;
 pub use control_capture::ThirdPersonCapture;
 pub use first_person::FirstPersonBinding;
+pub use initializer_prefix::InitializerPrefix;
 pub use pose_setup::PoseSetup;
 pub use postbind::VisualPostbind;
+pub use preload::Preload;
 pub use refresh::BindRefresh;
 pub use repeat::RepeatAction;
 pub use selector::ThirdPersonSelector;
@@ -63,6 +66,13 @@ pub(super) fn capture_pose_setup(player: &Owned, world: &World) -> Result<PoseSe
 }
 pub(super) fn capture_component_tail(player: &Owned, world: &World) -> Result<ComponentTail> {
     component_tail::build(player, world)?.context("returned outer component helper evidence absent")
+}
+pub(super) fn capture_initializer_prefix(
+    player: &Owned,
+    world: &World,
+    hook: &crate::game::world_hooks::Attempt,
+) -> Result<InitializerPrefix> {
+    initializer_prefix::build(player, world, hook)?.context("initializer prefix receipt absent")
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -100,6 +110,7 @@ pub struct ComponentInitialization {
     pub pose_setup: Option<PoseSetup>,
     pub component_tail: Option<component_tail::ComponentTail>,
     pub initializer_prefix: Option<initializer_prefix::InitializerPrefix>,
+    pub preload: Option<Preload>,
     pub scope: &'static str,
 }
 pub(super) fn build(
@@ -164,7 +175,17 @@ pub(super) fn build(
     let pose_setup = pose_setup::build(player, world)?;
     let component_tail = component_tail::build(player, world)?;
     let initializer_prefix = initializer_prefix::build(player, world, hook)?;
-    let (stage, pending_dependency) = if let Some(prefix) = &initializer_prefix {
+    let preload = preload::build(player, world, hook)?;
+    let (stage, pending_dependency) = if let Some(preload) = &preload {
+        if preload.stage == "awaiting_temporary" {
+            ("player_preload_temporary_pending", "preload_temporary_bind")
+        } else {
+            (
+                "player_animation_preload_pending",
+                preload.pending_dependency,
+            )
+        }
+    } else if let Some(prefix) = &initializer_prefix {
         match prefix.stage {
             "awaiting_preload" => (
                 "player_animation_preload_pending",
@@ -233,6 +254,7 @@ pub(super) fn build(
         pose_setup,
         component_tail,
         initializer_prefix,
+        preload,
         scope: "TP selection and command effects use the same resident component base. Returned class-four factories copy the old head position, insert typed list members and apply scalar/post-word writes in source order. Only returned bodies are acknowledged before selector continuation. The setter preserves its actual tracked/untracked history gates. TP dispatch applies reached blend-coordinate writes and re-enters existing scripts with initflag1, retaining their file/cache/clip owners and separate update traces. Other factory classes, wrapper allocation and cleanup remain explicit dependencies when reached. The first action receipt stays immutable while the repeated action records its own setters, captured seek, override stores and second suffix. Callback return comes only from its separate tail receipt. Constructor continuation, pose postprocessing, scheduling, completed player and camera remain incomplete.",
     }))
 }

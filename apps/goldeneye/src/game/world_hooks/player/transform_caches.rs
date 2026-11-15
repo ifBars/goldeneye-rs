@@ -21,6 +21,24 @@ impl Attempt {
         self.ensure_current()?;
         result
     }
+
+    pub(in crate::game) fn with_player_preload<T>(
+        &self,
+        operation: impl FnOnce(&mut Shared, &mut Owner) -> Result<T>,
+    ) -> Result<T> {
+        self.ensure_current()?;
+        let mut state = self
+            .shared
+            .0
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("player preload owner lock is poisoned"))?;
+        self.ensure_current()?;
+        let player = &mut state.player;
+        let result = operation(&mut player.constructor, &mut player.transform_caches);
+        self.ensure_current()?;
+        result
+    }
 }
 
 #[cfg(test)]

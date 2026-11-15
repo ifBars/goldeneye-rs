@@ -7,6 +7,7 @@ pub(super) use components::CallbackTail;
 pub use components::ComponentInitialization;
 pub(super) use components::ComponentTail;
 pub(super) use components::InitialAction;
+pub(super) use components::InitializerPrefix;
 pub(super) use components::PoseSetup;
 pub(super) use components::{ConstructorTail, RepeatAction};
 use ge_core::mission::{
@@ -72,6 +73,20 @@ pub(super) fn capture_component_tail(owned: &Owned, world: &World) -> Result<Com
         "component snapshot requires the real outer helper return"
     );
     components::capture_component_tail(owned, world)
+}
+
+/// Preserve actual cache construction before preload mutates shared storage and
+/// invalidates the selected cache. Later evidence validates this saved receipt
+/// against the retained pure initializer trace, not newer live cache fields.
+pub(super) fn capture_initializer_prefix(
+    owned: &Owned,
+    world: &World,
+    hook: &Attempt,
+) -> Result<InitializerPrefix> {
+    ensure!(owned.initializer_prefix.as_ref().is_some_and(|prefix|
+        prefix.stage() == ge_core::mission::player::constructor::initializer_prefix::Stage::AwaitingPreload),
+        "initializer snapshot requires its actual preload boundary");
+    components::capture_initializer_prefix(owned, world, hook)
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

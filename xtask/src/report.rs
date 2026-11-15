@@ -44,7 +44,7 @@ fn validate(roadmap: &Roadmap) -> Result<()> {
         );
         ensure!(
             ["not_started", "in_progress", "implemented"].contains(&c.state.as_str()),
-            "invalid state {} for {}: verified requires a reference-comparison runner",
+            "invalid state {} for {}: verification must come from current comparison receipts",
             c.state,
             c.id
         );
@@ -93,11 +93,27 @@ fn embedded_json(value: &Value) -> Result<String> {
 
 fn render(value: &Value) -> Result<String> {
     let template = include_str!("dashboard.html");
+    let preload_marker = "/*__PLAYER_PRELOAD_DASHBOARD__*/";
+    let reference_marker = "/*__REFERENCE_PARITY_DASHBOARD__*/";
+    ensure!(
+        template.matches(reference_marker).count() == 1,
+        "dashboard reference module marker must appear exactly once"
+    );
+    ensure!(
+        template.matches(preload_marker).count() == 1,
+        "dashboard preload module marker must appear exactly once"
+    );
     let marker = "\"__REPORT_JSON__\"";
     ensure!(
         template.matches(marker).count() == 1,
         "dashboard data marker must appear exactly once"
     );
+    let template = template
+        .replace(preload_marker, include_str!("dashboard/player-preload.js"))
+        .replace(
+            reference_marker,
+            include_str!("dashboard/reference-parity.js"),
+        );
     Ok(template.replace(marker, &embedded_json(value)?))
 }
 
@@ -130,6 +146,12 @@ pub fn generate() -> Result<()> {
     let hash = source_hash()?;
     let scope_hash = format!("{:x}", Sha256::digest(&raw));
     let time = now();
+    let frontend_reference = crate::parity::current(
+        Path::new("."),
+        Path::new("progress/parity-cases.json"),
+        &hash,
+        &crate::executable("release"),
+    )?;
     let check = receipt("check", &hash, time)?;
     let coverage = receipt("coverage", &hash, time)?;
     let assets = receipt("assets", &hash, time)?;
@@ -169,6 +191,7 @@ pub fn generate() -> Result<()> {
             "implemented_percent": 100.0 * implemented as f64 / total as f64, "comparator_available":false},
         "groups": groups, "criteria":roadmap.criteria,
         "initial_checkpoint":menu_checkpoint(&menu_receipt),
+        "frontend_reference":frontend_reference,
         "checks":check, "coverage":coverage, "assets":assets,"resources":resources,"render":render_receipt,"viewer":viewer_receipt,"navigation":navigation_receipt,"paths":paths_receipt,"menu":menu_receipt,"startup":startup_receipt,"mission":mission_receipt,
         "compatibility": [
             {"edition":"Wii · SJBE52", "revision":"0", "container":"RVZ", "assets":"not_run", "resources":"not_run", "render":"not_run", "viewer":"not_run", "menu":"not_run", "startup":"not_run", "runtime":"not_implemented"},
@@ -228,6 +251,13 @@ pub fn generate() -> Result<()> {
     observation["menu_time"] = latest["menu"]["time_unix"].clone();
     observation["startup_state"] = latest["startup"]["state"].clone();
     observation["startup_time"] = latest["startup"]["time_unix"].clone();
+    observation["frontend_reference_percent"] = latest["frontend_reference"]["percent"].clone();
+    observation["frontend_reference_state"] = latest["frontend_reference"]["state"].clone();
+    observation["frontend_reference_verified"] = latest["frontend_reference"]["verified"].clone();
+    observation["frontend_reference_total"] = latest["frontend_reference"]["total"].clone();
+    observation["frontend_reference_case_set"] =
+        latest["frontend_reference"]["case_set_sha256"].clone();
+    observation["frontend_reference_run"] = latest["frontend_reference"]["run_id"].clone();
     observation["coverage_measurement_version"] =
         latest["coverage"]["details"]["measurement_version"].clone();
     let identity = format!("{:x}", Sha256::digest(serde_json::to_vec(&observation)?));

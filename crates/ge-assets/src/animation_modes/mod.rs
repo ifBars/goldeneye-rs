@@ -2,10 +2,12 @@
 //! This reader plans no initial mode, allocates no animator children and samples
 //! no channels. Nonzero sections require a future section-ownership adapter.
 mod commands;
+mod preload;
 mod sets;
 mod stream;
 mod types;
 
+pub use preload::{ClassFourReference, ExtractionBudget};
 pub use stream::CommandStream;
 pub use types::{Budget, Child, Command, CommandLocation, Descriptor, Group, Set};
 

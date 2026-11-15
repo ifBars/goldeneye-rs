@@ -4,7 +4,7 @@ use ge_core::animation::{
     script_child::{self, Stage},
 };
 use serde::Serialize;
-mod phase_zero;
+pub(super) mod phase_zero;
 mod position;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct ChildHeader {

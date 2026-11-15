@@ -19,6 +19,7 @@ mod pose;
 pub use pose::EnableWrite;
 mod repeat;
 pub use repeat::AnimationPosition;
+mod temporary;
 
 pub const SOURCE_BYTES: usize = 0x1b8;
 

@@ -1,5 +1,6 @@
 //! Retained class-four headers and phase-zero initialization. Source pointer
 //! roles are typed bindings; unwritten bytes and unperformed effects stay unknown.
+pub mod forward_tick;
 pub mod initialization;
 pub mod parameters;
 mod parent;
@@ -19,16 +20,32 @@ pub struct Binding {
     pub directory_index: usize,
     pub hash: u32,
 }
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BodyState {
+    Absent,
+    Resident,
+    /// The wrapper exists, but its reached section/body provider is unavailable.
+    /// This is neither a known NULL body nor permission to read cached bytes.
+    Pending,
+}
 pub trait Provider {
     fn file(&self) -> u32;
     fn generation(&mut self) -> Result<u32>;
     fn resolve_script(&mut self, reference: u32) -> Result<Option<Binding>>;
     fn bind_body(&mut self, binding: Binding) -> Result<bool>;
+    fn body_state(&mut self, binding: Binding) -> Result<BodyState> {
+        Ok(if self.bind_body(binding)? {
+            BodyState::Resident
+        } else {
+            BodyState::Absent
+        })
+    }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stage {
     Constructed,
     AwaitingScript,
+    AwaitingScriptBody,
     ResolvingScript,
     AwaitingInitializer,
     ReturnedWithoutBody,
@@ -217,15 +234,23 @@ impl Header {
             }
         }
         let body = if let Some(binding) = self.cached {
-            source.bind_body(binding)?
+            source.body_state(binding)?
         } else {
-            false
+            BodyState::Absent
         };
-        self.body_bound = Some(body);
-        self.stage = if body {
-            Stage::AwaitingInitializer
-        } else {
-            Stage::ReturnedWithoutBody
+        match body {
+            BodyState::Pending => {
+                self.body_bound = None;
+                self.stage = Stage::AwaitingScriptBody;
+            }
+            BodyState::Resident => {
+                self.body_bound = Some(true);
+                self.stage = Stage::AwaitingInitializer;
+            }
+            BodyState::Absent => {
+                self.body_bound = Some(false);
+                self.stage = Stage::ReturnedWithoutBody;
+            }
         };
         Ok(())
     }

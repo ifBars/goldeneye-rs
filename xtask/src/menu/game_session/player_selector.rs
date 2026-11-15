@@ -29,6 +29,13 @@ pub(super) fn dependency(stage: &Value) -> Option<&'static str> {
         _ => None,
     }
 }
+pub(super) fn dependency_for(component: &Value) -> Option<&'static str> {
+    if !component["preload"].is_null() {
+        super::player_preload::dependency(&component["preload"])
+    } else {
+        dependency(&component["stage"])
+    }
+}
 pub(super) fn root_rank(stage: &Value) -> Option<u8> {
     match stage.as_str()? {
         "action_dispatch_repeat_pending" => Some(0),
@@ -39,6 +46,7 @@ pub(super) fn root_rank(stage: &Value) -> Option<u8> {
         "player_initializer_pending" => Some(5),
         "player_transform_caches_pending" => Some(6),
         "player_animation_preload_pending" | "player_initializer_tail_pending" => Some(7),
+        "player_preload_temporary_pending" => Some(8),
         _ => None,
     }
 }

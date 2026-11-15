@@ -730,3 +730,14 @@ The native render receipt is separate from asset parsing, coverage and parity.
 CI parses/validates WGSL without requiring a GPU; the local GPU fixture is opt-in
 and must report an actual passing test before recording render evidence. All
 offscreen frame data remains under ignored `local/`.
+
+The [animation preload](animation-preload.md) cursor now performs narrow writes
+in the existing shared allocations and visits source-ordered registry rows.
+Its first actual mapping, selected-cache invalidation and class-four extraction
+precede a distinct temporary animator from the same identity registry. This
+owner binds a new skeleton from the current FP secondary skin pair and retains
+its own direct-factory header. Script metadata is cached before a missing
+section-publication provider stops body access. Unknown publication is separate
+from a confirmed NULL body; the getter requests no load. The returned initializer
+receipt stays immutable while current preload storage and validity history change.
+The shared flag remains one, and no player or camera completion is inferred.

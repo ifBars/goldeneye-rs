@@ -3,6 +3,9 @@ use anyhow::{Result, ensure};
 use serde_json::Value;
 mod phase_zero;
 mod position;
+pub(super) fn validate_phase_zero(value: &Value) -> Result<()> {
+    phase_zero::validate(value)
+}
 pub(super) fn validate(state: &Value, stage: &Value) -> Result<()> {
     closed(
         state,

@@ -1434,5 +1434,8 @@ fn write_new(path: &std::path::Path, bytes: &[u8]) -> Result<()> {
 }
 
 #[cfg(test)]
+#[path = "tests/capture_size.rs"]
+mod capture_size_tests;
+#[cfg(test)]
 #[path = "tests/output.rs"]
 mod tests;

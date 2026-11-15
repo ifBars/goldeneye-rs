@@ -6,6 +6,7 @@ use ge_assets::{edb::Edb, resource::GameAssets, skin, target_section};
 use std::{collections::BTreeMap, sync::Arc};
 mod bone_mask;
 mod modes;
+mod preload;
 mod script_child;
 
 pub(crate) struct FileBinding {

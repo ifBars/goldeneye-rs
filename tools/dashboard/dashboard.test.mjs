@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 const template = readFileSync(new URL('../../xtask/src/dashboard.html', import.meta.url), 'utf8');
+const preloadModule = readFileSync(new URL('../../xtask/src/dashboard/player-preload.js', import.meta.url), 'utf8');
+const referenceModule = readFileSync(new URL('../../xtask/src/dashboard/reference-parity.js', import.meta.url), 'utf8');
 const generated = readFileSync(new URL('../../progress/index.html', import.meta.url), 'utf8');
 const latest = JSON.parse(readFileSync(new URL('../../progress/latest.json', import.meta.url), 'utf8'));
 const kinds = ['checks','coverage','assets','resources','render','viewer','navigation','paths','menu','startup','mission'];
@@ -24,7 +26,11 @@ function fixture() {
 }
 function embed(report) {
   const safe = JSON.stringify(report).replaceAll('<','\\u003c').replaceAll('>','\\u003e').replaceAll('&','\\u0026');
-  return template.replace('"__REPORT_JSON__"',safe);
+  assert.equal(template.split('/*__PLAYER_PRELOAD_DASHBOARD__*/').length,2);
+  assert.equal(template.split('"__REPORT_JSON__"').length,2);
+  assert.equal(template.split('/*__REFERENCE_PARITY_DASHBOARD__*/').length,2);
+  return template.replace('/*__PLAYER_PRELOAD_DASHBOARD__*/',preloadModule)
+    .replace('/*__REFERENCE_PARITY_DASHBOARD__*/',referenceModule).replace('"__REPORT_JSON__"',safe);
 }
 
 test('mission context reports measured retention without implying playable worlds',async()=>{
@@ -2572,6 +2578,156 @@ function withInitializerPrefix(report,stage='awaiting_preload') {
   });
 }
 
+function preloadFixture(historical) {
+  const caches=structuredClone(historical);
+  caches.headers[0].invalidation_count_reads++;
+  caches.headers[0].invalidation_pointer_reads++;
+  caches.state_sha256='e'.repeat(64);
+  return {stage:'awaiting_temporary',pending_dependency:'preload_temporary_bind',entry_flag:1,cache_enabled:1,
+    raw_flags_written:32,entry_keys_written:34,registry_count:4,source_row:2,rows_visited:3,enabled_rows:1,
+    current_weapon:0x02000101,call_in_row:0,completed_calls:[],current_call:{stage:'awaiting_temporary',ordinal:0,source_ordinal:2,
+      weapon:0x02000101,generic:0x09000765,alternate:false,variant:0,mapping:{output:0x09000101,mapped:true,steps:1,map_rows_read:1,state_sha256:'a'.repeat(64)},
+      raw_flags_read:1,raw_keys_read:0,raw_index:0,raw_indices_written:true,entry_keys_read:2,entry_index:0,
+      occupied_written:true,weapon_written:true,mapping_written:true,selected_key_empty:true,invalidated:true,
+      extraction_returned:true,reference_outcome:'class_four',reference:0x84000003,extraction:{requested_index:3,baseline_index:0,
+        transition_ordinal:1,command_ordinal:0,set_index:4,group_ordinal:0,child_ordinal:0,transitions_read:2,commands_read:1,groups_read:1,children_read:1},
+      return_word:null,return_reason:null,state_sha256:'b'.repeat(64)},
+    temporary:{stage:'awaiting_initializer',pending_dependency:'temporary_script_body_residency',identity:3,source_receiver:2,player:1,
+      component_file:0x01020016,reference:0x84000003,skin_file:0x010a0056,skin_reference:0x0d000001,attached:false,callbacks_bound:false,
+      skeleton_bound:true,bones:2,auxiliary_words:0,skeleton_backlink_bound:true,pose_callback_assigned:false,frame_stamp_known:false,
+      semantic_flags:[0,11],component_flags:0,active_slots:1,factory_returned:false,head_inserted:false,
+      script:{stage:'AwaitingScriptBody',slot:0,factory_flags:3,reference:0x84000003,descriptor_index:3,body_bound:null,
+        initializer_returned:false,phase_zero:null,clips:[],state_sha256:'c'.repeat(64)},forward:null,maintenance_skipped:false,
+      reverse_skipped:false,bind_return:null,refresh_returned:false,state_sha256:'d'.repeat(64)},
+    allocations:[{kind:'raw',native_bytes:512,payload_bytes:512,known_payload_bytes:44,header_words:[null,null,null,null]},
+      {kind:'array34',native_bytes:7088,payload_bytes:7072,known_payload_bytes:136,header_words:[208,34,null,null]},
+      {kind:'array64',native_bytes:56080,payload_bytes:56064,known_payload_bytes:0,header_words:[876,64,null,null]}],
+    caches,flag_cleared:false,helper_returned:false,state_sha256:'f'.repeat(64)};
+}
+function withPreload(report) {
+  withInitializerPrefix(report);
+  return forPlayerComponents(report,(c,p)=>{
+    c.preload=preloadFixture(c.initializer_prefix.caches);c.attachment.registry_identities=3;
+    c.stage='player_preload_temporary_pending';c.pending_dependency='preload_temporary_bind';p.pending_dependency=c.pending_dependency;
+  });
+}
+
+test('offline preload module is embedded before report strings and needs no external script',async()=>{
+  const report=withPreload(withPlayerPrelude(gameSessionFixture()));
+  report.next='Retain literal /*__PLAYER_PRELOAD_DASHBOARD__*/ and "__REPORT_JSON__"';
+  const html=embed(report);
+  assert.equal((html.match(/const playerPreloadDashboard =/g)??[]).length,1);
+  assert.doesNotMatch(html,/<script[^>]+src=/);
+  await inspect(html,d=>{
+    assert.match(d.querySelector('#game-session-summary').textContent,/Preload wrote 32 Raw flags/);
+    assert.match(d.querySelector('#next').textContent,/literal \/\*__PLAYER_PRELOAD_DASHBOARD__\*\//);
+  });
+});
+
+test('preload shows retained unknown body without changing historical initializer or readiness',async()=>{
+  const report=withPreload(withPlayerPrelude(gameSessionFixture()));
+  const c=report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization;
+  const historical=JSON.stringify([c.initial_action,c.repeat_action,c.callback_tail,c.constructor_tail,c.pose_setup,c.component_tail,c.initializer_prefix]);
+  await inspect(embed(report),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.match(text,/32 Raw flags and 34 entry keys; 3 registry rows were visited and 1 was enabled/);
+    assert.match(text,/44 \/ 136 \/ 0 bytes/);
+    assert.match(text,/Current selected-cache validity reads: 1; the initializer cache receipt remains historical/);
+    assert.match(text,/selected animation-entry key is still empty; no key commit/);
+    assert.match(text,/distinct temporary animator 3 retains 2 bones and 0 auxiliary words/);
+    assert.match(text,/body residency is unknown/);
+    assert.match(text,/No head insertion, forward tick or evaluation has run/);
+    assert.match(text,/preload has not returned/);
+    assert.doesNotMatch(text,/has not been recorded completely|undefined/);
+    assert.equal(d.querySelector('#parity-count').textContent,'0 of 3 tracked criteria verified');
+  });
+  assert.equal(JSON.stringify([c.initial_action,c.repeat_action,c.callback_tail,c.constructor_tail,c.pose_setup,c.component_tail,c.initializer_prefix]),historical);
+});
+
+test('known no-reference still awaits a real temporary and differs from unreturned extraction',async()=>{
+  const report=withPreload(withPlayerPrelude(gameSessionFixture()));
+  forPlayerComponents(report,c=>{
+    Object.assign(c.preload.current_call,{reference_outcome:'no_reference',reference:null,extraction:null});
+    c.preload.temporary=null;
+  });
+  await inspect(embed(report),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.match(text,/known no-reference result; temporary binding is still required/);
+    assert.match(text,/No temporary animator has been allocated yet/);
+    assert.doesNotMatch(text,/has not been recorded completely|undefined/);
+  });
+  forPlayerComponents(report,c=>{c.preload.current_call.reference=0;});
+  await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+});
+
+test('preload partial prefix retains unknown payload rather than whole-allocation initialization',async()=>{
+  const report=withPreload(withPlayerPrelude(gameSessionFixture()));
+  forPlayerComponents(report,(c,p)=>{
+    const preload=c.preload;
+    Object.assign(preload,{stage:'raw_flags',pending_dependency:'player_animation_preload',raw_flags_written:7,entry_keys_written:0,
+      registry_count:null,source_row:0,rows_visited:0,enabled_rows:0,current_weapon:null,call_in_row:0,completed_calls:[],current_call:null,temporary:null,
+      caches:structuredClone(c.initializer_prefix.caches)});
+    preload.allocations[0].known_payload_bytes=7;preload.allocations[1].known_payload_bytes=0;
+    c.stage='player_animation_preload_pending';c.pending_dependency='player_animation_preload';p.pending_dependency=c.pending_dependency;
+  });
+  await inspect(embed(report),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.match(text,/Preload wrote 7 Raw flags and 0 entry keys/);
+    assert.match(text,/7 \/ 0 \/ 0 bytes/);
+    assert.doesNotMatch(text,/has not been recorded completely|undefined/);
+  });
+});
+
+test('preload rejects early commits, invented bodies, aliases and changed historical caches',async()=>{
+  const changes=[c=>{c.preload.flag_cleared=true;},c=>{c.preload.cache_enabled=0;},c=>{c.preload.helper_returned=true;},
+    c=>{c.preload.current_call.selected_key_empty=false;},c=>{c.preload.current_call.return_word=1;},c=>{c.preload.current_call.mapping_written=false;},
+    c=>{c.preload.current_call.raw_keys_read=1;},c=>{c.preload.current_call.variant=1;},c=>{c.preload.current_call.extraction_returned=false;},
+    c=>{c.preload.temporary.script.body_bound=false;},c=>{c.preload.temporary.script.body_bound=true;},c=>{c.preload.temporary.script.descriptor_index=null;},
+    c=>{c.preload.temporary.script.initializer_returned=true;},c=>{c.preload.temporary.identity=2;},c=>{c.preload.temporary.attached=true;},
+    c=>{c.preload.temporary.callbacks_bound=true;},c=>{c.preload.temporary.head_inserted=true;},c=>{c.preload.temporary.bind_return=1;},
+    c=>{c.preload.temporary.refresh_returned=true;},c=>{c.preload.temporary.semantic_flags=[0,3];},c=>{c.preload.temporary.pose_callback_assigned=true;},
+    c=>{c.preload.allocations[0].known_payload_bytes=43;},c=>{c.preload.allocations[0].known_payload_bytes=512;},
+    c=>{c.preload.allocations[1].known_payload_bytes=7072;},c=>{c.preload.allocations[1].header_words=[208,34,0,0];},c=>{c.preload.allocations[2].known_payload_bytes=4;},
+    c=>{c.initializer_prefix.caches.headers[0].invalidation_count_reads=1;c.initializer_prefix.caches.headers[0].invalidation_pointer_reads=1;},
+    c=>{c.preload.caches.headers[0].backings[0].known_bytes=72;c.preload.caches.headers[0].backings[0].matrix_payload_known_bytes=64;},
+    c=>{c.preload.caches.headers[1].invalidation_count_reads=1;c.preload.caches.headers[1].invalidation_pointer_reads=1;},
+    c=>{c.initializer_prefix=null;},c=>{c.preload=null;}];
+  const sample=preloadFixture(transformCachesFixture());
+  for(const path of [[],['current_call'],['current_call','mapping'],['current_call','extraction'],['temporary'],['temporary','script'],['allocations',0]]) {
+    const target=path.reduce((v,k)=>v[k],sample);
+    for(const key of Object.keys(target)) changes.push(c=>{const target=path.reduce((v,k)=>v[k],c.preload);delete target[key];});
+  }
+  changes.push(c=>{delete c.preload;});
+  for(const change of changes) {
+    const report=withPreload(withPlayerPrelude(gameSessionFixture()));
+    change(report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization);
+    await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+  }
+});
+
+test('forward residency waits preserve a historical initializer without inventing a current body',async()=>{
+  const report=withPreload(withPlayerPrelude(gameSessionFixture()));
+  forPlayerComponents(report,c=>{
+    const t=c.preload.temporary;
+    Object.assign(t,{stage:'forward_tick',pending_dependency:'temporary_script_body_residency',factory_returned:true,head_inserted:true,
+      forward:{stage:'AwaitingBody',phase_cleared:true,body_bound:null,duration_raw:null,fps_bits:null,result_bits:null}});
+    Object.assign(t.script,{stage:'ReturnedWithoutBody',body_bound:null,initializer_returned:true});
+  });
+  await inspect(embed(report),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.match(text,/temporary script body residency/);
+    assert.doesNotMatch(text,/has not been recorded completely|No head insertion, forward tick or evaluation has run/);
+  });
+  const changes=[t=>{t.forward.body_bound=false;},t=>{t.forward.duration_raw=0;},t=>{t.forward.phase_cleared=false;},
+    t=>{t.maintenance_skipped=true;},t=>{t.reverse_skipped=true;},t=>{t.pending_dependency='temporary_forward_tick';},
+    t=>{t.forward=null;t.stage='awaiting_evaluation';t.pending_dependency='temporary_animation_evaluation';t.maintenance_skipped=true;t.reverse_skipped=true;}];
+  for(const change of changes) {
+    const bad=structuredClone(report);
+    change(bad.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization.preload.temporary);
+    await inspect(embed(bad),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+  }
+});
+
 test('pose stages retain ordered effects and explicit unknown global equivalence',async()=>{
   for(const stage of poseStages) {
     const report=withPoseSetup(withPlayerPrelude(gameSessionFixture()),stage);
@@ -3274,7 +3430,7 @@ function componentPlayerFixture() {
     texture_dependencies_enumerated:true,component_binding_complete:true,
     texture_directory_outcome:'enumerated',texture_requests:3,texture_targets_resident:3,
     texture_residency_complete:true,texture_requests_state_sha256:'f'.repeat(64),preparation_state_sha256:'d'.repeat(64),
-    target_state_sha256:'e'.repeat(64),skeleton_binding:skeletonPlayerFixture(),bind_refresh:refreshPlayerFixture(),attachment:attachmentPlayerFixture(),visual_postbind:postbindPlayerFixture(),callbacks:callbacksPlayerFixture(),first_person:firstPersonPlayerFixture(),initial_action:initialActionPlayerFixture(),repeat_action:null,callback_tail:null,constructor_tail:null,pose_setup:null,component_tail:null,initializer_prefix:null,scope:'Authored initial action; TP control dispatch pending'};
+    target_state_sha256:'e'.repeat(64),skeleton_binding:skeletonPlayerFixture(),bind_refresh:refreshPlayerFixture(),attachment:attachmentPlayerFixture(),visual_postbind:postbindPlayerFixture(),callbacks:callbacksPlayerFixture(),first_person:firstPersonPlayerFixture(),initial_action:initialActionPlayerFixture(),repeat_action:null,callback_tail:null,constructor_tail:null,pose_setup:null,component_tail:null,initializer_prefix:null,preload:null,scope:'Authored initial action; TP control dispatch pending'};
 }
 function virtualPlayerFixture() {
   return {stage:'player_basic_complete',pending_dependency:'tp_fp_components',
@@ -3651,6 +3807,44 @@ test('retained script header distinguishes pending interpretation from a native 
       assert.match(text,/awaiting child effects/);assert.match(text,/One child header retained; no layer insertion or command return/);
       assert.doesNotMatch(text,/has not been recorded completely/);
       assert.equal(d.querySelector('#parity-count').textContent,'0 of 3 tracked criteria verified');
+    });
+  }
+});
+
+
+function frontendReferenceFixture(state='passed') {
+  const passed=state==='passed';
+  const metric={pixels:4,mae:0,max_channel_error:0,bad_pixel_fraction:0,reference_nonblack_fraction:1,candidate_nonblack_fraction:1,reference_spatial_range:100,candidate_spatial_range:100};
+  return {schema_version:1,comparator:'png_rgba8_image_set_v1',state,reason:null,measured_state:state==='stale'?'passed':null,
+    verified:passed?1:0,total:1,percent:passed?100:0,case_set_sha256:'a'.repeat(64),run_id:'b'.repeat(64),
+    cases:[{id:'warning',title:'Warning artwork',state,reason:null,passed_samples:1,total_samples:1,
+      samples:[{id:'held',passed:true,reason:null,metrics:metric}]}]};
+}
+test('frontend reference cases show computed verification separately from broad game scope',async()=>{
+  const report=fixture();report.frontend_reference=frontendReferenceFixture();
+  await inspect(embed(report),d=>{
+    assert.equal(d.querySelector('#reference-number').textContent,'100.0%');
+    assert.match(d.querySelector('#reference-count').textContent,/1 of 1 current frontend reference cases verified/);
+    assert.match(d.querySelector('#reference-cases').textContent,/Warning artwork/);
+    assert.equal(d.querySelector('#parity-count').textContent,'0 of 3 tracked criteria verified');
+  });
+});
+test('stale frontend measurements preserve history while contributing zero current verification',async()=>{
+  const report=fixture();report.frontend_reference=frontendReferenceFixture('stale');
+  await inspect(embed(report),d=>{
+    assert.match(d.querySelector('#reference-count').textContent,/0 of 1/);
+    assert.match(d.querySelector('#reference-summary').textContent,/historical metrics do not count/);
+    assert.match(d.querySelector('#reference-cases').textContent,/previous measurement/);
+  });
+});
+test('frontend counters reject fabricated current passes and incomplete sample metrics',async()=>{
+  for(const mutate of [v=>{v.verified=0},v=>{v.percent=99},v=>{v.state='stale'},
+    v=>{v.cases[0].samples[0].metrics=null},v=>{v.cases[0].samples[0].metrics.mae=-1},
+    v=>{v.cases[0].samples[0].passed=false},v=>{v.cases[0].samples=[]}]) {
+    const report=fixture();report.frontend_reference=frontendReferenceFixture();mutate(report.frontend_reference);
+    await inspect(embed(report),d=>{
+      assert.equal(d.querySelector('#reference-number').textContent,'—');
+      assert.match(d.querySelector('#reference-count').textContent,/No trustworthy current comparison count/);
     });
   }
 });

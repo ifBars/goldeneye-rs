@@ -5,6 +5,8 @@ pub mod component_tail;
 pub mod continuation;
 pub mod initializer_prefix;
 pub mod pose;
+pub mod preload;
+mod preload_storage;
 mod prelude;
 mod reset_prefix;
 mod scratch;
@@ -340,7 +342,7 @@ impl Shared {
     /// Versioned owned-state words only. Uninitialized payload/header bytes are
     /// represented by metadata/unknown spans, never read or serialized.
     pub fn visit_state_words(&self, mut visit: impl FnMut(u32)) {
-        visit(2);
+        visit(3);
         visit(self.count);
         visit(u32::from(self.cache_enabled));
         visit(u32::from(self.allocation_failed));

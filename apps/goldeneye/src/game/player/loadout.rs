@@ -55,6 +55,34 @@ impl Sources {
     pub fn metadata_at_selected_slot(&self, slot: u8, inventory: &Inventory) -> Result<&Metadata> {
         selected_metadata(&self.metadata, slot, inventory)
     }
+    pub fn preload_registry_count(&self) -> usize {
+        self.tables.registry_count()
+    }
+    pub fn preload_enabled_byte(&self, source_ordinal: usize) -> Result<u8> {
+        self.tables
+            .record_at_source_ordinal(source_ordinal)?
+            .preload_enabled_byte()
+    }
+    pub fn preload_weapon(&self, source_ordinal: usize) -> Result<u32> {
+        Ok(self.tables.record_at_source_ordinal(source_ordinal)?.key())
+    }
+    pub fn map_preload(
+        &self,
+        request: ge_core::mission::player::constructor::preload::Request,
+        available: impl FnMut(u32) -> Result<bool>,
+    ) -> Result<ge_assets::weapon_static::Remap> {
+        self.tables.map_action(
+            request.weapon,
+            request.generic(),
+            u32::from(request.variant),
+            ge_assets::weapon_static::MappingKind::FirstPerson,
+            ge_assets::weapon_static::QueryBudget {
+                map_rows: 4096,
+                remap_steps: 64,
+            },
+            available,
+        )
+    }
     pub fn map_initial_action(
         &self,
         request: ge_core::mission::player::actions::Request,

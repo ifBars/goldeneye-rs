@@ -76,11 +76,15 @@ An unknown process byte remains unknown; its selected argument is proved unread
 only while the actual attachment is NULL. A distinct outer helper returns after
 rotation self-copy and final character scale. The initializer now writes its
 item/base prefix and builds both controller-lived transform caches in order.
-Matrix payloads stay unwritten. The actual preload flag remains1; full animation
-preload is next, not a buffer-clear or flag-clear shortcut. It first writes32
-Raw512 flag bytes and34 Array34 key words, then visits actual enabled registry
-rows and separate temporary animators. No player/camera readiness is inferred.
-See docs/player-pose-setup.md for the current boundary.
+Matrix payloads stay unwritten. The actual preload flag remains1. Preload now writes32 Raw512 flag bytes and34
+Array34 key words, visits the real registry and completes its first remap/cache
+invalidation/reference extraction. A distinct temporary animator and48-bone
+skeleton use the same identity registry and current FP secondary skin pair. Its
+new class-four header retains the real descriptor at AwaitingScriptBody while
+section publication remains unknown. Do not invent a load at the getter, read
+cached nonresident bytes, or turn missing publication into a known NULL body.
+No entry key commit, completed preload or player/camera readiness is inferred.
+See docs/animation-preload.md for the current boundary.
 Factory and update traces stay separate,
 with bounded diagnostic history independent of simulation lifetime. Pose postprocess targets
 are assigned, but their body and frame scheduling remain unavailable.
@@ -124,12 +128,13 @@ gameplay merely to increase coverage or reported completion.
 The user requested one published branch, `main`. Preserve merged work and avoid
 leaving redundant feature branches after consolidation.
 
-Local CPU use is authorized again. Keep Cargo invocations serial and use two
-build jobs by default; do not overlap builds and coverage. Hosted CI verifies
+The user authorizes up to 75% CPU use. Keep Cargo invocations serial; cap owned
+build/probe processes to roughly three quarters of logical CPUs and use at most
+that many build jobs (currently 9 of 12). Do not overlap builds and coverage. Hosted CI verifies
 both supported host configurations. Use the default local target directories:
 
 ```powershell
-$env:CARGO_BUILD_JOBS = '2'
+$env:CARGO_BUILD_JOBS = [string][Math]::Max(1, [Math]::Floor([Environment]::ProcessorCount * 0.75))
 cargo xtask check
 cargo xtask coverage
 cargo xtask report

@@ -65,6 +65,9 @@ impl Store {
             t.boundary = Some(h.stage);
         } else if h.stage == super::Stage::ReturnedWithoutBody {
             t.stage = Stage::Returned;
+        } else if h.stage == super::Stage::AwaitingScriptBody {
+            t.stage = Stage::Pending;
+            t.boundary = Some(h.stage);
         }
         h.stage = old;
         // Diagnostic history is bounded independently of simulation lifetime.

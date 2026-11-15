@@ -8,18 +8,27 @@ total game effort or content. The initial scope is incomplete. A 100% tracked
 score cannot establish full-game parity until the scope itself is audited against
 all original content and behaviors. The dashboard calls this out explicitly.
 
-States are `not_started`, `in_progress`, `implemented`. A future `verified` state
-is deliberately rejected until a reference-comparison runner is implemented.
-This prevents manual edits from manufacturing parity evidence. That runner must
-capture edition/revision, input sequence, original reference identity, Rust build
-hash, comparison output, tolerances, and failure cases. Screenshots alone cannot
-prove physics/audio/timing parity.
+Roadmap states are `not_started`, `in_progress` and `implemented`. Manual
+`verified` states remain invalid: verification must come from current comparison
+receipts. The separate [frontend comparison set](reference-parity.md) now has an
+offline PNG comparator with fixed dimensions, signal checks and tolerances.
+Its V/N count names only those visual cases; it does not promote broad roadmap
+criteria. Source, executable, reference, configuration or capture changes make
+the prior result stale. Screenshots cannot prove physics, audio or timing parity.
 
 ## Engineering and coverage
 
 Engineering gates show individually measured build, test, format, lint, coverage,
 and local asset outcomes. They do not contribute to parity. Implementation
 progress is the number of criteria marked implemented, separately labeled.
+
+The New Game receipt now includes animation preload separately from the returned
+initializer snapshot. Narrow cache writes, current validity invalidation,
+reference extraction and temporary animator construction have their own state.
+The observed script descriptor is retained, but its body awaits a proven resource
+publication state. This pending body is not a lookup miss or a confirmed null
+body. A passing checkpoint does not mean preload, player creation or gameplay
+has completed. See [animation preload](animation-preload.md).
 
 Coverage is LLVM's measured line and function coverage across production crates
 and the app, excluding the tooling crate `xtask`. The dashboard names that scope;

@@ -44,19 +44,23 @@ To view progress from a phone on the same Wi-Fi, serve only the generated
 `progress` directory from the repository root:
 
 ```powershell
-python -m http.server 8080 --bind <computer-LAN-IP> --directory progress
+python tools/dashboard/serve.py --bind <computer-LAN-IP> --port 8080
 ```
 
 Open `http://<computer-LAN-IP>:8080/` on the phone. Keep the terminal running;
-Ctrl+C stops the server. Each report refresh appears after reloading the page.
+Ctrl+C stops the server. Every page request regenerates the report and checks
+reference freshness. A refresh error cannot serve the previous verified count.
 The server root contains public summaries rather than the image, private evidence
 or coverage source listings. This serves the dashboard only; it does not run the
 game. The computer and phone must be able to reach one another on the local network.
 
-New Game currently stops at **Preparing player**, awaiting animation preload.
+New Game currently stops at **Preparing player**, within animation preload.
 The pose and outer component helpers return, and the initializer builds the
 shared transform caches for the actual first- and third-person skeletons. Their
-matrix payloads remain unwritten. Earlier action and helper receipts stay
+matrix payloads remain unwritten. Preload now performs its narrow cache writes
+and creates a distinct temporary animator and skeleton. Its script descriptor
+is retained while the body awaits a proven section-publication state. See
+[animation preload](animation-preload.md). Earlier action and helper receipts stay
 immutable as later operations change the live owners. See
 [player pose setup](player-pose-setup.md) for the current source order and limits.
 Keep player and camera readiness false until their real completion paths return.
@@ -73,5 +77,6 @@ Keep source readers in `ge-assets`, pure membership/animator rules in their
 `ge-core/mission` subtrees, and source/runtime lifetime binding in
 `apps/goldeneye/src/game/world`. See [world initialization](world-initialization.md).
 The acceptance inventory can grow, so its denominator and declared implementation
-percentage may change. Verified parity requires a reference-comparison runner;
-until one exists the verified count remains zero.
+percentage may change. [Frontend reference comparisons](reference-parity.md)
+verify only their declared visual cases. They do not promote broad roadmap
+criteria or measure whole-game completion.

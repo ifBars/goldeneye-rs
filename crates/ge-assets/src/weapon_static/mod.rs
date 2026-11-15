@@ -6,6 +6,7 @@
 //! animation allocation, sampled pose or camera readiness.
 mod data;
 mod loader;
+mod preload;
 mod remap;
 mod tables;
 pub use remap::MappingKind;

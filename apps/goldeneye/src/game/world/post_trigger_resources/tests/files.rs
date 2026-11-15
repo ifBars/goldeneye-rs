@@ -108,3 +108,32 @@ fn script_lookup_uses_the_same_loaded_generation_and_survives_registry_drop() {
     assert!(source.bind_body(binding).unwrap());
     assert!(source.resolve_script(0x0400_00ac).unwrap().is_none());
 }
+
+#[test]
+fn unknown_section_body_is_pending_while_a_proven_base_null_body_is_absent() {
+    use ge_core::animation::script_child::{BodyState, Provider};
+    for (section, expected) in [(0u16, BodyState::Absent), (1, BodyState::Pending)] {
+        let mut data = bytes();
+        for (at, value) in [
+            (0x68usize, 0x0001_0001u32),
+            (0x6c, 0x1a0 - 0x6c),
+            (0x1a0, 0x0400_00ab),
+            (0x1a4, u32::from(section) << 16),
+            (0x1a8, 0),
+            (0x1ac, 0),
+        ] {
+            data[at..at + 4].copy_from_slice(&value.to_be_bytes());
+        }
+        let mut files = BTreeMap::new();
+        let mut source = retain(&mut files, FILE, &mut |_| Edb::parse(data.clone())).unwrap();
+        let binding = source.resolve_script(0x8400_0000).unwrap().unwrap();
+        assert_eq!(source.body_state(binding).unwrap(), expected);
+        let mut wrong = binding;
+        wrong.hash ^= 1;
+        assert!(source.body_state(wrong).is_err());
+        wrong = binding;
+        wrong.directory_index = 32767;
+        assert!(source.body_state(wrong).is_err());
+        assert!(files[&FILE].sections.is_empty());
+    }
+}

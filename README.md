@@ -5,10 +5,26 @@ Windows. The long-term goal is to reproduce the original game's behavior.
 
 ## Playability at a glance
 
-> **Playable now: startup, menus, settings and Extras navigation.**
->
-> **Playable missions: 0.** Choosing **New Game** loads Tutorial world data
-> and stops at **Preparing player**. Movement and combat are not available yet.
+> **Current build: working menus, no playable missions yet.**
+> You can run the startup sequence, browse menus, change settings and open Extras.
+
+| Progress | Where we are |
+| --- | --- |
+| Playable campaign missions | **0** |
+| Next playable milestone | **Tutorial with a working player and camera** |
+| Whole-game completion | **Not measured yet**; the full scope is still being inventoried. |
+
+Choosing **New Game** loads Tutorial world data and stops at **Preparing player**.
+Movement and combat are not available yet.
+
+[Latest checkpoint](docs/animation-preload.md) ·
+[Progress dashboard setup](#development) ·
+[Build and coverage reports](https://github.com/ifBars/goldeneye-rs/actions/workflows/ci.yml)
+
+The dashboard also shows [original-game reference comparisons](docs/reference-parity.md).
+These check specific frontend views and drop stale results from the verified
+count when code or evidence changes. Working menus and verified matches are
+tracked separately.
 
 <!-- Keep this summary aligned with what the native build can actually run. -->
 
@@ -21,7 +37,10 @@ Windows. The long-term goal is to reproduce the original game's behavior.
 | Player, camera, movement and combat | **Not playable yet.** |
 | Campaign missions and multiplayer | **Unavailable.** |
 
-**Road to the first playable Tutorial:**
+### Road to the first playable Tutorial
+
+**2 of the 5 milestones below are reached.** These are checkpoints, not equal
+shares of development effort or a whole-game completion percentage.
 
 - [x] Open the game and use startup, menus and settings.
 - [x] Load Tutorial world data through New Game.
@@ -29,16 +48,13 @@ Windows. The long-term goal is to reproduce the original game's behavior.
 - [ ] Enable the gameplay camera and player controls.
 - [ ] Play and complete the Tutorial.
 
-**Latest checkpoint:** the player pose helpers and shared transform-cache
-construction now complete. Animation preload is next; the player still needs
-more initialization before gameplay can start.
+**Latest checkpoint:** animation preload now constructs its first temporary
+animator and skeleton. It awaits the script section's publication state;
+player initialization and gameplay are still unfinished.
 
-A reliable whole-game completion percentage isn't available yet. Progress is
-tracked by working features and playable missions; test coverage is separate.
-
-[Detailed checkpoint](docs/player-pose-setup.md) ·
-[Build and coverage reports](https://github.com/ifBars/goldeneye-rs/actions/workflows/ci.yml) ·
-[Open the local progress dashboard](#development)
+For the broader scope, see the [roadmap](progress/roadmap.json). The
+[progress guide](docs/progress.md) explains the dashboard's numbers. Test coverage
+measures tested code; it does not measure how much of the game is playable.
 
 ## Bring your own game
 

@@ -6,6 +6,10 @@ use anyhow::{Context, Result, ensure};
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
+#[cfg(test)]
+#[path = "tests/preload.rs"]
+mod preload_tests;
+
 #[derive(Clone, Copy)]
 struct RecordIndex {
     key: u32,
@@ -30,6 +34,9 @@ pub struct WeaponRecord<'a> {
 }
 
 impl WeaponRecord<'_> {
+    pub(super) fn byte(&self, offset: u32) -> Result<u8> {
+        self.data.u8(field(self.index.address, offset)?)
+    }
     pub fn key(&self) -> u32 {
         self.index.key
     }
@@ -112,6 +119,15 @@ pub struct Remap {
 }
 
 impl WeaponTables {
+    pub(super) fn source_record(&self, ordinal: usize) -> Option<WeaponRecord<'_>> {
+        self.records
+            .get(ordinal)
+            .copied()
+            .map(|index| WeaponRecord {
+                data: &self.data,
+                index,
+            })
+    }
     pub(crate) fn initialize(
         data: impl Into<Arc<Data>>,
         identity: Identity,

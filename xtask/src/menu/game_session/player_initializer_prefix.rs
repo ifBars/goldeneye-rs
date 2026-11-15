@@ -9,6 +9,9 @@ fn hash(v: &Value) -> bool {
                 .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
     })
 }
+pub(super) fn validate_preload_caches(cache: &Value, prefix: &Value) -> Result<()> {
+    cache::validate(cache, prefix)
+}
 pub(super) fn validate(p: &Value, c: &Value) -> Result<()> {
     if p.is_null() {
         ensure!(
@@ -111,7 +114,11 @@ pub(super) fn validate(p: &Value, c: &Value) -> Result<()> {
         _ => "player_initializer_prefix",
     };
     ensure!(
-        c["stage"] == root && p["pending_dependency"] == dependency,
+        (c["stage"] == root
+            || (stage == 9
+                && !c["preload"].is_null()
+                && c["stage"] == "player_preload_temporary_pending"))
+            && p["pending_dependency"] == dependency,
         "initializer root/dependency differs from its actual reached stage"
     );
     if !p["caches"].is_null() {

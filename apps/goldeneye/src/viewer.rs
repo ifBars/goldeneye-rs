@@ -36,9 +36,20 @@ pub struct Options {
     /// Save the final bounded frame as a local PNG; existing files are preserved.
     #[arg(long, requires = "frames")]
     pub capture: Option<PathBuf>,
+    /// Exact physical canvas for a bounded comparison; avoids resizing captures afterward.
+    #[arg(long, num_args = 2, value_names = ["WIDTH", "HEIGHT"], requires = "frames",
+        value_parser = clap::value_parser!(u32).range(1..=4096))]
+    pub capture_size: Vec<u32>,
 }
 impl Options {
     pub fn validate(&self) -> Result<()> {
+        ensure!(
+            self.capture_size.is_empty()
+                || (self.capture_size.len() == 2
+                    && self.frames.is_some()
+                    && self.capture_size.iter().all(|n| (1..=4096).contains(n))),
+            "capture size requires two bounded physical dimensions and --frames"
+        );
         ensure!(
             !self.smoke_resize || self.frames.is_some_and(|n| n >= 3),
             "resize smoke needs at least three frames"
@@ -84,6 +95,10 @@ pub fn run(
     options: &Options,
 ) -> Result<Viewed> {
     options.validate()?;
+    let size = match options.capture_size.as_slice() {
+        [width, height] => [*width, *height],
+        _ => size,
+    };
     ensure!(
         size.iter().all(|&n| (1..=4096).contains(&n)),
         "window size must be 1..4096 per axis"
