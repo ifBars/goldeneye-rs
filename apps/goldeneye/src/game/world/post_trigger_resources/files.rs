@@ -22,10 +22,7 @@ pub(super) fn retain(
         let edb = load(file)?;
         ensure!(edb.header.hash == file, "resource file owner differs");
         entry.insert(File {
-            edb: Arc::new(LoadedFile {
-                edb,
-                generation: u32::MAX.wrapping_add(1),
-            }),
+            edb: Arc::new(LoadedFile::first_base_publication(edb)),
             sections: Vec::new(),
         });
     }
@@ -44,8 +41,10 @@ impl Owned {
         file: u32,
         assets: &mut GameAssets,
     ) -> Result<FileBinding> {
-        retain(&mut self.files, file, &mut |hash| {
-            crate::mission::resource::load(assets, hash, 64 * 1024 * 1024)
+        self.files.with_files(|files| {
+            retain(files, file, &mut |hash| {
+                crate::mission::resource::load(assets, hash, 64 * 1024 * 1024)
+            })
         })
     }
 }

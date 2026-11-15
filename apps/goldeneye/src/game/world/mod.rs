@@ -162,7 +162,11 @@ impl OwnedWorld {
         };
         let post_trigger_resources = if navigation.is_some() {
             let operation = definitions.prepare_post_trigger(context)?;
-            Some(post_trigger_resources::Owned::build(operation, assets)?)
+            Some(post_trigger_resources::Owned::build(
+                operation,
+                assets,
+                world_hooks.resource_registry()?,
+            )?)
         } else {
             None
         };

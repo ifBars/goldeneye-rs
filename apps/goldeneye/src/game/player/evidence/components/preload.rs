@@ -90,6 +90,7 @@ pub struct Preload {
     pub completed_calls: Vec<Call>,
     pub current_call: Option<Call>,
     pub temporary: Option<temporary::Temporary>,
+    pub script_publication: Option<crate::game::world::post_trigger_resources::ScriptPublication>,
     pub allocations: [Option<AllocationState>; 3],
     pub caches: CacheState,
     pub flag_cleared: bool,
@@ -377,6 +378,14 @@ pub(super) fn build(
         Stage::FinalFlag => "final_flag",
         Stage::Returned => "returned",
     };
+    let script_publication = owner
+        .temporary
+        .as_ref()
+        .and_then(|temporary| temporary.factory_header())
+        .and_then(|header| header.cached())
+        .map(|binding| file.script_publication_evidence(binding))
+        .transpose()?
+        .flatten();
     hook.with_player_preload(|shared, caches| {
         ensure!(
             shared.reset_stage(state.lease())? == constructor::ResetStage::Complete,
@@ -438,14 +447,43 @@ pub(super) fn build(
             completed_calls,
             current_call,
             temporary: owner.temporary.as_ref().map(temporary::build).transpose()?,
+            script_publication: script_publication.clone(),
             allocations,
             caches: initializer_prefix::current_caches(caches)?,
             flag_cleared: state.flag_cleared(),
             helper_returned: state.helper_returned(),
-            state_sha256: super::super::words(b"ge_player_preload_v1\0", |mut emit| {
+            state_sha256: super::super::words(b"ge_player_preload_v2\0", |mut emit| {
                 state.visit_state_words(&mut emit);
                 shared.visit_state_words(&mut emit);
                 caches.visit_state_words(&mut emit);
+                emit(u32::from(script_publication.is_some()));
+                if let Some(publication) = &script_publication {
+                    emit(publication.file);
+                    emit(publication.generation);
+                    for count in [
+                        publication.descriptor_index,
+                        publication.section_index,
+                        publication.active_requests,
+                        publication.retained_sections,
+                    ] {
+                        size(count, &mut emit);
+                    }
+                    emit(publication.section_key);
+                    emit(u32::from(publication.callback_mask.is_some()));
+                    if let Some(mask) = publication.callback_mask {
+                        emit(mask);
+                    }
+                    emit(u32::from(publication.fresh_base));
+                    emit((publication.request_count >> 32) as u32);
+                    emit(publication.request_count as u32);
+                    emit(u32::from(publication.history_unknown));
+                    emit(u32::from(publication.raw_job.is_some()));
+                    if let Some(job) = publication.raw_job {
+                        emit(job);
+                    }
+                    emit(u32::from(publication.body_state == "known_null"));
+                    emit(u32::from(publication.native_history_verified));
+                }
                 emit(u32::from(owner.temporary.is_some()));
                 if let Some(temporary) = &owner.temporary {
                     temporary.visit_state_words(&mut emit);

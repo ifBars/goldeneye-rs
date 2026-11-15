@@ -58,8 +58,9 @@ New Game currently stops at **Preparing player**, within animation preload.
 The pose and outer component helpers return, and the initializer builds the
 shared transform caches for the actual first- and third-person skeletons. Their
 matrix payloads remain unwritten. Preload now performs its narrow cache writes
-and creates a distinct temporary animator and skeleton. Its script descriptor
-is retained while the body awaits a proven section-publication state. See
+and creates a distinct temporary animator and skeleton. The same wrapper's
+checked fresh-base publication proves its first script body is NULL; its factory
+and zero-time callback return before nonempty evaluation remains pending. See
 [animation preload](animation-preload.md). Earlier action and helper receipts stay
 immutable as later operations change the live owners. See
 [player pose setup](player-pose-setup.md) for the current source order and limits.

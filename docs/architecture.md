@@ -736,8 +736,11 @@ in the existing shared allocations and visits source-ordered registry rows.
 Its first actual mapping, selected-cache invalidation and class-four extraction
 precede a distinct temporary animator from the same identity registry. This
 owner binds a new skeleton from the current FP secondary skin pair and retains
-its own direct-factory header. Script metadata is cached before a missing
-section-publication provider stops body access. Unknown publication is separate
-from a confirmed NULL body; the getter requests no load. The returned initializer
-receipt stays immutable while current preload storage and validity history change.
+its own direct-factory header. Controller-lived file wrappers retain publication
+and request history across attempts. The checked fresh-base script-fixup branch
+now proves the first script's NULL body without loading another section. Its
+factory inserts the actual node and the forward callback returns before nonempty
+evaluation remains pending. Failed requests or unresolved dependency work preserve
+Pending rather than making cached bytes resident. The returned initializer receipt
+stays immutable while current preload storage and publication history change.
 The shared flag remains one, and no player or camera completion is inferred.

@@ -8,10 +8,7 @@ impl FileBinding {
     pub(crate) fn phase_zero_source(&self, binding: Binding) -> Result<PhaseSource<'_>> {
         Ok(PhaseSource {
             file: self.file(),
-            script: self
-                .source
-                .base_animation_script_body(binding.directory_index)?
-                .context("retained script body disappeared")?,
+            script: self.source.resident_script_body(binding)?,
         })
     }
 }

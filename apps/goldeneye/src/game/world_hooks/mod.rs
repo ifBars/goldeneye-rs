@@ -5,6 +5,7 @@ mod clock;
 mod evidence;
 pub(super) mod loader;
 mod player;
+mod resource_registry;
 
 use anyhow::{Result, ensure};
 use ge_core::mission::world_hooks::{clock_reset, final_reset};
@@ -37,6 +38,8 @@ struct State {
 struct SharedState {
     state: Mutex<State>,
     actors: Mutex<player::Actors>,
+    // The same resource wrappers and publication history outlive world attempts.
+    resources: super::world::post_trigger_resources::Registry,
     current: AtomicU64,
 }
 
@@ -62,6 +65,7 @@ impl Shared {
         };
         Self(Arc::new(SharedState {
             actors: Mutex::new(player::Actors::from_constructor()),
+            resources: super::world::post_trigger_resources::Registry::from_constructor(),
             state: Mutex::new(State {
                 clock,
                 reset,

@@ -40,7 +40,7 @@ fn fixture() -> Value {
     json!({"pending_dependency":"preload_temporary_bind","component_initialization":c})
 }
 #[test]
-fn observed_tutorial_retains_real_temporary_and_unresolved_script_body() {
+fn observed_tutorial_retains_fresh_null_publication_and_real_evaluation_dependency() {
     let p = fixture();
     validate(&p, 1).unwrap();
     for (key, value) in [
@@ -73,13 +73,13 @@ fn observed_tutorial_retains_real_temporary_and_unresolved_script_body() {
     validate(&reused, 1).unwrap();
 }
 #[test]
-fn native_gate_requires_actual_new_owner_and_unknown_body_without_completion() {
+fn native_gate_requires_actual_new_owner_and_null_proof_without_evaluation_return() {
     let p = fixture();
     validate(&p, 1).unwrap();
     for (key, value) in [
-        ("stage", json!("awaiting_evaluation")),
-        ("factory_returned", json!(true)),
-        ("head_inserted", json!(true)),
+        ("stage", json!("awaiting_initializer")),
+        ("factory_returned", json!(false)),
+        ("head_inserted", json!(false)),
         ("identity", json!(2)),
         ("source_receiver", json!(1)),
         ("skin_file", json!(0x010a_0056)),
@@ -96,11 +96,11 @@ fn native_gate_requires_actual_new_owner_and_unknown_body_without_completion() {
         );
     }
     for (key, value) in [
-        ("body_bound", json!(false)),
+        ("body_bound", Value::Null),
         ("body_bound", json!(true)),
-        ("initializer_returned", json!(true)),
+        ("initializer_returned", json!(false)),
         ("descriptor_index", json!(0)),
-        ("stage", json!("ReturnedWithoutBody")),
+        ("stage", json!("AwaitingScriptBody")),
     ] {
         let mut bad = p.clone();
         bad["component_initialization"]["preload"]["temporary"]["script"][key] = value;
@@ -125,4 +125,31 @@ fn native_gate_binds_player_to_the_current_attempt_after_cancellation() {
     assert!(validate(&player, 1).is_err());
     player["component_initialization"]["preload"]["temporary"]["player"] = json!(0);
     assert!(validate(&player, 0).is_err());
+}
+
+#[test]
+fn native_gate_requires_exact_fresh_same_wrapper_publication_receipt() {
+    let p = fixture();
+    for (key, value) in [
+        ("generation", json!(1)),
+        ("request_count", json!(1)),
+        ("section_index", json!(10)),
+        ("section_key", json!(0x0800_000a)),
+        ("callback_mask", json!(8)),
+        ("body_state", json!("pending")),
+    ] {
+        let mut bad = p.clone();
+        bad["component_initialization"]["preload"]["script_publication"][key] = value;
+        assert!(
+            validate(&bad, 1).is_err(),
+            "accepted native publication {key}"
+        );
+    }
+    let mut bad = p.clone();
+    bad["component_initialization"]["preload"]["script_publication"] = Value::Null;
+    assert!(validate(&bad, 1).is_err());
+    let mut bad = p;
+    bad["component_initialization"]["preload"]["temporary"]["stage"] = json!("bind_returned");
+    bad["component_initialization"]["preload"]["temporary"]["bind_return"] = json!(1);
+    assert!(validate(&bad, 1).is_err());
 }

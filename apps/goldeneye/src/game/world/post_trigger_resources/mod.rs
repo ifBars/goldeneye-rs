@@ -2,8 +2,12 @@
 //! residency. This owner does not model the original streaming scheduler.
 mod evidence;
 mod files;
+mod publication;
+mod registry;
 mod targets;
 pub(crate) use files::FileBinding;
+pub(crate) use publication::Evidence as ScriptPublication;
+pub(crate) use registry::Registry;
 pub(crate) use targets::Target;
 
 use anyhow::{Context, Result, ensure};
@@ -32,6 +36,7 @@ struct LoadedFile {
     // Source wrapper constructor -1 plus its first completed base publication.
     // This retained registry does not implement replacement/unload yet.
     generation: u32,
+    publication: publication::Publication,
 }
 impl std::ops::Deref for LoadedFile {
     type Target = Edb;
@@ -59,7 +64,7 @@ struct Returned {
 
 pub(crate) struct Owned {
     operation: Operation,
-    files: BTreeMap<u32, File>,
+    files: Registry,
     returned: Vec<Returned>,
     tail: TailReset,
     evidence: Evidence,
@@ -74,20 +79,27 @@ impl Owned {
                 .iter()
                 .all(|response| response.resolution.is_some())
     }
-    pub fn build(operation: Operation, assets: &mut GameAssets) -> Result<Self> {
-        Self::build_with(operation, |file| {
-            crate::mission::resource::load(assets, file, 64 * 1024 * 1024)
-        })
+    pub fn build(operation: Operation, assets: &mut GameAssets, files: Registry) -> Result<Self> {
+        Self::build_with_registry(
+            operation,
+            |file| crate::mission::resource::load(assets, file, 64 * 1024 * 1024),
+            files,
+        )
     }
 
-    fn build_with(
+    #[cfg(test)]
+    fn build_with(operation: Operation, load: impl FnMut(u32) -> Result<Edb>) -> Result<Self> {
+        Self::build_with_registry(operation, load, Registry::from_constructor())
+    }
+
+    fn build_with_registry(
         mut operation: Operation,
         mut load: impl FnMut(u32) -> Result<Edb>,
+        files: Registry,
     ) -> Result<Self> {
-        let mut files = BTreeMap::new();
         let mut returned = Vec::new();
         while let Some(&request) = operation.next_request() {
-            let result = resolve(request, &mut files, &mut load);
+            let result = files.with_files(|files| resolve(request, files, &mut load));
             let (resolution, failure) = match result {
                 Ok(resolution) => (Some(resolution), None),
                 Err(error) => (None, Some(error)),
@@ -102,7 +114,8 @@ impl Owned {
             operation.record_returned(request.ordinal)?;
         }
         let tail = operation.finish()?;
-        let evidence = evidence::build(&operation, &files, &returned, tail)?;
+        let snapshot = files.operation_snapshot(operation.requests(), &returned)?;
+        let evidence = evidence::build(&operation, &snapshot, &returned, tail)?;
         Ok(Self {
             operation,
             files,
@@ -134,6 +147,9 @@ fn resolve(
     let file = files
         .get_mut(&request.file)
         .context("post-trigger file owner is absent")?;
+    // Retain a request prefix before even the checked locator/provider can
+    // fail. A failed request must never look like an untouched fresh section.
+    let publication = file.edb.publication.begin_request()?;
     let target = file
         .edb
         .target_section(
@@ -186,6 +202,14 @@ fn resolve(
                 sha256: Sha256::digest(payload).into(),
             }));
         }
+        publication.finish(Some(publication::RetainedSection {
+            index: target.section_index(),
+            key: target.key(),
+            start: span.start,
+            end: span.end,
+        }))?;
+    } else {
+        publication.finish(None)?;
     }
     Ok(resolution)
 }

@@ -48,9 +48,9 @@ shares of development effort or a whole-game completion percentage.
 - [ ] Enable the gameplay camera and player controls.
 - [ ] Play and complete the Tutorial.
 
-**Latest checkpoint:** animation preload now constructs its first temporary
-animator and skeleton. It awaits the script section's publication state;
-player initialization and gameplay are still unfinished.
+**Latest checkpoint:** animation preload now completes its first temporary
+script factory and zero-time callback. Pose evaluation and the remaining
+preload work are unfinished; player controls and gameplay are not available.
 
 For the broader scope, see the [roadmap](progress/roadmap.json). The
 [progress guide](docs/progress.md) explains the dashboard's numbers. Test coverage

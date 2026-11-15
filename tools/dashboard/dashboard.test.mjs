@@ -2602,13 +2602,26 @@ function preloadFixture(historical) {
     allocations:[{kind:'raw',native_bytes:512,payload_bytes:512,known_payload_bytes:44,header_words:[null,null,null,null]},
       {kind:'array34',native_bytes:7088,payload_bytes:7072,known_payload_bytes:136,header_words:[208,34,null,null]},
       {kind:'array64',native_bytes:56080,payload_bytes:56064,known_payload_bytes:0,header_words:[876,64,null,null]}],
-    caches,flag_cleared:false,helper_returned:false,state_sha256:'f'.repeat(64)};
+    caches,flag_cleared:false,helper_returned:false,script_publication:null,state_sha256:'f'.repeat(64)};
 }
 function withPreload(report) {
   withInitializerPrefix(report);
   return forPlayerComponents(report,(c,p)=>{
     c.preload=preloadFixture(c.initializer_prefix.caches);c.attachment.registry_identities=3;
     c.stage='player_preload_temporary_pending';c.pending_dependency='preload_temporary_bind';p.pending_dependency=c.pending_dependency;
+  });
+}
+function withFreshScriptPublication(report) {
+  withPreload(report);
+  return forPlayerComponents(report,c=>{
+    const t=c.preload.temporary;
+    Object.assign(t,{stage:'awaiting_evaluation',pending_dependency:'temporary_animation_evaluation',
+      factory_returned:true,head_inserted:true,maintenance_skipped:true,reverse_skipped:true,
+      forward:{stage:'Returned',phase_cleared:true,body_bound:false,duration_raw:null,fps_bits:null,result_bits:null}});
+    Object.assign(t.script,{stage:'ReturnedWithoutBody',body_bound:false,initializer_returned:true});
+    c.preload.script_publication={file:t.component_file,generation:0,descriptor_index:3,section_index:1,
+      section_key:0x08000001,callback_mask:8,fresh_base:true,request_count:0,active_requests:0,
+      retained_sections:0,history_unknown:false,raw_job:0,body_state:'known_null',native_history_verified:false};
   });
 }
 
@@ -2725,6 +2738,54 @@ test('forward residency waits preserve a historical initializer without inventin
     const bad=structuredClone(report);
     change(bad.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization.preload.temporary);
     await inspect(embed(bad),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+  }
+});
+
+test('fresh script publication shows known NULL and actual evaluation wait without completing preload',async()=>{
+  const report=withFreshScriptPublication(withPlayerPrelude(gameSessionFixture()));
+  const c=report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization;
+  const historical=JSON.stringify(c.initializer_prefix);
+  await inspect(embed(report),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.match(text,/Fresh base publication proves a NULL script body for descriptor 3 in section 1/);
+    assert.match(text,/temporary animation evaluation/);
+    assert.match(text,/original runtime history remains unverified/);
+    assert.match(text,/preload has not returned/);
+    assert.doesNotMatch(text,/has not been recorded completely|body residency is unknown|No head insertion/);
+  });
+  assert.equal(JSON.stringify(c.initializer_prefix),historical);
+  forPlayerComponents(report,c=>{
+    Object.assign(c.preload.script_publication,{body_state:'pending',fresh_base:false,callback_mask:null,raw_job:null,history_unknown:true});
+  });
+  await inspect(embed(report),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.match(text,/Current script publication is pending; historical initializer state remains separate/);
+    assert.doesNotMatch(text,/has not been recorded completely|Fresh base publication proves/);
+  });
+});
+
+test('fresh script publication rejects forged proof, mismatched owners and skipped evaluation',async()=>{
+  const changes=[
+    c=>{c.preload.script_publication.file++;},c=>{c.preload.script_publication.descriptor_index++;},
+    c=>{c.preload.script_publication.section_index=0;},c=>{c.preload.script_publication.section_key=0x08000000;},
+    c=>{c.preload.script_publication.section_key=0x07000001;},c=>{c.preload.script_publication.callback_mask=0;},
+    c=>{c.preload.script_publication.callback_mask=null;},c=>{c.preload.script_publication.fresh_base=false;},
+    c=>{c.preload.script_publication.active_requests=1;},c=>{c.preload.script_publication.retained_sections=1;},
+    c=>{c.preload.script_publication.history_unknown=true;},c=>{c.preload.script_publication.raw_job=null;},
+    c=>{c.preload.script_publication.raw_job=1;},c=>{c.preload.script_publication.native_history_verified=true;},
+    c=>{c.preload.script_publication.body_state='resident';},c=>{c.preload.temporary.bind_return=1;},
+    c=>{c.preload.temporary.refresh_returned=true;},c=>{c.preload.temporary.script.body_bound=null;},
+    c=>{c.preload.temporary.forward.duration_raw=0;},c=>{c.preload.temporary.forward.result_bits=0;},
+    c=>{c.preload.temporary.factory_returned=false;},c=>{c.preload.temporary.maintenance_skipped=false;},
+    c=>{c.preload.temporary.reverse_skipped=false;},c=>{c.preload.script_publication.host_path='private';},
+  ];
+  const sample=withFreshScriptPublication(withPlayerPrelude(gameSessionFixture()));
+  const proof=sample.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization.preload.script_publication;
+  for(const key of Object.keys(proof)) changes.push(c=>{delete c.preload.script_publication[key];});
+  for(const change of changes) {
+    const report=withFreshScriptPublication(withPlayerPrelude(gameSessionFixture()));
+    change(report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization);
+    await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
   }
 });
 

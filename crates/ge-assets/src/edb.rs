@@ -5,6 +5,7 @@ use crate::{
 };
 use anyhow::{Context, Result, ensure};
 use serde::Serialize;
+pub mod script_publication;
 mod script_reference;
 
 impl Edb {

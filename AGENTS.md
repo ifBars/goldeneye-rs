@@ -80,9 +80,13 @@ Matrix payloads stay unwritten. The actual preload flag remains1. Preload now wr
 Array34 key words, visits the real registry and completes its first remap/cache
 invalidation/reference extraction. A distinct temporary animator and48-bone
 skeleton use the same identity registry and current FP secondary skin pair. Its
-new class-four header retains the real descriptor at AwaitingScriptBody while
-section publication remains unknown. Do not invent a load at the getter, read
-cached nonresident bytes, or turn missing publication into a known NULL body.
+new class-four header resolves its real descriptor through a controller-lived
+wrapper registry. Checked fresh-base callback inputs and retained same-owner
+request history now prove the first script's NULL runtime body. The actual
+factory inserts its node and the zero-time forward callback returns before
+nonempty evaluation remains pending. Unknown/failed request or dependency state
+still stays Pending. Do not invent a load at the getter or read cached nonresident
+bytes. Cancellation/reentry must retain the wrapper and publication history.
 No entry key commit, completed preload or player/camera readiness is inferred.
 See docs/animation-preload.md for the current boundary.
 Factory and update traces stay separate,

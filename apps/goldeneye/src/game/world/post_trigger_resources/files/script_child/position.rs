@@ -10,10 +10,7 @@ impl FileBinding {
     pub(crate) fn script_position_source(&self, binding: Binding) -> Result<PositionSource<'_>> {
         Ok(PositionSource {
             owner: &self.source,
-            script: self
-                .source
-                .base_animation_script_body(binding.directory_index)?
-                .context("position script body disappeared")?,
+            script: self.source.resident_script_body(binding)?,
             body: None,
         })
     }

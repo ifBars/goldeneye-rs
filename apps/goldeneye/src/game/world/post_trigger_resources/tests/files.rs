@@ -3,19 +3,25 @@ use super::*;
 
 #[test]
 fn file_only_lookup_reuses_world_wrapper_and_survives_registry_drop_without_new_target() {
-    let mut world = Owned::build_with(operation(SKIN, TEXTURE), |_| Edb::parse(bytes())).unwrap();
+    let world = Owned::build_with(operation(SKIN, TEXTURE), |_| Edb::parse(bytes())).unwrap();
     let before = world.evidence().clone();
-    let first = retain(&mut world.files, FILE, &mut |_| {
-        panic!("duplicate file read")
-    })
-    .unwrap();
-    let second = retain(&mut world.files, FILE, &mut |_| {
-        panic!("duplicate file read")
-    })
-    .unwrap();
+    let first = world
+        .files
+        .with_files(|files| retain(files, FILE, &mut |_| panic!("duplicate file read")))
+        .unwrap();
+    let second = world
+        .files
+        .with_files(|files| retain(files, FILE, &mut |_| panic!("duplicate file read")))
+        .unwrap();
     assert!(Arc::ptr_eq(&first.source, &second.source));
-    assert!(Arc::ptr_eq(&first.source, &world.files[&FILE].edb));
-    assert_eq!(world.files[&FILE].sections.len(), 1);
+    world
+        .files
+        .with_files(|files| {
+            assert!(Arc::ptr_eq(&first.source, &files[&FILE].edb));
+            assert_eq!(files[&FILE].sections.len(), 1);
+            Ok(())
+        })
+        .unwrap();
     assert_eq!(world.evidence(), &before);
     drop(world);
     assert_eq!(first.file(), FILE);

@@ -42,10 +42,12 @@ fn missing_targets_keep_world_hook_receipt_without_creating_a_ready_target() {
 #[test]
 fn postbind_file_lookup_keeps_the_same_initial_visual_target_wrapper() {
     let mut world = Owned::build_with(operation(SKIN, TEXTURE), |_| Edb::parse(bytes())).unwrap();
-    let source = super::super::files::retain(&mut world.files, FILE, &mut |_| {
-        panic!("duplicate wrapper load")
-    })
-    .unwrap();
+    let source = world
+        .files
+        .with_files(|files| {
+            super::super::files::retain(files, FILE, &mut |_| panic!("duplicate wrapper load"))
+        })
+        .unwrap();
     let target = world
         .request_target_with(FILE, SKIN, |_| panic!("duplicate wrapper load"))
         .unwrap();

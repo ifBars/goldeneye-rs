@@ -17,6 +17,70 @@ fn word(v: &Value) -> bool {
 fn optional_index(v: &Value, limit: u64) -> bool {
     v.is_null() || v.as_u64().is_some_and(|n| n < limit)
 }
+fn script_publication(v: &Value, t: &Value) -> Result<()> {
+    if v.is_null() {
+        return Ok(());
+    }
+    closed(
+        v,
+        &[
+            "file",
+            "generation",
+            "descriptor_index",
+            "section_index",
+            "section_key",
+            "callback_mask",
+            "fresh_base",
+            "request_count",
+            "active_requests",
+            "retained_sections",
+            "history_unknown",
+            "raw_job",
+            "body_state",
+            "native_history_verified",
+        ],
+    )?;
+    ensure!(
+        !t.is_null()
+            && !t["script"].is_null()
+            && word(&v["file"])
+            && word(&v["generation"])
+            && v["file"] == t["component_file"]
+            && v["descriptor_index"] == t["script"]["descriptor_index"]
+            && v["descriptor_index"].as_u64().is_some_and(|n| n < 32767)
+            && v["section_index"].as_u64().is_some_and(|n| n < 32767)
+            && word(&v["section_key"])
+            && (v["callback_mask"].is_null() || word(&v["callback_mask"]))
+            && (v["raw_job"].is_null() || word(&v["raw_job"]))
+            && v["fresh_base"].is_boolean()
+            && v["history_unknown"].is_boolean()
+            && v["fresh_base"] == !v["callback_mask"].is_null()
+            && v["native_history_verified"] == false,
+        "script publication identity or source metadata differs"
+    );
+    count(v, "request_count")?;
+    count(v, "active_requests")?;
+    count(v, "retained_sections")?;
+    match v["body_state"].as_str() {
+        Some("known_null") => ensure!(
+            v["fresh_base"] == true
+                && v["callback_mask"]
+                    .as_u64()
+                    .is_some_and(|mask| mask & 8 != 0)
+                && v["active_requests"] == 0
+                && v["retained_sections"] == 0
+                && v["history_unknown"] == false
+                && v["raw_job"] == 0
+                && count(v, "section_key")? >> 24 == 8
+                && v["section_key"] != 0x0800_0000u32
+                && count(v, "section_index")? > 0,
+            "known NULL script lacks fresh nonbase publication proof"
+        ),
+        Some("pending") => {}
+        _ => anyhow::bail!("unknown script publication body state"),
+    }
+    Ok(())
+}
 pub(super) fn dependency(p: &Value) -> Option<&'static str> {
     match p["stage"].as_str()? {
         "awaiting_temporary" => Some("preload_temporary_bind"),
@@ -633,6 +697,10 @@ fn temporary(t: &Value, p: &Value, c: &Value) -> Result<()> {
         }
         let clips = s["clips"].as_array().context("temporary clips absent")?;
         ensure!(
+            s["stage"] != "ReturnedWithoutBody" || clips.is_empty(),
+            "NULL-body initializer consumed clip records"
+        );
+        ensure!(
             clips.len() <= 510
                 && (s["phase_zero"].is_null()
                     || count(&s["phase_zero"], "clip_records")? == clips.len() as u64),
@@ -743,6 +811,14 @@ fn temporary(t: &Value, p: &Value, c: &Value) -> Result<()> {
                 "temporary forward invented unknown timing result"
             );
         }
+        if f["stage"] == "Returned" && f["body_bound"] == false {
+            ensure!(
+                f["duration_raw"].is_null()
+                    && f["fps_bits"].is_null()
+                    && f["result_bits"].is_null(),
+                "NULL-body forward consumed skipped timing fields"
+            );
+        }
     } else if stage == 8 && t["head_inserted"] == true {
         anyhow::bail!("temporary inserted head has no actual forward trace");
     }
@@ -780,6 +856,7 @@ pub(super) fn validate(p: &Value, c: &Value) -> Result<()> {
             "helper_returned",
             "state_sha256",
             "temporary",
+            "script_publication",
         ],
     )?;
     let stage = [
@@ -1020,10 +1097,11 @@ pub(super) fn validate(p: &Value, c: &Value) -> Result<()> {
         );
         temporary(&p["temporary"], p, c)?;
     }
+    script_publication(&p["script_publication"], &p["temporary"])?;
     Ok(())
 }
 
-/// Exact supplied Tutorial boundary: a real new owner retains an unread body.
+/// Exact supplied Tutorial boundary: fresh fixup proves NULL; evaluation waits.
 pub(super) fn validate_native(p: &Value, c: &Value, expected_player: u64) -> Result<()> {
     validate(p, c)?;
     ensure!(
@@ -1094,8 +1172,8 @@ pub(super) fn validate_native(p: &Value, c: &Value, expected_player: u64) -> Res
     );
     let t = &p["temporary"];
     ensure!(
-        t["stage"] == "awaiting_initializer"
-            && t["pending_dependency"] == "temporary_script_body_residency"
+        t["stage"] == "awaiting_evaluation"
+            && t["pending_dependency"] == "temporary_animation_evaluation"
             && t["identity"] == 3
             && t["source_receiver"] == 2
             && t["player"] == expected_player
@@ -1114,11 +1192,13 @@ pub(super) fn validate_native(p: &Value, c: &Value, expected_player: u64) -> Res
             && t["semantic_flags"] == json!([0, 11])
             && t["component_flags"] == 0
             && t["active_slots"] == 1
-            && t["factory_returned"] == false
-            && t["head_inserted"] == false
-            && t["forward"].is_null()
-            && t["maintenance_skipped"] == false
-            && t["reverse_skipped"] == false
+            && t["factory_returned"] == true
+            && t["head_inserted"] == true
+            && t["forward"]
+                == json!({"stage":"Returned","phase_cleared":true,
+                "body_bound":false,"duration_raw":null,"fps_bits":null,"result_bits":null})
+            && t["maintenance_skipped"] == true
+            && t["reverse_skipped"] == true
             && t["bind_return"].is_null()
             && t["refresh_returned"] == false
             && c["attachment"]["registry_identities"] == 3
@@ -1127,16 +1207,25 @@ pub(super) fn validate_native(p: &Value, c: &Value, expected_player: u64) -> Res
     );
     let s = &t["script"];
     ensure!(
-        s["stage"] == "AwaitingScriptBody"
+        s["stage"] == "ReturnedWithoutBody"
             && s["slot"] == 0
             && s["factory_flags"] == 3
             && s["reference"] == call["reference"]
             && s["descriptor_index"] == 239
-            && s["body_bound"].is_null()
-            && s["initializer_returned"] == false
+            && s["body_bound"] == false
+            && s["initializer_returned"] == true
             && s["phase_zero"].is_null()
             && s["clips"] == json!([]),
-        "Tutorial unresolved script body became known absent or initialized"
+        "Tutorial fresh NULL script skipped or invented initializer work"
+    );
+    ensure!(
+        p["script_publication"]
+            == json!({"file":0x0102_0016,"generation":0,
+            "descriptor_index":239,"section_index":9,"section_key":0x0800_0009,
+            "callback_mask":0x819c,"fresh_base":true,"request_count":0,
+            "active_requests":0,"retained_sections":0,"history_unknown":false,
+            "raw_job":0,"body_state":"known_null","native_history_verified":false}),
+        "Tutorial current same-owner publication proof differs"
     );
     Ok(())
 }

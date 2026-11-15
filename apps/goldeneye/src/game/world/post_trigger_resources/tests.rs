@@ -223,7 +223,10 @@ fn empty_nonbase_section_is_a_real_validated_span_with_zero_covered_bytes() {
         (1, 0)
     );
     assert_eq!(
-        owned.files[&FILE].sections[0].sha256,
+        owned
+            .files
+            .with_files(|files| Ok(files[&FILE].sections[0].sha256))
+            .unwrap(),
         <[u8; 32]>::from(Sha256::digest([]))
     );
     assert!(!owned.evidence.native_stream_readiness_verified);

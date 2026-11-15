@@ -6,8 +6,8 @@ unfinished.
 
 The initializer's earlier pose helpers and FP/TP transform-cache construction
 have returned. Animation preload now runs against those retained owners. Its
-current native checkpoint reaches the first temporary animator's script-body
-publication dependency.
+current native checkpoint completes the first temporary script factory and
+zero-time forward callback, then waits for nonempty animation evaluation.
 
 ## What runs now
 
@@ -38,22 +38,30 @@ slot zero and flags three. It resolves the actual descriptor through the current
 FP resource wrapper. It does not reuse a live script head or manufacture a mode
 command.
 
-The reached script body belongs to another logical resource section. The
-current provider retains its descriptor and stops at
-`temporary_script_body_residency`. Body availability remains unknown. Cached
-file bytes alone do not prove that this section was published.
+The reached script belongs to another logical resource section. Its descriptor
+is retained, and the checked fresh-base callback includes the script-fixup bit.
+The same file owner has no section requests or unresolved request history, so
+the reached fixup branch establishes a NULL runtime body. Cached file bytes do
+not make that body resident, and the metadata getter issues no section load.
+
+The wrapper registry now belongs to the controller. Cancellation, another player
+attempt and repeated lookups retain the same wrapper and publication history.
+Requests record their prefix before a provider can fail. Failed requests and
+unresolved dependency work keep body availability pending; a retained payload
+does not prove script publication or completed body initialization.
+
+The NULL-body initializer returns without scanning clips. Its real class-four
+node is inserted, and its zero-time forward callback clears the reached phase
+fields and returns without reading duration or FPS. Fresh maintenance and reverse
+branches skip. The list still contains a node, so this path awaits
+`temporary_animation_evaluation`; it cannot use the empty-list refresh.
 
 ## What remains
 
-The next work is to bind the resource owner's fresh base-publication and section
-history to the script's runtime body state. A confirmed null body and an unknown
-publication state must remain distinct. The descriptor getter itself does not
-request a section load.
-
-After that, the actual direct factory, zero-time forward callback, nonempty
-evaluation and bind return must run in order. A real script node requires the
-nonempty evaluation path even if its body is null. Constructor locals and
-allocated matrices are not sampled poses.
+The next work is the nonempty evaluation path and its bind return. A real script
+node requires that path even when its body is NULL. Its actual sampling guard,
+skeleton preparation, shared scratch stores and release must run in source
+order. Constructor locals and allocated matrices are not sampled poses.
 
 Later preload work still needs its remaining temporary operations, teardown,
 entry commit and subsequent registry calls. Full player initialization and the
@@ -63,10 +71,10 @@ or original-game parity is claimed.
 ## Evidence
 
 Core tests cover narrow storage writes, lazy reads, partial failures, mapping
-order, distinct temporary ownership and pending body states. A native hidden
-New Game probe retains the registered world, temporary skeleton and cached
-script descriptor with no loading failure. Player and camera readiness remain
-false.
+order, distinct temporary ownership, fresh NULL proofs and pending body states.
+Tests also cover retained wrappers across cancellation/reentry and failed request
+prefixes. A native hidden New Game probe completes the direct factory and forward
+callback without a loading failure. Player and camera readiness remain false.
 
 The progress report keeps the returned initializer snapshot separate from current
 preload mutations. See [player pose setup](player-pose-setup.md) for the earlier

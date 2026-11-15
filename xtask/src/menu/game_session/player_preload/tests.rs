@@ -18,7 +18,7 @@ pub(in crate::menu::game_session) fn preload(c: &Value) -> Value {
     json!({"stage":"awaiting_temporary","pending_dependency":"preload_temporary_bind","entry_flag":1,"cache_enabled":1,
         "raw_flags_written":32,"entry_keys_written":34,"registry_count":4,"source_row":2,"rows_visited":3,"enabled_rows":1,
         "current_weapon":0x0200_0101,"call_in_row":0,"completed_calls":[],"current_call":current_call,"allocations":allocations,
-        "caches":caches,"flag_cleared":false,"helper_returned":false,"temporary":null,"state_sha256":"f".repeat(64)})
+        "caches":caches,"flag_cleared":false,"helper_returned":false,"temporary":null,"script_publication":null,"state_sha256":"f".repeat(64)})
 }
 pub(in crate::menu::game_session) fn component() -> Value {
     let mut c = super::super::player_initializer_prefix::tests::completed_component();
@@ -48,26 +48,17 @@ pub(in crate::menu::game_session) fn native_preload(c: &Value) -> Value {
     call["extraction"] = json!({"requested_index":86,"baseline_index":0,"transition_ordinal":8,"command_ordinal":0,"set_index":220,
         "group_ordinal":0,"child_ordinal":0,"transitions_read":9,"commands_read":1,"groups_read":1,"children_read":1});
     let mut t = temporary(0x8400_00ef);
-    t["stage"] = json!("awaiting_initializer");
-    t["pending_dependency"] = json!("temporary_script_body_residency");
     t["skin_file"] = json!(0x010a_0050);
     t["skin_reference"] = json!(0x0d00_016f);
     t["bones"] = json!(48);
-    for k in [
-        "factory_returned",
-        "head_inserted",
-        "maintenance_skipped",
-        "reverse_skipped",
-    ] {
-        t[k] = json!(false);
-    }
-    t["forward"] = Value::Null;
     let s = &mut t["script"];
-    s["stage"] = json!("AwaitingScriptBody");
     s["descriptor_index"] = json!(239);
-    s["body_bound"] = Value::Null;
-    s["initializer_returned"] = json!(false);
     p["temporary"] = t;
+    p["script_publication"] = json!({"file":0x0102_0016,"generation":0,
+        "descriptor_index":239,"section_index":9,"section_key":0x0800_0009,
+        "callback_mask":0x819c,"fresh_base":true,"request_count":0,"active_requests":0,
+        "retained_sections":0,"history_unknown":false,"raw_job":0,"body_state":"known_null",
+        "native_history_verified":false});
     p
 }
 #[test]
@@ -363,4 +354,62 @@ fn pending_forward_body_keeps_factory_history_and_stops_callbacks() {
         bad["preload"]["temporary"]["script"]["initializer_returned"] = json!(false);
         assert!(validate(&bad["preload"], &bad).is_err());
     }
+}
+
+#[test]
+fn current_publication_proof_is_owner_bound_and_distinct_from_initializer_history() {
+    let mut c = component();
+    c["preload"] = native_preload(&c);
+    let history = c["initializer_prefix"].clone();
+    validate(&c["preload"], &c).unwrap();
+    assert_eq!(c["initializer_prefix"], history);
+    for (key, value) in [
+        ("file", json!(0x0102_0017)),
+        ("descriptor_index", json!(238)),
+        ("descriptor_index", json!(32767)),
+        ("section_index", json!(0)),
+        ("section_index", json!(32767)),
+        ("section_key", json!(0x0800_0000)),
+        ("section_key", json!(0x0700_0009)),
+        ("callback_mask", json!(0)),
+        ("callback_mask", Value::Null),
+        ("fresh_base", json!(false)),
+        ("active_requests", json!(1)),
+        ("retained_sections", json!(1)),
+        ("history_unknown", json!(true)),
+        ("raw_job", json!(1)),
+        ("raw_job", Value::Null),
+        ("native_history_verified", json!(true)),
+        ("body_state", json!("resident")),
+        ("request_count", json!(-1)),
+    ] {
+        let mut bad = c.clone();
+        bad["preload"]["script_publication"][key] = value;
+        assert!(
+            validate(&bad["preload"], &bad).is_err(),
+            "accepted publication {key}"
+        );
+    }
+    for key in c["preload"]["script_publication"]
+        .as_object()
+        .unwrap()
+        .keys()
+    {
+        let mut bad = c.clone();
+        bad["preload"]["script_publication"]
+            .as_object_mut()
+            .unwrap()
+            .remove(key);
+        assert!(
+            validate(&bad["preload"], &bad).is_err(),
+            "accepted missing publication {key}"
+        );
+    }
+    let mut pending = c;
+    pending["preload"]["script_publication"]["body_state"] = json!("pending");
+    pending["preload"]["script_publication"]["fresh_base"] = json!(false);
+    pending["preload"]["script_publication"]["callback_mask"] = Value::Null;
+    pending["preload"]["script_publication"]["raw_job"] = Value::Null;
+    pending["preload"]["script_publication"]["history_unknown"] = json!(true);
+    validate(&pending["preload"], &pending).unwrap();
 }

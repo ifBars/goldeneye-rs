@@ -38,27 +38,28 @@ impl Owned {
             file,
             target,
         };
-        let resolution = resolve(request, &mut self.files, &mut load)?;
-        let retained = self
-            .files
-            .get(&file)
-            .context("requested player wrapper is absent")?;
-        let section = if resolution.base {
-            None
-        } else {
-            Some(Arc::clone(
-                retained
-                    .sections
-                    .iter()
-                    .find(|s| s.index == resolution.section_index)
-                    .context("requested player logical section record is absent")?,
-            ))
-        };
-        Ok(Target {
-            source: Arc::clone(&retained.edb),
-            section,
-            resolution,
-            request,
+        self.files.with_files(|files| {
+            let resolution = resolve(request, files, &mut load)?;
+            let retained = files
+                .get(&file)
+                .context("requested player wrapper is absent")?;
+            let section = if resolution.base {
+                None
+            } else {
+                Some(Arc::clone(
+                    retained
+                        .sections
+                        .iter()
+                        .find(|s| s.index == resolution.section_index)
+                        .context("requested player logical section record is absent")?,
+                ))
+            };
+            Ok(Target {
+                source: Arc::clone(&retained.edb),
+                section,
+                resolution,
+                request,
+            })
         })
     }
 }
