@@ -11,6 +11,7 @@ mod prelude;
 mod reset_prefix;
 mod scratch;
 pub use allocation::{Allocation, Kind};
+pub use preload_storage::PoseRegion;
 pub use prelude::PendingPrelude;
 pub use reset_prefix::{
     CharacterBinding, PendingReset, ResetCompletion, Stage as DerivedResetStage, TailProvider,

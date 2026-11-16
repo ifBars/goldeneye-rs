@@ -22,6 +22,8 @@ pub enum ReturnReason {
     RawFull,
     EntriesFull,
     ExistingEntry,
+    /// 800fea78..80 after the temporary's source destructor.
+    TemporaryCompleted,
 }
 
 #[derive(Debug)]
@@ -47,6 +49,7 @@ pub struct Call {
     pub(super) reference: Option<u32>,
     pub(super) return_word: Option<u32>,
     pub(super) return_reason: Option<ReturnReason>,
+    pub(super) temporary_completed: Option<crate::mission::player::components::Identity>,
 }
 impl Call {
     pub fn begin(request: Request) -> Result<Self> {
@@ -76,6 +79,7 @@ impl Call {
             reference: None,
             return_word: None,
             return_reason: None,
+            temporary_completed: None,
         })
     }
     fn returned(&mut self, word: u32, reason: ReturnReason) {
@@ -220,6 +224,40 @@ impl Call {
                 CallStage::AwaitingTemporary | CallStage::Returned => return Ok(()),
             }
         }
+    }
+    /// Commits this call's mapped key to its selected entry (one U32 store at
+    /// entry+0) after the temporary's source destructor, then returns 1. The
+    /// tombstone must carry this exact call's request, entry, key and reference.
+    pub fn complete_temporary(
+        &mut self,
+        lease: Lease,
+        shared: &mut Shared,
+        tombstone: &super::teardown::Tombstone,
+    ) -> Result<()> {
+        ensure!(
+            lease.player() == self.request.player
+                && shared.reset_stage(lease)? == ResetStage::Complete,
+            "preload call has a stale or incomplete constructor lease"
+        );
+        let binding = tombstone.binding();
+        ensure!(
+            self.stage == CallStage::AwaitingTemporary
+                && self.extraction_returned
+                && binding.request == self.request
+                && Some(binding.entry) == self.entry_index
+                && Some(binding.mapped) == self.mapping.map(|m| m.output)
+                && binding.reference == self.reference.unwrap_or(0)
+                && tombstone.bind_return() == Some(1),
+            "temporary completion does not belong to this call"
+        );
+        shared.store_preload_entry_key(lease, binding.entry, binding.mapped)?;
+        self.temporary_completed = Some(binding.temporary);
+        self.returned(1, ReturnReason::TemporaryCompleted);
+        Ok(())
+    }
+    /// Identity of the destroyed temporary whose completion returned this call.
+    pub fn temporary_completed(&self) -> Option<crate::mission::player::components::Identity> {
+        self.temporary_completed
     }
     pub fn request(&self) -> Request {
         self.request

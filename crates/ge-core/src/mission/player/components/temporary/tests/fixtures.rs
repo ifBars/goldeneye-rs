@@ -68,31 +68,27 @@ impl SkinSource for Skin {
         Ok(self.bodies.remove(0))
     }
 }
-/// The FP receiver and a temporary, both allocated from the supplied registry, whose actual bind returned 1. Reference
-/// class four takes the nonempty NULL-body path; reference 0 the empty list.
-pub(crate) fn bind_returned(
-    registry: &mut Registry,
-    reference: u32,
-    context: &mut scratch::Context,
-    arena: &mut scratch::Arena,
-) -> (Animator, Pending) {
-    let identity = registry.allocate(PlayerId::new(1).unwrap()).unwrap();
-    let mut fp = Animator::from_constructor(identity);
-    let bones = [BoneInput {
+fn bones() -> [BoneInput; 1] {
+    [BoneInput {
         parent: u16::MAX,
         range_end: 1,
         auxiliary_raw: [0; 2],
-    }];
-    fn input(bones: &[BoneInput]) -> SkeletonInput<'_> {
-        SkeletonInput {
-            primary: PRIMARY,
-            bones,
-            auxiliary_words: 0,
-            captured_frame_counter: None,
-        }
+    }]
+}
+fn input(bones: &[BoneInput]) -> SkeletonInput<'_> {
+    SkeletonInput {
+        primary: PRIMARY,
+        bones,
+        auxiliary_words: 0,
+        captured_frame_counter: None,
     }
+}
+/// An FP receiver whose captured secondary pair is `PRIMARY`.
+pub(crate) fn receiver(registry: &mut Registry) -> Animator {
+    let identity = registry.allocate(PlayerId::new(1).unwrap()).unwrap();
+    let mut fp = Animator::from_constructor(identity);
     fp.bind_temporary_skeleton(
-        input(&bones),
+        input(&bones()),
         ResourceBinding {
             file: 0x0102_0016,
             reference: 0x8400_0022,
@@ -100,9 +96,20 @@ pub(crate) fn bind_returned(
         SkeletonBudget::default(),
     )
     .unwrap();
-    let mut pending = Pending::begin(&fp, registry, reference).unwrap();
+    fp
+}
+/// A temporary of `fp` whose actual bind returned 1. Reference class four
+/// takes the nonempty NULL-body path; reference 0 the empty list.
+pub(crate) fn bind_from(
+    fp: &Animator,
+    registry: &mut Registry,
+    reference: u32,
+    context: &mut scratch::Context,
+    arena: &mut scratch::Arena,
+) -> Pending {
+    let mut pending = Pending::begin(fp, registry, reference).unwrap();
     pending
-        .bind_skeleton(input(&bones), SkeletonBudget::default())
+        .bind_skeleton(input(&bones()), SkeletonBudget::default())
         .unwrap();
     pending.initialize_factory(&mut NullBody).unwrap();
     if pending.stage() == Stage::AwaitingInsertion {
@@ -117,5 +124,57 @@ pub(crate) fn bind_returned(
         pending.finish_bind_zero_time(context, arena).unwrap();
     }
     assert_eq!(pending.bind_return(), Some(1));
+    pending
+}
+/// The FP receiver and a temporary, both allocated from the supplied registry.
+pub(crate) fn bind_returned(
+    registry: &mut Registry,
+    reference: u32,
+    context: &mut scratch::Context,
+    arena: &mut scratch::Arena,
+) -> (Animator, Pending) {
+    let fp = receiver(registry);
+    let pending = bind_from(&fp, registry, reference, context, arena);
     (fp, pending)
+}
+/// Authored owner-word store on the temporary (test only), to reach the
+/// destructor's populated/unknown-state dependencies.
+pub(crate) fn store_animator_word(pending: &mut Pending, at: usize, bits: Option<u32>) {
+    crate::mission::player::components::animator::fixtures::store_word(
+        &mut pending.animator,
+        at,
+        bits,
+    );
+}
+
+/// Commits authored locals into the temporary's actual skeleton (test only).
+pub(crate) fn commit_temporary_pose(
+    pending: &mut Pending,
+    locals: &[crate::animation::skeleton::LocalPose],
+) -> Result<usize> {
+    let runtime =
+        crate::mission::player::components::animator::fixtures::skeleton_mut(&mut pending.animator)
+            .context("temporary skeleton absent")?;
+    crate::mission::player::components::skeleton::fixtures::commit_pose(runtime, locals)
+}
+
+/// Authored sparse word store on the temporary's current head header.
+pub(crate) fn store_head_word(pending: &mut Pending, at: usize, bits: Option<u32>) {
+    let head = pending.head.expect("authored head present");
+    store_script_word(pending, head, at, bits);
+}
+
+/// Authored store on a retained header, including an unlinked destructor owner.
+pub(crate) fn store_script_word(
+    pending: &mut Pending,
+    node: crate::animation::layers::NodeId,
+    at: usize,
+    bits: Option<u32>,
+) {
+    crate::mission::player::components::animator::fixtures::store_header_word(
+        &mut pending.animator,
+        node,
+        at,
+        bits,
+    );
 }

@@ -750,9 +750,19 @@ captures the process scalar from a controller-lived owner. A deferred ordered
 clamp invalidates the old numeric phase; later numeric getters remain fallible.
 The second evaluator owns new traces and a new scope, repeats mandatory skin
 preparation and visits the real MAX guard without reading the unknown phase.
-It releases before stopping at the bone-output provider. The first bind's
-evaluation and return remain historical. Scalar snapshots for diagnostics do
-not issue source reads. No key commit, teardown or flag clear follows yet.
+It releases before six lazy tag lookups copy actual bone locals into the
+selected shared entry. No matrix or sampled-pose inference follows. An explicit
+destructor cursor preserves unlink-before-destroy order and partial cleanup.
+Pre-destruction snapshots keep historical bind/caller evidence; consuming the
+owner yields a tombstone tied to the full call, selected entry and mapping.
+Only that receipt permits key commit and cursor resumption. No source effects
+run in Rust Drop. The latest16 completed snapshots and aggregate counters remain
+bounded, with the first completed snapshot retained separately.
+The native path now completes162 calls and32 temporary entries. Its next
+temporary initializes a resident four-clip script, then retains a live bind
+evaluation at the real sampling provider. Its caller has not run. Earlier
+MAX guards cannot supply this node's result. Scalar snapshots for diagnostics
+do not issue source reads, and the shared flag is not cleared yet.
 Failed requests or unresolved dependency work preserve
 Pending rather than making cached bytes resident. The returned initializer receipt
 stays immutable while current preload storage and publication history change.

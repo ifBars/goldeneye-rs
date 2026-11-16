@@ -4,7 +4,9 @@ const playerPreloadDashboard = (() => {
   const callStages = ['remap','raw_flag','raw_key','raw_indices','entry_scan','raw_occupied','raw_weapon','raw_mapping','entry_key','invalidate','reference','awaiting_temporary','returned'];
   const temporaryStages = ['awaiting_skeleton','binding_skeleton','awaiting_factory','initializing_factory','awaiting_initializer','awaiting_insertion','awaiting_forward_tick','forward_tick','awaiting_evaluation','bind_returned','failed','evaluating_bind','aborted'];
   const scriptStages = ['Constructed','AwaitingScript','ResolvingScript','AwaitingScriptBody','AwaitingInitializer','Initializing','AwaitingClipFile','AwaitingClipRange','AwaitingFrameCount','AwaitingAnimation','PreparingPosition','AwaitingAnimationOwner','AwaitingClipCache','AwaitingAnimationBody','AwaitingTimingCurve','AwaitingRootMotion','ReturnedWithoutPlay','ReturnedInitialized','ReturnedWithoutBody','Failed'];
-  const dependency = p => p?.post_bind ? (postDependency(p.post_bind)??'preload_temporary_post_bind') : p?.stage === 'awaiting_temporary' ? (p.temporary?.bind_return===1?'preload_temporary_post_bind':'preload_temporary_bind') : p?.stage === 'returned' ? 'player_initializer_post_preload' : stages.includes(p?.stage) ? 'player_animation_preload' : null;
+  const temporaryEvaluationDependency = t => ({temporary_evaluation_sampling:'preload_temporary_evaluation_sampling',temporary_evaluation_skin:'preload_temporary_evaluation_skin',temporary_evaluation_auxiliary_clear:'preload_temporary_evaluation_auxiliary_clear',temporary_evaluation_layers:'preload_temporary_evaluation_layers'})[t?.pending_dependency]??null;
+  const dependency = p => p?.stage==='returned'?'player_initializer_post_preload':p?.completion?.destruction?destructionDependency(p.completion.destruction):p?.outputs?(p.outputs.pending_dependency??'preload_temporary_bone_outputs'):p?.post_bind ? (postDependency(p.post_bind)??'preload_temporary_post_bind') : p?.stage === 'awaiting_temporary' ? (temporaryEvaluationDependency(p.temporary)??(p.temporary?.bind_return===1?'preload_temporary_post_bind':'preload_temporary_bind')) : stages.includes(p?.stage) ? 'player_animation_preload' : null;
+  const destructionDependency = d => d.stage==='destroyed'?'preload_temporary_entry_commit':d.pending_dependency??'preload_temporary_destructor';
   const root = p => p?.stage === 'awaiting_temporary' ? 'player_preload_temporary_pending' : 'player_animation_preload_pending';
   const equivalent = (a,b) => {
     if(a===b) return true;
@@ -33,7 +35,7 @@ const playerPreloadDashboard = (() => {
     }
     if(s<9&&v.selected_key_empty!==null||s<10&&v.invalidated||s<11&&v.extraction_returned) return false;
     if(v.extraction_returned) {
-      if(s!==11||!v.invalidated) return false;
+      if(!(s===11||s===12&&v.return_reason==='temporary_completed')||!v.invalidated) return false;
       if(v.reference_outcome==='no_reference') {if(v.reference!==null||v.extraction!==null) return false;}
       else if(v.reference_outcome==='class_four') {
         const e=v.extraction;
@@ -43,8 +45,9 @@ const playerPreloadDashboard = (() => {
       } else return false;
     } else if(v.reference_outcome!==null||v.reference!==null||v.extraction!==null) return false;
     if(s===12) {
-      if(v.reference!==null||v.extraction_returned) return false;
+      if(v.return_reason!=='temporary_completed'&&(v.reference!==null||v.extraction_returned)) return false;
       switch(v.return_reason) {
+        case 'temporary_completed':if(v.return_word!==1||!v.extraction_returned||!v.mapping_written||!v.invalidated||v.selected_key_empty!==true) return false;break;
         case 'variant_unavailable':if(v.return_word!==0||v.variant===0||v.mapping?.mapped!==false||v.raw_flags_read!==0||v.entry_keys_read!==0||v.raw_index!==null) return false;break;
         case 'raw_full':if(v.return_word!==0||v.raw_flags_read!==32||v.raw_keys_read!==32||v.raw_index!==null||v.entry_keys_read!==0) return false;break;
         case 'entries_full':if(v.return_word!==0||v.entry_keys_read!==34||v.entry_index!==null||v.occupied_written) return false;break;
@@ -170,7 +173,7 @@ const playerPreloadDashboard = (() => {
     try {
       if(p===null) return c.stage!=='player_preload_temporary_pending';
       const {closed,count,hash,cacheStateValid}=h,word=v=>count(v)&&v<=0xffffffff;
-      if(!closed(p,['stage','pending_dependency','entry_flag','cache_enabled','raw_flags_written','entry_keys_written','registry_count','source_row','rows_visited','enabled_rows','current_weapon','call_in_row','completed_calls','current_call','temporary','post_bind','script_publication','allocations','caches','flag_cleared','helper_returned','state_sha256'])) return false;
+      if(!closed(p,['stage','pending_dependency','entry_flag','cache_enabled','raw_flags_written','entry_keys_written','registry_count','source_row','rows_visited','enabled_rows','current_weapon','call_in_row','completed_calls','current_call','temporary','post_bind','script_publication','outputs','completion','allocations','caches','flag_cleared','helper_returned','state_sha256'])) return false;
       const s=stages.indexOf(p.stage),prefix=c.initializer_prefix;
       if(s<0||prefix?.stage!=='awaiting_preload'||prefix.cache_enabled!==1||prefix.invalidated!==false||!equivalent(prefix.receivers_found,[true,true])||!hash(p.state_sha256)||!count(p.cache_enabled)||p.cache_enabled>255||typeof p.flag_cleared!=='boolean'||p.helper_returned!==(s===9)||!count(p.raw_flags_written)||p.raw_flags_written>32||!count(p.entry_keys_written)||p.entry_keys_written>34||!count(p.call_in_row)||p.call_in_row>=6||p.pending_dependency!==dependency(p)||c.pending_dependency!==dependency(p)||c.stage!==root(p)) return false;
       if(s===0?p.entry_flag!==null:!count(p.entry_flag)||p.entry_flag>255) return false;
@@ -197,7 +200,7 @@ const playerPreloadDashboard = (() => {
         const a=p.allocations[i];
         if(a===null) {if(s>2&&p.entry_flag!==0) return false;continue;}
         if(!closed(a,['kind','native_bytes','payload_bytes','known_payload_bytes','header_words'])||a.kind!==kind||a.native_bytes!==bytes||a.payload_bytes!==payload||!equivalent(a.header_words,header)||!count(a.known_payload_bytes)) return false;
-        if(i===0?a.known_payload_bytes<known.size||a.known_payload_bytes>416:i===1?a.known_payload_bytes<4*p.entry_keys_written||a.known_payload_bytes>136:a.known_payload_bytes!==0) return false;
+        if(i===0?a.known_payload_bytes<known.size||a.known_payload_bytes>416:i===1?a.known_payload_bytes<4*p.entry_keys_written||a.known_payload_bytes>7072:a.known_payload_bytes!==0) return false;
       }
       if(!cacheStateValid(p.caches,prefix.receivers_found)) return false;
       const currentCache=JSON.parse(JSON.stringify(p.caches)),historical=prefix.caches,invalidations=calls.filter(v=>v.invalidated).length;
@@ -208,19 +211,54 @@ const playerPreloadDashboard = (() => {
       }
       currentCache.state_sha256=historical.state_sha256;
       if(!equivalent(currentCache,historical)) return false;
-      return (p.temporary===null||s===7&&temporary(p.temporary,p,c,h))&&publication(p.script_publication,p.temporary,h)&&postBind(p.post_bind,p.temporary,h);
+      return (p.temporary===null||s===7&&temporary(p.temporary,p,c,h))&&publication(p.script_publication,p.temporary,h)&&postBind(p.post_bind,p.temporary,h)&&completion(p,c,h);
     } catch { return false; }
+  }
+  function outputValid(v,h) {
+    const {closed,count,hash}=h;
+    if(!closed(v,['stage','pending_dependency','iteration','hash_cursor','hash_reads','lookups','body_reads','tag_walks','stores','found','missing','outcomes','state_sha256'])||!hash(v.state_sha256)||!['hash','lookup','body','tag','store_index','store_translation_low','store_translation_high','store_rotation_low','store_rotation_high','done','failed','aborted'].includes(v.stage)||![null,'preload_bone_output_skin_lookup','preload_bone_output_skin_body','preload_bone_output_tag','preload_temporary_destructor'].includes(v.pending_dependency)||!['iteration','hash_cursor','hash_reads','lookups','body_reads','tag_walks','stores','found','missing'].every(k=>count(v[k]))||!Array.isArray(v.outcomes)||v.outcomes.length!==6) return false;
+    const found=v.outcomes.filter(o=>o==='found').length,missing=v.outcomes.filter(o=>o!==null&&o!=='found').length;
+    if(!v.outcomes.every(o=>[null,'found','zero_hash','descriptor_absent','body_absent','sentinel'].includes(o))||v.found!==found||v.missing!==missing||v.iteration>6||v.hash_cursor>6||v.stores>30||v.hash_reads>6||v.lookups>0xffffffff||v.body_reads>0xffffffff||v.tag_walks>0xffffffff||v.lookups>0&&v.hash_reads===0||v.body_reads>0&&v.lookups===0||v.tag_walks>0&&v.body_reads===0) return false;
+    return v.stage!=='done'||v.iteration===6&&found+missing===6&&v.stores===5*found+missing&&v.pending_dependency==='preload_temporary_destructor';
+  }
+  function destructionValid(d,s,h) {
+    const {closed,count,hash}=h;
+    if(!closed(d,['stage','pending_dependency','temporary_identity','ordinal','children','skeleton','snapshot_words','snapshot_digest','state_sha256'])||!['attachment_list','extra_owner','slot_children','skeleton','component_words','attachment_list_again','base_destructor','awaiting_free','destroyed','failed','aborted'].includes(d.stage)||d.pending_dependency!==null&&!['preload_teardown_attachment_list','preload_teardown_extra_owner','preload_teardown_active_count','preload_teardown_slot_list','preload_teardown_control_node','preload_teardown_child_state','preload_teardown_child_reference_list','preload_teardown_linked_base_child','preload_teardown_skeleton_pointer','preload_teardown_base_owner','preload_teardown_nonterminating_base'].includes(d.pending_dependency)||d.temporary_identity!==s.temporary_identity||d.ordinal!==s.ordinal||!hash(d.state_sha256)||!count(d.snapshot_words)||d.snapshot_words===0||!/^[0-9a-fA-F]{16}$/.test(d.snapshot_digest)||!count(d.children)||d.children>1) return false;
+    if(d.skeleton!==null&&(!closed(d.skeleton,['bones','auxiliary_words','block_bytes'])||d.skeleton.bones!==s.temporary.bones||d.skeleton.auxiliary_words!==s.temporary.auxiliary_words||!count(d.skeleton.block_bytes)||d.skeleton.block_bytes===0)) return false;
+    return d.stage!=='destroyed'||d.pending_dependency===null&&d.skeleton!==null;
+  }
+  function snapshotValid(s,p,c,h) {
+    if(!h.closed(s,['ordinal','source_ordinal','player','receiver','weapon','generic','alternate','variant','entry','mapped','reference','temporary_identity','temporary','post_bind','outputs','script_publication'])||!h.count(s.ordinal)) return false;
+    const call=p.completed_calls[s.ordinal]??p.current_call;
+    if(!call||call.ordinal!==s.ordinal||!['source_ordinal','weapon','generic','alternate','variant'].every(k=>call[k]===s[k])||s.entry!==call.entry_index||s.mapped!==call.mapping?.output||s.reference!==(call.reference??0)||s.temporary_identity!==s.temporary?.identity||s.receiver!==s.temporary.source_receiver||s.player!==s.temporary.player) return false;
+    return temporary(s.temporary,{...p,current_call:call},c,h)&&postBind(s.post_bind,s.temporary,h)&&publication(s.script_publication,s.temporary,h)&&outputValid(s.outputs,h)&&s.outputs.stage==='done'&&s.post_bind.stage==='awaiting_bone_outputs';
+  }
+  function completion(p,c,h) {
+    const v=p.completion,{closed,count}=h;
+    if(!closed(v,['history_limit','completed_temporary_count','discarded_temporary_count','found_output_count','missing_output_count','destroyed_temporary_count','entry_commit_count','history','pending_snapshot','first_completed_snapshot','destruction'])||!['completed_temporary_count','discarded_temporary_count','found_output_count','missing_output_count','destroyed_temporary_count','entry_commit_count'].every(k=>count(v[k]))||v.history_limit!==16||!Array.isArray(v.history)||v.history.length>16||v.history.length+v.discarded_temporary_count!==v.completed_temporary_count) return false;
+    const commits=p.completed_calls.filter(c=>c.return_reason==='temporary_completed').length;
+    const first=v.first_completed_snapshot;
+    if(commits===0?first!==null:!snapshotValid(first,p,c,h)||first.ordinal!==p.completed_calls.find(c=>c.return_reason==='temporary_completed')?.ordinal||v.history.some(row=>row.snapshot?.ordinal===first.ordinal&&!equivalent(row.snapshot,first))) return false;
+    if(v.entry_commit_count!==commits||v.completed_temporary_count!==commits||v.destroyed_temporary_count!==commits+(v.destruction?.stage==='destroyed'?1:0)||v.found_output_count+v.missing_output_count!==6*(commits+(v.pending_snapshot!==null?1:0))) return false;
+    let previous=-1;
+    for(const row of v.history) {if(!closed(row,['snapshot','destruction'])||!snapshotValid(row.snapshot,p,c,h)||!destructionValid(row.destruction,row.snapshot,h)||row.destruction.stage!=='destroyed'||row.snapshot.ordinal<=previous||p.completed_calls[row.snapshot.ordinal]?.return_reason!=='temporary_completed') return false;previous=row.snapshot.ordinal;}
+    if(p.outputs!==null&&(!outputValid(p.outputs,h)||p.stage!=='awaiting_temporary'||p.post_bind===null)) return false;
+    if(v.pending_snapshot!==null&&(!snapshotValid(v.pending_snapshot,p,c,h)||v.pending_snapshot.ordinal!==p.current_call?.ordinal||!['temporary','post_bind','outputs','script_publication'].every(k=>equivalent(v.pending_snapshot[k],p[k])))) return false;
+    if(v.destruction!==null&&(v.pending_snapshot===null||!destructionValid(v.destruction,v.pending_snapshot,h))) return false;
+    const currentBytes=v.pending_snapshot===null&&p.outputs!==null?8*p.outputs.stores:0;
+    return p.allocations[1]===null||p.allocations[1].known_payload_bytes<=136+34*v.found_output_count+2*v.missing_output_count+currentBytes;
   }
   function summary(p) {
     if(p===null) return '';
     const current=p.current_call,t=p.temporary,selected=p.caches.selected==='first_person'?0:p.caches.selected==='third_person'?1:null;
     const history=selected===null?'No cache is selected.':`Current selected-cache validity reads: ${p.caches.headers[selected].invalidation_count_reads}; the initializer cache receipt remains historical.`;
     const callText=current?` Current preload call ${current.ordinal+1} is ${current.stage.replaceAll('_',' ')}. ${current.selected_key_empty===true?'The selected animation-entry key is still empty; no key commit has occurred.':''} ${current.extraction_returned?current.reference_outcome==='class_four'?`Class-four reference 0x${current.reference.toString(16).padStart(8,'0')} was extracted.`:'The extractor returned a known no-reference result; temporary binding is still required.':'Reference extraction has not returned.'}`:'';
-    const temp=t?` A distinct temporary animator ${t.identity} retains ${t.bones??'unknown'} bones and ${t.auxiliary_words??'unknown'} auxiliary words. ${t.script?.stage==='AwaitingScriptBody'?'Its script descriptor is retained, but body residency is unknown. No head insertion, forward tick or evaluation has run.':`Its reached dependency is ${(t.pending_dependency??t.stage).replaceAll('_',' ')}.`} No player attachment or callback was borrowed.`:' No temporary animator has been allocated yet.';
+    const temp=t?` A distinct temporary animator ${t.identity} ${p.completion.pending_snapshot?'has a saved pre-destruction receipt with':'retains'} ${t.bones??'unknown'} bones and ${t.auxiliary_words??'unknown'} auxiliary words. ${t.script?.stage==='AwaitingScriptBody'?'Its script descriptor is retained, but body residency is unknown. No head insertion, forward tick or evaluation has run.':`Its recorded bind stage is ${(t.pending_dependency??t.stage).replaceAll('_',' ')}.`} No player attachment or callback was borrowed.`:p.completion.completed_temporary_count?' Completed temporaries are retained as bounded historical receipts.':' No temporary animator has been allocated yet.';
     const evaluationText=t?.evaluation?.stage==='returned'?` Nonempty animation evaluation returned after releasing its own scratch scope: ${t.evaluation.node_visits} node visited, ${t.evaluation.successful_samples} samples, no pose commit. Inner bind returned.`:t?.evaluation?.stage==='aborted'?' The retained evaluation scope was canceled; cleanup is not a bind return.':'';
-    const postText=p.post_bind?.stage==='awaiting_bone_outputs'?`${p.post_bind.parameter!==null?' The caller stored 0.5 through its actual parameter pointee. KnownInitial 1.0 remains separate from UnknownCurrent; header phase retains a deferred expression.':' The known NULL or nonmatching head skipped the parameter store and scalar read.'} A separate second evaluation returned and released with zero samples or commits. Six-bone outputs, teardown and entry commit remain pending.`:'';
+    const postText=p.post_bind?.stage==='awaiting_bone_outputs'?`${p.post_bind.parameter!==null?' The caller stored 0.5 through its actual parameter pointee. KnownInitial 1.0 remains separate from UnknownCurrent; header phase retains a deferred expression.':' The known NULL or nonmatching head skipped the parameter store and scalar read.'} A separate second evaluation returned and released with zero samples or commits.${p.outputs===null?' Six-bone outputs, teardown and entry commit remain pending.':''}`:'';
+    const progress=` ${p.completed_calls.length} calls returned; ${p.completion.completed_temporary_count} temporary calls completed, ${p.completion.found_output_count} bone outputs found and ${p.completion.missing_output_count} missing. ${p.completion.destroyed_temporary_count} temporaries destroyed; ${p.completion.entry_commit_count} entry keys committed. History retains ${p.completion.history.length} of ${p.completion.completed_temporary_count} completed temporaries. Current dependency: ${p.pending_dependency.replaceAll('_',' ')}.`;
     const publicationText=p.script_publication===null?'':p.script_publication.body_state==='known_null'?` Fresh base publication proves a NULL script body for descriptor ${p.script_publication.descriptor_index} in section ${p.script_publication.section_index}; original runtime history remains unverified.`:' Current script publication is pending; historical initializer state remains separate.';
-    return ` Preload wrote ${p.raw_flags_written} Raw flags and ${p.entry_keys_written} entry keys; ${p.rows_visited} registry rows were visited and ${p.enabled_rows} ${p.enabled_rows===1?'was':'were'} enabled. Shared payload knowledge: ${p.allocations.map(a=>a?.known_payload_bytes??'absent').join(' / ')} bytes (Raw / array34 / array64); other bytes remain unknown. ${history}${callText}${temp}${evaluationText}${postText}${publicationText} The shared preload flag remains ${p.cache_enabled}; ${p.helper_returned?'only the nested preload helper returned':'preload has not returned'}. No sampled pose, completed player or camera is claimed.`;
+    return ` Preload wrote ${p.raw_flags_written} Raw flags and ${p.entry_keys_written} entry keys; ${p.rows_visited} registry rows were visited and ${p.enabled_rows} ${p.enabled_rows===1?'was':'were'} enabled. Shared payload knowledge: ${p.allocations.map(a=>a?.known_payload_bytes??'absent').join(' / ')} bytes (Raw / array34 / array64); other bytes remain unknown. ${history}${callText}${temp}${evaluationText}${postText}${publicationText}${progress} The shared preload flag is ${p.cache_enabled}; ${p.helper_returned?'the nested preload helper returned':'preload has not returned'}. No sampled pose, completed player or camera is claimed.`;
   }
   return {validate,summary,dependency,root};
 })();

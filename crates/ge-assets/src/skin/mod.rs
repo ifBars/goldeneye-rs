@@ -5,9 +5,11 @@ use crate::{
 };
 use anyhow::{Context, Result, ensure};
 mod body;
+mod tags;
 mod textures;
 pub use body::Body;
 pub(crate) use body::read as body_read;
+pub(crate) use tags::walk as tag_walk;
 pub use textures::{EnumeratedTextures, TextureBudget, TextureDependencies, TextureDependency};
 pub(crate) use textures::{enumerate_at as textures_enumerate_at, read as textures_read};
 
@@ -279,43 +281,14 @@ pub(crate) fn auxiliary_count(data: &[u8], skin: &Skin) -> Result<u32> {
 
 pub(crate) fn find_tag(data: &[u8], skin: &Skin, tag: u32, budget: usize) -> Result<Option<Tag>> {
     validate_skin(data, skin)?;
-    let b = Bytes(data);
-    let descriptor = &skin.descriptor;
-    let field = descriptor
-        .address
-        .checked_add(0x5c)
-        .context("skin tag field overflow")?;
-    // A null pointer cannot be walked safely; it is not proof of a sentinel.
-    ensure!(b.u32(field)? != 0, "skin tag pointer is absent");
-    let start = b.relative(field)?;
-    for source_index in 0..budget {
-        let source_address = source_index
-            .checked_mul(4)
-            .and_then(|n| start.checked_add(n))
-            .context("skin tag offset overflow")?;
-        let tag_raw = b.u16(
-            source_address
-                .checked_add(2)
-                .context("skin tag offset overflow")?,
-        )?;
-        if tag_raw == u16::MAX {
-            return Ok(None);
-        }
-        if tag_raw == tag as u16 {
-            let bone_index = b.u16(source_address)?;
-            ensure!(
-                usize::from(bone_index) < skin.bones.len(),
-                "skin tag bone index is out of bounds"
-            );
-            return Ok(Some(Tag {
-                bone_index,
-                tag_raw,
-                source_index,
-                source_address,
-            }));
-        }
+    let found = tags::walk(data, skin.descriptor.address, tag, budget)?;
+    if let Some(tag) = &found {
+        ensure!(
+            usize::from(tag.bone_index) < skin.bones.len(),
+            "skin tag bone index is out of bounds"
+        );
     }
-    anyhow::bail!("skin tag entry budget exhausted")
+    Ok(found)
 }
 
 #[cfg(test)]

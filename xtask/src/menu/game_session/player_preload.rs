@@ -3,6 +3,7 @@ use super::{closed, count, player_initializer_prefix};
 use anyhow::{Context, Result, ensure};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
+mod completion;
 mod evaluation;
 mod post_bind;
 
@@ -84,20 +85,44 @@ fn script_publication(v: &Value, t: &Value) -> Result<()> {
     Ok(())
 }
 pub(super) fn dependency(p: &Value) -> Option<&'static str> {
+    if p["stage"] == "returned" {
+        return Some("player_initializer_post_preload");
+    }
+    if !p["completion"]["destruction"].is_null() {
+        return completion::dependency(&p["completion"]["destruction"]);
+    }
+    if !p["outputs"].is_null() {
+        return completion::output_dependency(&p["outputs"]);
+    }
     if !p["post_bind"].is_null() {
         return Some(
             post_bind::dependency(&p["post_bind"]).unwrap_or("preload_temporary_post_bind"),
         );
     }
     match p["stage"].as_str()? {
-        "awaiting_temporary" => Some(if p["temporary"]["bind_return"] == 1 {
-            "preload_temporary_post_bind"
-        } else {
-            "preload_temporary_bind"
-        }),
+        "awaiting_temporary" => Some(
+            if let Some(dependency) = temporary_evaluation_dependency(p) {
+                dependency
+            } else if p["temporary"]["bind_return"] == 1 {
+                "preload_temporary_post_bind"
+            } else {
+                "preload_temporary_bind"
+            },
+        ),
         "returned" => Some("player_initializer_post_preload"),
         "entry" | "raw_flags" | "entry_keys" | "registry_count" | "row" | "weapon" | "call"
         | "final_flag" => Some("player_animation_preload"),
+        _ => None,
+    }
+}
+fn temporary_evaluation_dependency(p: &Value) -> Option<&'static str> {
+    match p["temporary"]["pending_dependency"].as_str() {
+        Some("temporary_evaluation_sampling") => Some("preload_temporary_evaluation_sampling"),
+        Some("temporary_evaluation_skin") => Some("preload_temporary_evaluation_skin"),
+        Some("temporary_evaluation_auxiliary_clear") => {
+            Some("preload_temporary_evaluation_auxiliary_clear")
+        }
+        Some("temporary_evaluation_layers") => Some("preload_temporary_evaluation_layers"),
         _ => None,
     }
 }
@@ -318,7 +343,8 @@ fn call(v: &Value, ordinal: usize, raw_known: &mut BTreeSet<u64>) -> Result<()> 
     }
     if v["extraction_returned"] == true {
         ensure!(
-            stage == 11 && v["invalidated"] == true,
+            (stage == 11 || stage == 12 && v["return_reason"] == "temporary_completed")
+                && v["invalidated"] == true,
             "preload extraction bypassed prefix"
         );
         match v["reference_outcome"].as_str() {
@@ -378,10 +404,19 @@ fn call(v: &Value, ordinal: usize, raw_known: &mut BTreeSet<u64>) -> Result<()> 
     }
     if stage == 12 {
         ensure!(
-            v["reference"].is_null() && v["extraction_returned"] == false,
+            v["return_reason"] == "temporary_completed"
+                || v["reference"].is_null() && v["extraction_returned"] == false,
             "prefix call claims temporary completion"
         );
         match v["return_reason"].as_str() {
+            Some("temporary_completed") => ensure!(
+                v["return_word"] == 1
+                    && v["extraction_returned"] == true
+                    && v["selected_key_empty"] == true
+                    && v["mapping_written"] == true
+                    && v["invalidated"] == true,
+                "temporary return bypassed actual call prefix"
+            ),
             Some("variant_unavailable") => ensure!(
                 v["return_word"] == 0
                     && v["variant"] != 0
@@ -892,6 +927,8 @@ pub(super) fn validate(p: &Value, c: &Value) -> Result<()> {
             "temporary",
             "post_bind",
             "script_publication",
+            "outputs",
+            "completion",
         ],
     )?;
     let stage = [
@@ -1093,7 +1130,7 @@ pub(super) fn validate(p: &Value, c: &Value) -> Result<()> {
         ensure!(
             match i {
                 0 => n >= known.len() as u64 && n <= 416,
-                1 => n >= 4 * count(p, "entry_keys_written")? && n <= 136,
+                1 => n >= 4 * count(p, "entry_keys_written")? && n <= 7072,
                 _ => n == 0,
             },
             "preload invented unwritten cache payload bytes"
@@ -1134,38 +1171,185 @@ pub(super) fn validate(p: &Value, c: &Value) -> Result<()> {
     }
     script_publication(&p["script_publication"], &p["temporary"])?;
     post_bind::validate(&p["post_bind"], &p["temporary"])?;
+    completion::validate(p, c)?;
     Ok(())
 }
 
-/// Exact supplied Tutorial boundary: nonempty evaluation releases before bind return.
+/// Measured Tutorial progress: 32 committed temporaries precede a resident sampling dependency.
 pub(super) fn validate_native(p: &Value, c: &Value, expected_player: u64) -> Result<()> {
     validate(p, c)?;
     ensure!(
         p["stage"] == "awaiting_temporary"
+            && p["pending_dependency"] == "preload_temporary_evaluation_sampling"
             && p["entry_flag"] == 1
             && p["cache_enabled"] == 1
             && p["raw_flags_written"] == 32
             && p["entry_keys_written"] == 34
             && p["registry_count"] == 38
-            && p["source_row"] == 2
-            && p["rows_visited"] == 3
-            && p["enabled_rows"] == 1
+            && p["source_row"] == 36
+            && p["rows_visited"] == 37
+            && p["enabled_rows"] == 28
+            && p["current_weapon"] == 0x0200_0551
             && p["call_in_row"] == 0
-            && p["current_weapon"] == 0x0200_016e
-            && p["completed_calls"] == json!([])
+            && p["completed_calls"]
+                .as_array()
+                .is_some_and(|a| a.len() == 162)
             && p["flag_cleared"] == false
             && p["helper_returned"] == false
-            && p["allocations"][0]["known_payload_bytes"] == 44
-            && p["allocations"][1]["known_payload_bytes"] == 136
+            && p["allocations"][0]["known_payload_bytes"] == 368
+            && p["allocations"][1]["known_payload_bytes"] == 6664
             && p["allocations"][2]["known_payload_bytes"] == 0,
-        "Tutorial preload prefix differs or claims full preload return"
+        "Tutorial preload resumed-loop progress or source flag differs"
     );
+    let progress = &p["completion"];
+    ensure!(
+        progress["completed_temporary_count"] == 32
+            && progress["discarded_temporary_count"] == 16
+            && progress["found_output_count"] == 192
+            && progress["missing_output_count"] == 0
+            && progress["destroyed_temporary_count"] == 32
+            && progress["entry_commit_count"] == 32
+            && progress["history"]
+                .as_array()
+                .is_some_and(|a| a.len() == 16)
+            && progress["pending_snapshot"].is_null()
+            && progress["destruction"].is_null()
+            && p["outputs"].is_null()
+            && p["post_bind"].is_null()
+            && p["script_publication"].is_null(),
+        "Tutorial completed temporary/output/destructor/commit accounting differs"
+    );
+    let first = &progress["first_completed_snapshot"];
+    ensure!(
+        first["ordinal"] == 0
+            && count(first, "temporary_identity")? >= 3
+            && count(first, "receiver")?.checked_add(1)
+                == Some(count(first, "temporary_identity")?)
+            && first["outputs"]["found"] == 6
+            && first["outputs"]["missing"] == 0
+            && first["outputs"]["stores"] == 30,
+        "Tutorial original temporary proof is missing"
+    );
+    validate_native_first(first, &p["completed_calls"][0], c, expected_player)?;
+    validate_native_current(p, c, expected_player)
+}
+fn validate_native_current(p: &Value, c: &Value, expected_player: u64) -> Result<()> {
     let call = &p["current_call"];
+    let t = &p["temporary"];
+    let e = &t["evaluation"];
+    let first = &p["completion"]["first_completed_snapshot"];
     ensure!(
         call["stage"] == "awaiting_temporary"
+            && call["ordinal"] == 162
+            && call["source_ordinal"] == 36
+            && call["weapon"] == 0x0200_0551
+            && call["generic"] == 0x0900_0765
+            && call["alternate"] == false
+            && call["variant"] == 0
+            && call["entry_index"] == 32
+            && call["mapping"]["output"] == 0x0900_086d
+            && call["reference"] == 0x8400_00b7u32
+            && call["selected_key_empty"] == true
+            && call["invalidated"] == true
+            && call["return_word"].is_null(),
+        "Tutorial current call is not the measured resident animation dependency"
+    );
+    ensure!(
+        call["extraction"]
+            == json!({"requested_index":41,"baseline_index":0,"transition_ordinal":42,"command_ordinal":0,"set_index":21,"group_ordinal":0,"child_ordinal":0,"transitions_read":43,"commands_read":1,"groups_read":1,"children_read":1}),
+        "Tutorial current resident reference extraction differs"
+    );
+    ensure!(
+        t["stage"] == "evaluating_bind"
+            && t["pending_dependency"] == "temporary_evaluation_sampling"
+            && count(first, "temporary_identity")?.checked_add(32) == Some(count(t, "identity")?)
+            && t["source_receiver"] == first["receiver"]
+            && t["player"] == expected_player
+            && t["skin_file"] == 0x010a_0050
+            && t["skin_reference"] == 0x0d00_016f
+            && t["reference"] == call["reference"]
+            && t["bones"] == 48
+            && t["auxiliary_words"] == 0
+            && t["factory_returned"] == true
+            && t["head_inserted"] == true
+            && t["bind_return"].is_null()
+            && c["attachment"]["registry_identities"] == t["identity"]
+            && c["attachment"]["item_components"] == 2,
+        "Tutorial current temporary is not the live distinct sampling owner"
+    );
+    let script = &t["script"];
+    ensure!(
+        script["stage"] == "ReturnedInitialized"
+            && script["descriptor_index"] == 183
+            && script["reference"] == call["reference"]
+            && script["body_bound"] == true
+            && script["initializer_returned"] == true
+            && script["phase_zero"]["stage"] == "initialized"
+            && script["phase_zero"]["heap_allocated"] == true
+            && script["phase_zero"]["normal_bound"] == 4
+            && script["phase_zero"]["clip_records"] == 4
+            && script["clips"].as_array().is_some_and(|a| a.len() == 4)
+            && t["forward"]
+                == json!({"stage":"Returned","phase_cleared":true,"body_bound":true,"duration_raw":33,"fps_bits":0x41f00000,"result_bits":0}),
+        "Tutorial current resident initializer/forward prefix differs"
+    );
+    ensure!(
+        e["stage"] == "pending"
+            && e["pending_boundary"] == "Node"
+            && e["reserved"] == true
+            && e["released"] == false
+            && e["lease_live"] == true
+            && e["aborted"] == false
+            && e["arena_owner"] == 1
+            && e["reservation_start"] == 0
+            && e["cursor_after"].is_null()
+            && e["live_after"].is_null()
+            && e["node_visits"] == 0
+            && e["nonempty_layers"] == 0
+            && e["successful_samples"] == 0
+            && e["advanced_context"] == false
+            && e["commit_register"] == 0
+            && e["blended_layers"] == 0
+            && e["committed"] == false,
+        "Tutorial resident evaluation fabricated sampling/release/commit"
+    );
+    ensure!(
+        e["slots"]
+            == json!([{"slot":0,"weight_bits":0x3f800000,"branch":"nonempty","tail":1,"prepared":true,"masks_cleared":true,"nodes":[],"successes":0,"flags_after":null}])
+            && e["prepares"]
+                == json!([{"file":0x010a0050,"reference":0x0d00016f,"generation":0,"descriptor_bound":true,"body_resident":true,"auxiliary_words":0,"lookups":1,"body_reads":1,"returned":"AuxiliaryZero","pause":null}])
+            && e["guards"]
+                == json!([{"node":1,"pointer":"record","record":0,"clip_reference":0x83000019u32,"animator_reference_read":true,"animator_reference":0x840000b7u32,"result":null,"pending_boundary":"Sampling"}]),
+        "Tutorial current node did not stop at actual resident clip sampling"
+    );
+    for snapshot in std::iter::once(&p["completion"]["first_completed_snapshot"]).chain(
+        p["completion"]["history"]
+            .as_array()
+            .context("history missing")?
+            .iter()
+            .map(|h| &h["snapshot"]),
+    ) {
+        let earlier = &snapshot["post_bind"]["evaluation"];
+        ensure!(
+            snapshot["player"] == expected_player
+                && snapshot["receiver"] == first["receiver"]
+                && earlier["arena_owner"] == e["arena_owner"]
+                && earlier["stage"] == "returned"
+                && earlier["released"] == true
+                && earlier["lease_live"] == false
+                && count(e, "ordinal")? > count(earlier, "ordinal")?
+                && count(e, "allocation_ordinal")? > count(earlier, "allocation_ordinal")?,
+            "current evaluation reused an earlier released scope"
+        );
+    }
+    Ok(())
+}
+fn validate_native_first(p: &Value, call: &Value, c: &Value, expected_player: u64) -> Result<()> {
+    ensure!(
+        call["stage"] == "returned"
             && call["ordinal"] == 0
             && call["source_ordinal"] == 2
-            && call["weapon"] == p["current_weapon"]
+            && call["weapon"] == 0x0200_016e
             && call["generic"] == 0x0900_0765
             && call["alternate"] == false
             && call["variant"] == 0
@@ -1187,8 +1371,8 @@ pub(super) fn validate_native(p: &Value, c: &Value, expected_player: u64) -> Res
             && call["extraction_returned"] == true
             && call["reference_outcome"] == "class_four"
             && call["reference"] == 0x8400_00efu32
-            && call["return_word"].is_null()
-            && call["return_reason"].is_null(),
+            && call["return_word"] == 1
+            && call["return_reason"] == "temporary_completed",
         "Tutorial actual first mapping/extractor/cache-call prefix differs"
     );
     let e = &call["extraction"];
@@ -1210,8 +1394,8 @@ pub(super) fn validate_native(p: &Value, c: &Value, expected_player: u64) -> Res
     ensure!(
         t["stage"] == "bind_returned"
             && t["pending_dependency"].is_null()
-            && t["identity"] == 3
-            && t["source_receiver"] == 2
+            && t["identity"] == p["temporary_identity"]
+            && t["source_receiver"] == p["receiver"]
             && t["player"] == expected_player
             && t["component_file"] == 0x0102_0016
             && t["reference"] == call["reference"]
@@ -1237,7 +1421,7 @@ pub(super) fn validate_native(p: &Value, c: &Value, expected_player: u64) -> Res
             && t["reverse_skipped"] == true
             && t["bind_return"] == 1
             && t["refresh_returned"] == false
-            && c["attachment"]["registry_identities"] == 3
+            && count(&c["attachment"], "registry_identities")? >= 3
             && c["attachment"]["item_components"] == 2,
         "Tutorial temporary owner or completed inner bind differs"
     );

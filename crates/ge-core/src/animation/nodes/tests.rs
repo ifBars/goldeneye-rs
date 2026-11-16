@@ -18,3 +18,30 @@ fn intrusive_links_distinguish_unlinked_nodes_and_reject_wrong_slot_or_nonhead_s
     assert_eq!(ids.links(c).unwrap().next, Some(b));
     assert!(ids.link_head(2, c, Some(b)).is_err());
 }
+
+#[test]
+fn unlink_patches_neighbors_head_to_tail_and_retired_ids_are_never_reused() {
+    let mut ids = Ids::from_constructor(OwnerId::new(4).unwrap(), 8);
+    let tail = ids.allocate(Kind::Script).unwrap();
+    let middle = ids.allocate(Kind::Script).unwrap();
+    let head = ids.allocate(Kind::Script).unwrap();
+    ids.link_head(0, tail, None).unwrap();
+    ids.link_head(0, middle, Some(tail)).unwrap();
+    ids.link_head(0, head, Some(middle)).unwrap();
+    // Linked nodes cannot be retired; unlink returns the pre-patch links.
+    assert!(ids.retire(middle).is_err());
+    let links = ids.unlink(middle).unwrap();
+    assert_eq!((links.previous, links.next), (Some(head), Some(tail)));
+    assert_eq!(ids.links(head).unwrap().next, Some(tail));
+    assert_eq!(ids.links(tail).unwrap().previous, Some(head));
+    assert!(ids.links(middle).is_none());
+    assert!(ids.unlink(middle).is_err());
+    assert_eq!(ids.retire(middle).unwrap(), Kind::Script);
+    assert_eq!(ids.kind(middle), None);
+    assert!(ids.retire(middle).is_err());
+    let unlinked_head = ids.unlink(head).unwrap();
+    assert_eq!(unlinked_head.next, Some(tail));
+    assert_eq!(ids.links(tail).unwrap().previous, None);
+    let fresh = ids.allocate(Kind::Script).unwrap();
+    assert!(fresh.get() > head.get());
+}

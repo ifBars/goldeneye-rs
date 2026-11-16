@@ -89,6 +89,16 @@ pub struct Record {
     bytes: [Option<u8>; 0x1c],
     cached: Option<super::position::Binding>,
 }
+impl Record {
+    /// A freshly allocated clip record: no file, cache or written byte.
+    pub(super) fn unwritten() -> Self {
+        Self {
+            file: None,
+            bytes: [None; 0x1c],
+            cached: None,
+        }
+    }
+}
 #[derive(Debug)]
 pub enum Storage {
     /// Aliases the actual header's +40..+5c constructor storage.

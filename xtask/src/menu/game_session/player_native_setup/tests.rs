@@ -50,210 +50,207 @@ fn fixture() -> Value {
         *field = json!({"scope_released":true,"live_reservations_after":0,
             "refresh_ordinal":ordinal,"allocation_ordinal":ordinal});
     }
-    c["preload"] = super::super::player_preload::tests::native_preload(&c);
+    c["preload"] = super::super::player_preload::tests::native_sampling_preload(&c);
     c["stage"] = json!("player_preload_temporary_pending");
-    c["pending_dependency"] = json!("preload_temporary_bone_outputs");
+    c["pending_dependency"] = json!("preload_temporary_evaluation_sampling");
     c["attachment"] = super::super::player_attachment::tests::fixture();
-    c["attachment"]["registry_identities"] = json!(3);
-    json!({"pending_dependency":"preload_temporary_bone_outputs","component_initialization":c})
+    c["attachment"]["registry_identities"] = json!(35);
+    json!({"pending_dependency":"preload_temporary_evaluation_sampling","component_initialization":c})
 }
 #[test]
-fn observed_tutorial_retains_fresh_null_and_nonempty_bind_return() {
+fn observed_tutorial_completes_32_temporaries_then_pauses_on_resident_sampling() {
     let p = fixture();
     validate(&p, 1).unwrap();
-    for (key, value) in [
-        ("weapon_global_byte", json!(0)),
-        ("global_equivalence_used", json!(false)),
-        ("force_nodes_checked", json!(1)),
-    ] {
-        let mut bad = p.clone();
-        bad["component_initialization"]["pose_setup"][key] = value;
-        assert!(validate(&bad, 1).is_err(), "accepted pose {key}");
-    }
-    let mut bad = p.clone();
-    bad["component_initialization"]["pose_setup"]["enable_writes"][0]["flags_before"] = json!(0xb);
-    assert!(validate(&bad, 1).is_err());
-    let mut bad = p.clone();
-    bad["component_initialization"]["initializer_prefix"]["caches"]["headers"][0]["backings"][0]
-        ["matrix_payload_known_bytes"] = json!(64);
-    assert!(validate(&bad, 1).is_err());
-    let mut reused = p;
-    let cache = &mut reused["component_initialization"]["initializer_prefix"]["caches"];
-    cache["invocation_count"] = json!(2);
-    let trace = &mut cache["trace"];
-    trace["ordinal"] = json!(2);
-    trace["selected_before"] = json!("first_person");
-    trace["reused_selected"] = json!(true);
-    trace["selection_returned"] = json!(false);
-    trace["builds"] = json!([null, null]);
-    reused["component_initialization"]["preload"] =
-        super::super::player_preload::tests::native_preload(&reused["component_initialization"]);
-    validate(&reused, 1).unwrap();
+    let preload = &p["component_initialization"]["preload"];
+    assert_eq!(
+        preload["completion"]["first_completed_snapshot"]["temporary_identity"],
+        3
+    );
+    assert_eq!(preload["temporary"]["identity"], 35);
+    assert_eq!(preload["completed_calls"].as_array().unwrap().len(), 162);
+    assert_eq!(preload["completion"]["entry_commit_count"], 32);
+    assert_eq!(preload["cache_enabled"], 1);
 }
 #[test]
-fn native_gate_requires_actual_new_owner_and_proven_nonempty_bind_return() {
+fn native_gate_rejects_fabricated_completion_readiness_and_wrong_sampling_owner() {
     let p = fixture();
-    validate(&p, 1).unwrap();
-    for (key, value) in [
-        ("stage", json!("awaiting_initializer")),
-        ("factory_returned", json!(false)),
-        ("head_inserted", json!(false)),
-        ("identity", json!(2)),
-        ("source_receiver", json!(1)),
-        ("skin_file", json!(0x010a_0056)),
-        ("bones", json!(37)),
-        ("attached", json!(true)),
-        ("frame_stamp_known", json!(true)),
-        ("bind_return", Value::Null),
+    for (pointer, value) in [
+        ("/pending_dependency", json!("preload_temporary_bind")),
+        (
+            "/component_initialization/preload/completion/entry_commit_count",
+            json!(33),
+        ),
+        (
+            "/component_initialization/preload/completion/destroyed_temporary_count",
+            json!(31),
+        ),
+        (
+            "/component_initialization/preload/completion/found_output_count",
+            json!(191),
+        ),
+        (
+            "/component_initialization/preload/flag_cleared",
+            json!(true),
+        ),
+        (
+            "/component_initialization/preload/helper_returned",
+            json!(true),
+        ),
+        ("/component_initialization/preload/cache_enabled", json!(0)),
+        ("/component_initialization/preload/source_row", json!(38)),
+        (
+            "/component_initialization/preload/current_call/entry_index",
+            json!(31),
+        ),
+        (
+            "/component_initialization/preload/temporary/player",
+            json!(2),
+        ),
+        (
+            "/component_initialization/preload/temporary/identity",
+            json!(34),
+        ),
+        (
+            "/component_initialization/preload/temporary/bind_return",
+            json!(1),
+        ),
+        (
+            "/component_initialization/preload/temporary/script/body_bound",
+            json!(false),
+        ),
+        (
+            "/component_initialization/preload/temporary/script/phase_zero/heap_allocated",
+            json!(false),
+        ),
+        (
+            "/component_initialization/preload/allocations/0/known_payload_bytes",
+            json!(369),
+        ),
     ] {
         let mut bad = p.clone();
-        bad["component_initialization"]["preload"]["temporary"][key] = value;
-        assert!(
-            validate(&bad, 1).is_err(),
-            "accepted native temporary {key}"
-        );
+        *bad.pointer_mut(pointer).unwrap() = value;
+        assert!(validate(&bad, 1).is_err(), "accepted {pointer}");
     }
-    for (key, value) in [
-        ("body_bound", Value::Null),
-        ("body_bound", json!(true)),
-        ("initializer_returned", json!(false)),
-        ("descriptor_index", json!(0)),
-        ("stage", json!("AwaitingScriptBody")),
-    ] {
-        let mut bad = p.clone();
-        bad["component_initialization"]["preload"]["temporary"]["script"][key] = value;
-        assert!(validate(&bad, 1).is_err(), "accepted native script {key}");
-    }
-    let mut bad = p.clone();
-    bad["component_initialization"]["preload"]["temporary"] = Value::Null;
-    assert!(validate(&bad, 1).is_err());
-    let mut bad = p.clone();
-    bad["component_initialization"]["attachment"]["item_components"] = json!(3);
-    assert!(validate(&bad, 1).is_err());
-    let mut bad = p;
-    bad["component_initialization"]["preload"]["allocations"][0]["known_payload_bytes"] = json!(45);
-    assert!(validate(&bad, 1).is_err());
 }
-
 #[test]
-fn native_gate_binds_player_to_the_current_attempt_after_cancellation() {
-    let mut player = fixture();
-    player["component_initialization"]["preload"]["temporary"]["player"] = json!(2);
-    validate(&player, 2).unwrap();
-    assert!(validate(&player, 1).is_err());
-    player["component_initialization"]["preload"]["temporary"]["player"] = json!(0);
-    assert!(validate(&player, 0).is_err());
-}
-
-#[test]
-fn native_gate_requires_exact_fresh_same_wrapper_publication_receipt() {
+fn first_completed_proof_remains_distinct_from_the_current_resident_script() {
     let p = fixture();
-    for (key, value) in [
-        ("generation", json!(1)),
-        ("request_count", json!(1)),
-        ("section_index", json!(10)),
-        ("section_key", json!(0x0800_000a)),
-        ("callback_mask", json!(8)),
-        ("body_state", json!("pending")),
+    for (pointer, value) in [
+        ("/ordinal", json!(1)),
+        ("/temporary_identity", json!(4)),
+        ("/script_publication", Value::Null),
+        ("/script_publication/section_key", json!(0x0800000a)),
+        ("/temporary/script/body_bound", json!(true)),
+        ("/temporary/evaluation/released", json!(false)),
+        ("/post_bind/process/current_bits", json!(0x3f800000)),
+        ("/post_bind/phase/header_known_bits", json!(0)),
+        ("/post_bind/phase/header_expression_bound", json!(false)),
+        ("/post_bind/evaluation/ordinal", json!(5)),
+        ("/outputs/stores", json!(6)),
     ] {
         let mut bad = p.clone();
-        bad["component_initialization"]["preload"]["script_publication"][key] = value;
-        assert!(
-            validate(&bad, 1).is_err(),
-            "accepted native publication {key}"
-        );
+        let first = &mut bad["component_initialization"]["preload"]["completion"]["first_completed_snapshot"];
+        *first.pointer_mut(pointer).unwrap() = value;
+        assert!(validate(&bad, 1).is_err(), "accepted first {pointer}");
     }
-    let mut bad = p.clone();
-    bad["component_initialization"]["preload"]["script_publication"] = Value::Null;
-    assert!(validate(&bad, 1).is_err());
-    let mut bad = p;
-    bad["component_initialization"]["preload"]["temporary"]["stage"] = json!("awaiting_evaluation");
-    bad["component_initialization"]["preload"]["temporary"]["bind_return"] = json!(1);
-    assert!(validate(&bad, 1).is_err());
 }
-
 #[test]
-fn native_gate_requires_measured_no_sample_effects_and_ordered_scope_release() {
+fn resident_evaluation_cannot_claim_sentinel_return_sampling_or_scratch_release() {
     let p = fixture();
-    validate(&p, 1).unwrap();
-    for (key, value) in [
-        ("arena_owner", json!(2)),
-        ("ordinal", json!(1)),
-        ("allocation_ordinal", json!(1)),
-        ("released", json!(false)),
-        ("lease_live", json!(true)),
-        ("aborted", json!(true)),
-        ("nonempty_layers", json!(0)),
-        ("successful_samples", json!(1)),
-        ("commit_register", json!(0x4000)),
+    for (pointer, value) in [
+        ("/arena_owner", json!(2)),
+        ("/ordinal", json!(6)),
+        ("/allocation_ordinal", json!(6)),
+        ("/released", json!(true)),
+        ("/lease_live", json!(false)),
+        ("/aborted", json!(true)),
+        ("/successful_samples", json!(1)),
+        ("/committed", json!(true)),
+        ("/node_visits", json!(1)),
+        ("/guards/0/clip_reference", json!(u32::MAX)),
+        ("/guards/0/animator_reference_read", json!(false)),
+        ("/guards/0/pointer", json!("constructor_inline")),
+        ("/guards/0/record", json!(1)),
+        ("/guards/0/pending_boundary", Value::Null),
+        ("/slots/0/masks_cleared", json!(false)),
+        ("/prepares/0/body_reads", json!(2)),
     ] {
         let mut bad = p.clone();
-        bad["component_initialization"]["preload"]["temporary"]["evaluation"][key] = value;
-        assert!(
-            validate(&bad, 1).is_err(),
-            "accepted native evaluation {key}"
-        );
+        let e = &mut bad["component_initialization"]["preload"]["temporary"]["evaluation"];
+        *e.pointer_mut(pointer).unwrap() = value;
+        assert!(validate(&bad, 1).is_err(), "accepted evaluation {pointer}");
     }
-    for (section, key, value) in [
-        ("prepares", "file", json!(0x010a0056)),
-        ("prepares", "generation", json!(1)),
-        ("prepares", "lookups", json!(2)),
-        ("prepares", "body_reads", json!(2)),
-        ("guards", "pointer", json!("record")),
-        ("guards", "record", json!(0)),
-        ("guards", "node", json!(2)),
-        ("slots", "weight_bits", json!(0x3f000000)),
-        ("slots", "masks_cleared", json!(false)),
-    ] {
-        let mut bad = p.clone();
-        bad["component_initialization"]["preload"]["temporary"]["evaluation"][section][0][key] =
-            value;
-        assert!(
-            validate(&bad, 1).is_err(),
-            "accepted native evaluation {section}.{key}"
-        );
-    }
-    let mut later = p;
-    later["component_initialization"]["preload"]["temporary"]["evaluation"]["ordinal"] = json!(105);
-    later["component_initialization"]["preload"]["temporary"]["evaluation"]["allocation_ordinal"] =
-        json!(110);
-    later["component_initialization"]["preload"]["post_bind"]["first_scope"]["ordinal"] =
-        json!(105);
-    later["component_initialization"]["preload"]["post_bind"]["first_scope"]["allocation_ordinal"] =
-        json!(110);
-    later["component_initialization"]["preload"]["post_bind"]["evaluation"]["ordinal"] = json!(106);
-    later["component_initialization"]["preload"]["post_bind"]["evaluation"]["allocation_ordinal"] =
-        json!(111);
-    validate(&later, 1).unwrap(); // Ordinals may grow on reentry; matching release still required.
 }
-
+fn advance_snapshot_for_reentry(snapshot: &mut Value) {
+    snapshot["player"] = json!(2);
+    snapshot["temporary"]["player"] = json!(2);
+    for key in ["temporary_identity", "receiver"] {
+        snapshot[key] = json!(snapshot[key].as_u64().unwrap() + 500);
+    }
+    for key in ["identity", "source_receiver"] {
+        snapshot["temporary"][key] = json!(snapshot["temporary"][key].as_u64().unwrap() + 500);
+    }
+    snapshot["post_bind"]["temporary_identity"] = snapshot["temporary_identity"].clone();
+    for k in ["ordinal", "allocation_ordinal"] {
+        snapshot["temporary"]["evaluation"][k] =
+            json!(snapshot["temporary"]["evaluation"][k].as_u64().unwrap() + 100);
+        snapshot["post_bind"]["first_scope"][k] = snapshot["temporary"]["evaluation"][k].clone();
+        snapshot["post_bind"]["evaluation"][k] =
+            json!(snapshot["post_bind"]["evaluation"][k].as_u64().unwrap() + 100);
+    }
+}
 #[test]
-fn native_caller_rejects_initial_value_fallback_phase_staleness_and_first_scope_reuse() {
-    let p = fixture();
-    validate(&p, 1).unwrap();
-    for (section, key, value) in [
-        ("process", "current_bits", json!(0x3f800000)),
-        ("capture", "current_bits", json!(0x3f800000)),
-        ("capture", "read_sequence", json!(0)),
-        ("process", "capture_issued", json!(false)),
-        ("phase", "header_known_bits", json!(0)),
-        ("phase", "header_expression_bound", json!(false)),
-        ("parameter", "previous", json!(0x3f000000)),
-        ("head", "node", json!(2)),
-        ("evaluation", "ordinal", json!(5)),
-        ("evaluation", "allocation_ordinal", json!(5)),
-        ("evaluation", "released", json!(false)),
+fn native_gate_accepts_retained_identity_counters_and_matching_new_attempt_player() {
+    let mut p = fixture();
+    let preload = &mut p["component_initialization"]["preload"];
+    let progress = &mut preload["completion"];
+    for row in progress["history"].as_array_mut().unwrap() {
+        advance_snapshot_for_reentry(&mut row["snapshot"]);
+        row["destruction"]["temporary_identity"] = row["snapshot"]["temporary_identity"].clone();
+    }
+    advance_snapshot_for_reentry(&mut progress["first_completed_snapshot"]);
+    for k in ["ordinal", "allocation_ordinal"] {
+        preload["temporary"]["evaluation"][k] =
+            json!(preload["temporary"]["evaluation"][k].as_u64().unwrap() + 100);
+    }
+    preload["temporary"]["player"] = json!(2);
+    for key in ["identity", "source_receiver"] {
+        preload["temporary"][key] = json!(preload["temporary"][key].as_u64().unwrap() + 500);
+    }
+    p["component_initialization"]["attachment"]["registry_identities"] = json!(535);
+    validate(&p, 2).unwrap();
+    assert!(validate(&p, 1).is_err());
+    assert_eq!(
+        p["component_initialization"]["preload"]["completion"]["first_completed_snapshot"]["temporary_identity"],
+        503
+    );
+    assert_eq!(
+        p["component_initialization"]["preload"]["temporary"]["identity"],
+        535
+    );
+    for (pointer, value) in [
+        (
+            "/component_initialization/preload/temporary/source_receiver",
+            json!(2),
+        ),
+        (
+            "/component_initialization/preload/temporary/identity",
+            json!(536),
+        ),
+        (
+            "/component_initialization/attachment/registry_identities",
+            json!(35),
+        ),
+        (
+            "/component_initialization/preload/completion/first_completed_snapshot/receiver",
+            json!(501),
+        ),
     ] {
         let mut bad = p.clone();
-        bad["component_initialization"]["preload"]["post_bind"][section][key] = value;
+        *bad.pointer_mut(pointer).unwrap() = value;
         assert!(
-            validate(&bad, 1).is_err(),
-            "accepted native caller {section}.{key}"
+            validate(&bad, 2).is_err(),
+            "accepted shifted identity mismatch {pointer}"
         );
     }
-    let mut prior_reads = p;
-    prior_reads["component_initialization"]["preload"]["post_bind"]["process"]["reads"] = json!(12);
-    prior_reads["component_initialization"]["preload"]["post_bind"]["capture"]["read_sequence"] =
-        json!(12);
-    validate(&prior_reads, 1).unwrap(); // Retained process reads grow across attempts.
 }

@@ -6,10 +6,10 @@ unfinished.
 
 The initializer's earlier pose helpers and FP/TP transform-cache construction
 have returned. Animation preload now runs against those retained owners. Its
-current native checkpoint completes the first temporary script factory,
-zero-time forward callback and nonempty evaluation, then returns from the bind.
-The caller updates that same temporary and completes a second evaluation. It
-now waits at `preload_temporary_bone_outputs`.
+current native checkpoint completes 162 registry calls, including 32 temporary
+animation setups, bone-output copies, explicit destructors and cache-entry
+commits. The next temporary reaches a resident animation and waits for frame
+sampling during its bind evaluation. The shared preload flag remains enabled.
 
 ## What runs now
 
@@ -22,10 +22,11 @@ enable byte before its weapon key. Each enabled row has six ordered mapping
 requests: two animation kinds for each of three variants. An unavailable variant
 can return before touching the caches; the default variant retains its fallback.
 
-The actual native path now reaches its first mapping and cache entry. It writes
-the selected weapon and mapping fields, invalidates the selected FP transform
-cache, and extracts the first eligible class-four animation reference. It does
-not commit the entry key or clear the shared preload flag at this point.
+For each new entry, the native path writes the selected weapon and mapping
+fields, invalidates the selected FP transform cache, and extracts the first
+eligible class-four animation reference. The entry key is committed only after
+that call's temporary operations return. Other early-return paths retain their
+own source effects. The weapon key is read again before each call.
 
 ## A separate temporary owner
 
@@ -92,17 +93,39 @@ samples and no pose commit. The first bind's history remains unchanged. A NULL
 head skips both writes and the scalar read, while still running its own second
 evaluation.
 
+## Bone outputs, destruction and continuation
+
+After the second evaluation, the output helper reads six supplied tag hashes
+lazily. It looks up each tag through the same primary skin, then copies the
+actual bone record's index, local translation and quaternion into the selected
+cache entry. These are current locals, not matrix calculations or proof of a
+sampled pose. A missing tag writes only its missing index. A zero hash preserves
+the source's unchanged hash cursor.
+
+The explicit destructor unlinks each child before invoking its cleanup, then
+releases the skeleton and temporary owner in source order. A later unresolved
+cleanup retains the prefix already performed. Cancellation and Rust memory
+cleanup do not count as this source destructor. Diagnostics are captured before
+destruction; a tombstone carries the full call binding to the final entry-key
+store. The cursor then continues with a fresh temporary identity.
+
+The native checkpoint has copied 192 found bone outputs into 32 committed
+entries, with no missing tags. A bounded history keeps the latest 16 completed
+temporary receipts and aggregate counts. The first completed snapshot is kept
+separately, so its original bind and caller evidence survives history eviction.
+
 ## What remains
 
-The next work is copying six bone outputs from the actual temporary skeleton,
-then teardown and entry commit. Constructor locals and allocated matrices are
-not sampled poses. The output helper must read the current local bone records
-through its real tag lookup; a missing tag writes only its missing index.
+Call 163 reaches a resident script with four clip records. Its initializer and
+zero-time forward callback return, but the bind evaluator now reaches the actual
+frame-sampling provider. It retains its own live scratch lease at that boundary.
+The caller's parameter updates, second evaluation, outputs and teardown have not
+run for this temporary. Earlier completed calls do not supply its pose.
 
-Later preload work still needs its remaining temporary operations, teardown,
-entry commit and subsequent registry calls. Full player initialization and the
-gameplay camera follow those operations. No completed preload, playable mission
-or original-game parity is claimed.
+Frame sampling, the remaining preload calls and the final shared flag clear
+remain. Full player initialization and the gameplay camera follow those
+operations. No completed preload, playable mission or original-game parity is
+claimed.
 
 ## Evidence
 
@@ -112,9 +135,10 @@ Tests also cover retained wrappers across cancellation/reentry and failed reques
 prefixes. Tests cover pending evaluations, exact-owner cancellation and immediate
 reentry. Native hidden New Game probes complete the direct factory, forward
 callback, nonempty evaluation and bind without a loading failure. A direct
-native probe also completes the caller's parameter store, captured unknown clamp
-and separate second evaluation. Both scopes release, with no sampled pose or
-commit. Player and camera readiness remain false.
+native probe also completes 32 caller suffixes, output copies, destructors and
+entry commits before reaching the resident sampling boundary. Completed scopes
+release with no sampled pose or commit. Shutdown cleans the pending evaluation
+after joining workers. Player and camera readiness remain false.
 
 The progress report keeps the returned initializer snapshot separate from current
 preload mutations. See [player pose setup](player-pose-setup.md) for the earlier

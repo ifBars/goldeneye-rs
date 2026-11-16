@@ -105,6 +105,43 @@ impl Ids {
         }
         Ok(())
     }
+    /// Unlinks a list member (8033cc10): neighbors are patched, then the
+    /// node's own links are cleared. Returns the links read before the patch.
+    pub(crate) fn unlink(&mut self, id: NodeId) -> Result<Links> {
+        let links = *self.links.get(&id).context("unlinked node has no links")?;
+        for neighbor in [links.previous, links.next].into_iter().flatten() {
+            ensure!(
+                self.links
+                    .get(&neighbor)
+                    .is_some_and(|n| n.slot == links.slot),
+                "animation list neighbor ownership differs"
+            );
+        }
+        if let Some(previous) = links.previous {
+            self.links
+                .get_mut(&previous)
+                .expect("validated neighbor")
+                .next = links.next;
+        }
+        if let Some(next) = links.next {
+            self.links
+                .get_mut(&next)
+                .expect("validated neighbor")
+                .previous = links.previous;
+        }
+        self.links.remove(&id);
+        Ok(links)
+    }
+    /// Retires a destroyed, already unlinked node. Its identity is never reused.
+    pub(crate) fn retire(&mut self, id: NodeId) -> Result<Kind> {
+        ensure!(
+            !self.links.contains_key(&id),
+            "retired animation node is still linked"
+        );
+        self.allocated
+            .remove(&id)
+            .context("retired animation node is not allocated")
+    }
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
         emit(2);
         self.owner.visit_state_words(&mut emit);

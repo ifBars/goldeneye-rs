@@ -10,6 +10,7 @@ pub(super) use components::InitialAction;
 pub(super) use components::InitializerPrefix;
 pub(super) use components::PoseSetup;
 pub(super) use components::{ConstructorTail, RepeatAction};
+pub(super) use components::{PreloadSnapshot, capture_preload_snapshot};
 use ge_core::mission::{
     player::{base_handler, world::World},
     spawn::SelectionResult,

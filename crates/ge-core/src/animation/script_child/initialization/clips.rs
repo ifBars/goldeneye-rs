@@ -22,11 +22,7 @@ impl Header {
                 self.current_clip = ClipPointer::Null;
                 return Err(error).context("clip-reference allocation failed");
             }
-            records.resize_with(total, || Record {
-                file: None,
-                bytes: [None; 0x1c],
-                cached: None,
-            });
+            records.resize_with(total, Record::unwritten);
             self.bytes[0x76] = Some(1);
             Storage::Heap(records)
         });

@@ -48,9 +48,9 @@ shares of development effort or a whole-game completion percentage.
 - [ ] Enable the gameplay camera and player controls.
 - [ ] Play and complete the Tutorial.
 
-**Latest checkpoint:** player initialization completes the first temporary
-animation bind, its caller updates and a second evaluation. Bone-output copying
-and the rest of preload remain, followed by the gameplay camera and controls.
+**Latest checkpoint:** New Game completes 32 temporary animation setups and
+writes their bone-output caches. It now reaches an animation that needs frame
+sampling. The rest of preload, the gameplay camera and controls remain unfinished.
 
 For the broader scope, see the [roadmap](progress/roadmap.json). The
 [progress guide](docs/progress.md) explains the dashboard's numbers. Test coverage

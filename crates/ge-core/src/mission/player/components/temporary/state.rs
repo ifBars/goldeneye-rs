@@ -27,6 +27,7 @@ impl Pending {
         if let Some(refresh) = &self.refresh {
             refresh.visit_state_words(&mut emit);
         }
+        emit(u32::from(self.teardown));
         emit(u32::from(self.evaluation.is_some()));
         if let Some(evaluation) = &self.evaluation {
             evaluation.visit_state_words(&mut emit);

@@ -11,6 +11,8 @@ use ge_core::mission::player::{
     },
     world::World,
 };
+use std::collections::VecDeque;
+mod completion;
 mod temporary;
 
 pub(super) struct CallOwned {
@@ -23,6 +25,22 @@ pub(super) struct Owned {
     pub calls: Vec<CallOwned>,
     pub temporary: Option<ge_core::mission::player::components::temporary::Pending>,
     pub post_bind: Option<preload::post_bind::PostBind>,
+    pub outputs: Option<preload::bone_outputs::BoneOutputs>,
+    pub teardown: Option<preload::teardown::Teardown>,
+    pub pre_teardown: Option<super::evidence::PreloadSnapshot>,
+    pub tombstone: Option<preload::teardown::Tombstone>,
+    pub completed_temporaries: VecDeque<CompletedTemporary>,
+    pub first_completed_snapshot: Option<super::evidence::PreloadSnapshot>,
+    pub completed_temporary_count: usize,
+    pub discarded_temporary_count: usize,
+    pub found_output_count: usize,
+    pub missing_output_count: usize,
+    pub destroyed_temporary_count: usize,
+    pub entry_commit_count: usize,
+}
+pub(super) struct CompletedTemporary {
+    pub snapshot: super::evidence::PreloadSnapshot,
+    pub tombstone: preload::teardown::Tombstone,
 }
 struct Sources<'a> {
     loadout: &'a loadout::Sources,
@@ -132,6 +150,18 @@ pub(super) fn initialize(
         calls: Vec::new(),
         temporary: None,
         post_bind: None,
+        outputs: None,
+        teardown: None,
+        pre_teardown: None,
+        tombstone: None,
+        completed_temporaries: VecDeque::new(),
+        first_completed_snapshot: None,
+        completed_temporary_count: 0,
+        discarded_temporary_count: 0,
+        found_output_count: 0,
+        missing_output_count: 0,
+        destroyed_temporary_count: 0,
+        entry_commit_count: 0,
     });
     let owned = player.preload.as_mut().expect("retained preload");
     let mut source = Sources {
@@ -150,5 +180,41 @@ pub(super) fn initialize(
     hook.ensure_current()?;
     // The global preload lock is released before binding/evaluating through
     // the same controller's animation Context and Arena.
-    temporary::initialize(player, identities, hook)
+    loop {
+        hook.ensure_current()?;
+        let owned = player.preload.as_ref().expect("retained preload");
+        if owned.state.stage() != preload::Stage::AwaitingTemporary {
+            return Ok(());
+        }
+        if owned.temporary.is_none() && owned.tombstone.is_none() {
+            temporary::initialize(player, identities, hook)?;
+        }
+        if !completion::advance(player, identities, hook)? {
+            return Ok(());
+        }
+        let owned = player.preload.as_mut().expect("retained preload");
+        let mut source = Sources {
+            loadout: &player.loadout,
+            preparation: &player.components.preparation,
+            fp_source: player.components.first_person.component_source.as_ref(),
+            receiver: owned.state.receiver(),
+            calls: &mut owned.calls,
+            hook,
+        };
+        let tombstone = owned
+            .tombstone
+            .as_ref()
+            .context("preload resume lacks destroyed temporary")?;
+        let result = hook.with_player_preload(|shared, caches| {
+            owned.state.resume_call(
+                shared,
+                caches,
+                &mut source,
+                preload::Budget::default(),
+                tombstone,
+            )
+        });
+        completion::retain_committed(owned)?;
+        result?;
+    }
 }

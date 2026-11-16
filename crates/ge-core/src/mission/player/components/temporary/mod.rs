@@ -3,6 +3,7 @@ mod evaluation;
 mod post_bind;
 pub mod prepare;
 mod state;
+mod teardown;
 use super::{Animator, Identity, Registry, ResourceBinding, SkeletonBudget, SkeletonInput};
 use crate::animation::{
     layers::NodeId,
@@ -15,6 +16,7 @@ use crate::animation::{
 use anyhow::{Context, Result, bail, ensure};
 pub use post_bind::PostBindHead;
 pub use prepare::{SkinBody, SkinDescriptor, SkinLookup, SkinSource};
+pub use teardown::{ChildCursor, ChildTeardown, SkeletonReceipt};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stage {
@@ -79,6 +81,8 @@ pub struct Pending {
     maintenance_skipped: bool,
     reverse_skipped: bool,
     refresh: Option<scratch::Refresh>,
+    /// Source destructor started; the owner is no longer a live temporary.
+    teardown: bool,
     evaluation: Option<Evaluation>,
     prepares: Vec<prepare::Prepare>,
     guards: Vec<script_child::evaluation::Trace>,
@@ -121,6 +125,7 @@ impl Pending {
             maintenance_skipped: false,
             reverse_skipped: false,
             refresh: None,
+            teardown: false,
             evaluation: None,
             prepares: Vec::new(),
             guards: Vec::new(),

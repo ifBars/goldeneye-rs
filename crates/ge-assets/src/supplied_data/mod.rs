@@ -1,9 +1,11 @@
 //! Typed tables sharing one verified supplied DATA5 owner. The executable is
 //! streamed for identity checks; only its checked data section is retained.
 //! Original instructions are never exposed, retained or executed by this adapter.
+mod bone_tags;
 mod data;
 pub(crate) mod loader;
 use anyhow::Result;
+pub use bone_tags::{BONE_TAG_COUNT, BoneTagTable};
 pub(crate) use data::{Data, field};
 pub(crate) use loader::load;
 use serde::Serialize;

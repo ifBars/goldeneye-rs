@@ -12,9 +12,9 @@ pub(super) fn validate(player: &Value, expected_player: u64) -> Result<()> {
     player_initializer_prefix::validate(prefix, c)?;
     player_preload::validate_native(&c["preload"], c, expected_player)?;
     ensure!(
-        player["pending_dependency"] == "preload_temporary_bone_outputs"
+        player["pending_dependency"] == "preload_temporary_evaluation_sampling"
             && c["stage"] == "player_preload_temporary_pending"
-            && c["pending_dependency"] == "preload_temporary_bone_outputs"
+            && c["pending_dependency"] == "preload_temporary_evaluation_sampling"
             && pose["stage"] == "returned"
             && pose["input_raw"] == 1
             && pose["input_signed"] == 1

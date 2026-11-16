@@ -92,14 +92,22 @@ from a persistent owner. UnknownCurrent stays separate from KnownInitial; the
 ordered clamp clears stale phase bytes and retains a time-local expression.
 A separate second evaluation repeats skin preparation and the MAX guard, then
 releases its own scope. Both bind history and first evaluation remain immutable.
-The caller now waits at preload_temporary_bone_outputs. Read current bone locals
-through the real tag lookup; no sampled pose or matrix work is implied.
+Six-bone output now reads actual current locals through lazy primary-skin tags,
+then explicit teardown unlinks children before their destructors and preserves
+partial cleanup. Pre-destruction snapshots and tombstones precede key commit.
+The cursor resumes with fresh identities; a bounded16 history and separate first
+snapshot retain evidence without live destroyed owners. Native New Game now
+completes162 calls and32 temporary entries (192 found outputs), then call163
+reaches a resident four-clip script and waits for bind-time frame sampling.
+This current temporary has no bind return or caller suffix yet. Do not borrow a
+completed temporary's pose or MAX guard. No matrix work is implied by copying locals.
 Cancellation leases bind actual arena/context
 instances and are reaped before later scratch use; shutdown cleans them after
 joining workers. Unknown/failed request or dependency state
 still stays Pending. Do not invent a load at the getter or read cached nonresident
 bytes. Cancellation/reentry must retain the wrapper and publication history.
-No entry key commit, completed preload or player/camera readiness is inferred.
+Only the32 returned temporaries have committed entry keys. The shared flag stays1;
+completed preload and player/camera readiness are not inferred.
 See docs/animation-preload.md for the current boundary.
 Factory and update traces stay separate,
 with bounded diagnostic history independent of simulation lifetime. Pose postprocess targets

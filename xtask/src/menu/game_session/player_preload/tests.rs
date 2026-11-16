@@ -1,4 +1,6 @@
 use super::*;
+mod native_sampling;
+pub(in crate::menu::game_session) use native_sampling::fixture as native_sampling_preload;
 pub(in crate::menu::game_session) fn preload(c: &Value) -> Value {
     let mut caches = c["initializer_prefix"]["caches"].clone();
     caches["headers"][0]["invalidation_count_reads"] = json!(1);
@@ -18,7 +20,7 @@ pub(in crate::menu::game_session) fn preload(c: &Value) -> Value {
     json!({"stage":"awaiting_temporary","pending_dependency":"preload_temporary_bind","entry_flag":1,"cache_enabled":1,
         "raw_flags_written":32,"entry_keys_written":34,"registry_count":4,"source_row":2,"rows_visited":3,"enabled_rows":1,
         "current_weapon":0x0200_0101,"call_in_row":0,"completed_calls":[],"current_call":current_call,"allocations":allocations,
-        "caches":caches,"flag_cleared":false,"helper_returned":false,"temporary":null,"post_bind":null,"script_publication":null,"state_sha256":"f".repeat(64)})
+        "caches":caches,"flag_cleared":false,"helper_returned":false,"temporary":null,"post_bind":null,"script_publication":null,"outputs":null,"completion":{"history_limit":16,"completed_temporary_count":0,"discarded_temporary_count":0,"found_output_count":0,"missing_output_count":0,"destroyed_temporary_count":0,"entry_commit_count":0,"history":[],"pending_snapshot":null,"first_completed_snapshot":null,"destruction":null},"state_sha256":"f".repeat(64)})
 }
 pub(in crate::menu::game_session) fn component() -> Value {
     let mut c = super::super::player_initializer_prefix::tests::completed_component();
@@ -36,6 +38,103 @@ fn temporary(reference: u32) -> Value {
             "descriptor_index":3,"body_bound":false,"initializer_returned":true,"phase_zero":null,"clips":[],"state_sha256":"a".repeat(64)},
         "forward":{"stage":"Returned","phase_cleared":true,"body_bound":false,"duration_raw":null,"fps_bits":null,"result_bits":null},
         "maintenance_skipped":true,"reverse_skipped":true,"bind_return":null,"refresh_returned":false,"evaluation":null,"state_sha256":"b".repeat(64)})
+}
+
+fn completed_temporary_fixture() -> (Value, Value) {
+    let c = component();
+    let mut p = native_preload(&c);
+    let call = p["current_call"].clone();
+    let outputs = json!({"stage":"done","pending_dependency":"preload_temporary_destructor","iteration":6,"hash_cursor":4,"hash_reads":6,"lookups":4,"body_reads":4,"tag_walks":4,"stores":18,"found":3,"missing":3,"outcomes":["found","sentinel","found","found","zero_hash","zero_hash"],"state_sha256":"d".repeat(64)});
+    let snapshot = json!({"ordinal":0,"source_ordinal":call["source_ordinal"],"player":1,"receiver":2,"weapon":call["weapon"],"generic":call["generic"],"alternate":false,"variant":0,"entry":call["entry_index"],"mapped":call["mapping"]["output"],"reference":call["reference"],"temporary_identity":3,"temporary":p["temporary"],"post_bind":p["post_bind"],"outputs":outputs,"script_publication":p["script_publication"]});
+    let destruction = json!({"stage":"destroyed","pending_dependency":null,"temporary_identity":3,"ordinal":0,"children":1,"skeleton":{"bones":48,"auxiliary_words":0,"block_bytes":1536},"snapshot_words":100,"snapshot_digest":"0123456789abcdef","state_sha256":"e".repeat(64)});
+    let mut returned = call;
+    returned["stage"] = json!("returned");
+    returned["return_word"] = json!(1);
+    returned["return_reason"] = json!("temporary_completed");
+    p["completed_calls"] = json!([returned]);
+    p["current_call"] = Value::Null;
+    p["temporary"] = Value::Null;
+    p["post_bind"] = Value::Null;
+    p["script_publication"] = Value::Null;
+    p["completion"] = json!({"history_limit":16,"completed_temporary_count":1,"discarded_temporary_count":0,"found_output_count":3,"missing_output_count":3,"destroyed_temporary_count":1,"entry_commit_count":1,"history":[{"snapshot":snapshot,"destruction":destruction}],"pending_snapshot":null,"first_completed_snapshot":null,"destruction":null});
+    p["completion"]["first_completed_snapshot"] = p["completion"]["history"][0]["snapshot"].clone();
+    (p, c)
+}
+
+#[test]
+fn temporary_history_requires_actual_call_output_release_and_commit() {
+    let (p, c) = completed_temporary_fixture();
+    super::completion::validate(&p, &c).unwrap();
+    let mut raw_known = std::collections::BTreeSet::new();
+    super::call(&p["completed_calls"][0], 0, &mut raw_known).unwrap();
+    for (pointer, value) in [
+        ("/completion/entry_commit_count", json!(0)),
+        ("/completion/destroyed_temporary_count", json!(0)),
+        ("/completion/missing_output_count", json!(2)),
+        ("/completion/history_limit", json!(34)),
+        ("/completion/discarded_temporary_count", json!(1)),
+        ("/completion/first_completed_snapshot", Value::Null),
+        ("/completion/first_completed_snapshot/ordinal", json!(1)),
+        ("/completion/history/0/snapshot/weapon", json!(1)),
+        ("/completion/history/0/snapshot/entry", json!(1)),
+        (
+            "/completion/history/0/snapshot/temporary_identity",
+            json!(4),
+        ),
+        ("/completion/history/0/snapshot/outputs/stores", json!(6)),
+        (
+            "/completion/history/0/snapshot/outputs/stage",
+            json!("aborted"),
+        ),
+        (
+            "/completion/history/0/snapshot/post_bind/evaluation/released",
+            json!(false),
+        ),
+        ("/completion/history/0/destruction/stage", json!("aborted")),
+        ("/completion/history/0/destruction/skeleton", Value::Null),
+        ("/completed_calls/0/return_reason", json!("existing_entry")),
+    ] {
+        let mut bad = p.clone();
+        *bad.pointer_mut(pointer).unwrap() = value;
+        assert!(
+            super::completion::validate(&bad, &c).is_err(),
+            "accepted {pointer}"
+        );
+    }
+}
+
+#[test]
+fn destructor_pending_keeps_snapshot_and_cannot_claim_key_commit() {
+    let (mut p, c) = completed_temporary_fixture();
+    let row = p["completion"]["history"][0].clone();
+    let mut call = p["completed_calls"][0].clone();
+    call["stage"] = json!("awaiting_temporary");
+    call["return_word"] = Value::Null;
+    call["return_reason"] = Value::Null;
+    p["completed_calls"] = json!([]);
+    p["current_call"] = call;
+    p["completion"]["history"] = json!([]);
+    p["completion"]["completed_temporary_count"] = json!(0);
+    p["completion"]["first_completed_snapshot"] = Value::Null;
+    p["completion"]["entry_commit_count"] = json!(0);
+    p["completion"]["pending_snapshot"] = row["snapshot"].clone();
+    p["completion"]["destruction"] = row["destruction"].clone();
+    for k in ["temporary", "post_bind", "outputs", "script_publication"] {
+        p[k] = row["snapshot"][k].clone();
+    }
+    super::completion::validate(&p, &c).unwrap();
+    let mut inconsistent = p.clone();
+    inconsistent["outputs"]["hash_cursor"] = json!(2);
+    assert!(super::completion::validate(&inconsistent, &c).is_err());
+    assert_eq!(
+        super::dependency(&p),
+        Some("preload_temporary_entry_commit")
+    );
+    p["completion"]["destruction"]["stage"] = json!("aborted");
+    p["completion"]["destroyed_temporary_count"] = json!(0);
+    super::completion::validate(&p, &c).unwrap();
+    p["completion"]["pending_snapshot"] = Value::Null;
+    assert!(super::completion::validate(&p, &c).is_err());
 }
 pub(in crate::menu::game_session) fn native_preload(c: &Value) -> Value {
     let mut p = preload(c);
@@ -517,6 +616,8 @@ fn pending_and_aborted_nonempty_evaluation_cannot_claim_bind_return() {
     t["pending_dependency"] = json!("temporary_evaluation_skin");
     t["evaluation"] = e;
     c["preload"]["temporary"] = t;
+    c["preload"]["pending_dependency"] = json!("preload_temporary_evaluation_skin");
+    c["pending_dependency"] = json!("preload_temporary_evaluation_skin");
     validate(&c["preload"], &c).unwrap();
     // EvaluatingBind is outside the legacy numeric stage range which checked
     // skeleton binding. Its retained scope must enforce that owner itself.
@@ -533,6 +634,8 @@ fn pending_and_aborted_nonempty_evaluation_cannot_claim_bind_return() {
     c["preload"]["temporary"]["evaluation"]["aborted"] = json!(true);
     c["preload"]["temporary"]["stage"] = json!("aborted");
     c["preload"]["temporary"]["pending_dependency"] = Value::Null;
+    c["preload"]["pending_dependency"] = json!("preload_temporary_bind");
+    c["pending_dependency"] = json!("preload_temporary_bind");
     validate(&c["preload"], &c).unwrap();
     c["preload"]["temporary"]["bind_return"] = json!(1);
     assert!(validate(&c["preload"], &c).is_err());

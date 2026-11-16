@@ -218,3 +218,7 @@ impl SkeletonRuntime {
         });
     }
 }
+
+#[cfg(test)]
+#[path = "tests/skeleton_fixtures.rs"]
+pub(crate) mod fixtures;

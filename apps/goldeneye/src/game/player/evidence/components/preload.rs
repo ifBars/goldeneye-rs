@@ -12,8 +12,10 @@ use ge_core::mission::player::{
     world::World,
 };
 use serde::Serialize;
+mod history;
 mod post_bind;
 mod temporary;
+pub(in crate::game::player) use history::{PreloadSnapshot, capture_preload_snapshot};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct AllocationState {
@@ -93,6 +95,8 @@ pub struct Preload {
     pub temporary: Option<temporary::Temporary>,
     pub post_bind: Option<post_bind::Caller>,
     pub script_publication: Option<crate::game::world::post_trigger_resources::ScriptPublication>,
+    pub outputs: Option<history::Outputs>,
+    pub completion: history::Completion,
     pub allocations: [Option<AllocationState>; 3],
     pub caches: CacheState,
     pub flag_cleared: bool,
@@ -269,6 +273,7 @@ fn call(player: &Owned, state: &preload::Call) -> Result<Call> {
             ReturnReason::RawFull => "raw_full",
             ReturnReason::EntriesFull => "entries_full",
             ReturnReason::ExistingEntry => "existing_entry",
+            ReturnReason::TemporaryCompleted => "temporary_completed",
         }),
         state_sha256: super::super::words(b"ge_player_preload_call_v1\0", |mut emit| {
             state.visit_state_words(&mut emit);
@@ -380,26 +385,65 @@ pub(super) fn build(
         Stage::FinalFlag => "final_flag",
         Stage::Returned => "returned",
     };
-    let script_publication = owner
-        .temporary
-        .as_ref()
-        .and_then(|temporary| temporary.factory_header())
-        .and_then(|header| header.cached())
-        .map(|binding| file.script_publication_evidence(binding))
-        .transpose()?
-        .flatten();
-    let post_bind = owner
-        .post_bind
-        .as_ref()
-        .map(|post| {
-            let temporary = owner
-                .temporary
-                .as_ref()
-                .context("post-bind caller lacks actual temporary")?;
-            let process = hook.preload_scalar_facts(post.capture())?;
-            post_bind::build(post, temporary, process)
-        })
-        .transpose()?;
+    let script_publication = if let Some(snapshot) = &owner.pre_teardown {
+        snapshot.script_publication.clone()
+    } else {
+        owner
+            .temporary
+            .as_ref()
+            .and_then(|temporary| temporary.factory_header())
+            .and_then(|header| header.cached())
+            .map(|binding| file.script_publication_evidence(binding))
+            .transpose()?
+            .flatten()
+    };
+    let post_bind = if let Some(snapshot) = &owner.pre_teardown {
+        Some(snapshot.post_bind.clone())
+    } else {
+        owner
+            .post_bind
+            .as_ref()
+            .map(|post| {
+                let temporary = owner
+                    .temporary
+                    .as_ref()
+                    .context("post-bind caller lacks actual temporary")?;
+                let process = hook.preload_scalar_facts(post.capture())?;
+                post_bind::build(post, temporary, process)
+            })
+            .transpose()?
+    };
+    let temporary = if let Some(snapshot) = &owner.pre_teardown {
+        Some(snapshot.temporary.clone())
+    } else {
+        owner.temporary.as_ref().map(temporary::build).transpose()?
+    };
+    let outputs = owner.outputs.as_ref().map(history::output_evidence);
+    let completion = history::Completion {
+        history_limit: 16,
+        completed_temporary_count: owner.completed_temporary_count,
+        discarded_temporary_count: owner.discarded_temporary_count,
+        found_output_count: owner.found_output_count,
+        missing_output_count: owner.missing_output_count,
+        destroyed_temporary_count: owner.destroyed_temporary_count,
+        entry_commit_count: owner.entry_commit_count,
+        history: owner
+            .completed_temporaries
+            .iter()
+            .map(|t| history::Completed {
+                snapshot: t.snapshot.clone(),
+                destruction: history::destruction(&t.tombstone),
+            })
+            .collect(),
+        pending_snapshot: owner.pre_teardown.clone(),
+        first_completed_snapshot: owner.first_completed_snapshot.clone(),
+        destruction: owner
+            .tombstone
+            .as_ref()
+            .map(history::destruction)
+            .or_else(|| owner.teardown.as_ref().map(history::teardown)),
+    };
+    let completion_bytes = serde_json::to_vec(&completion)?;
     hook.with_player_preload(|shared, caches| {
         ensure!(
             shared.reset_stage(state.lease())? == constructor::ResetStage::Complete,
@@ -447,9 +491,38 @@ pub(super) fn build(
         .map(|kind| allocation(shared.allocation(kind)));
         Ok(Some(Preload {
             stage,
-            pending_dependency: if let Some(post) = &post_bind {
+            pending_dependency: if state.helper_returned() {
+                "player_initializer_post_preload"
+            } else if owner.tombstone.is_some() {
+                "preload_temporary_entry_commit"
+            } else if let Some(teardown) = &owner.teardown {
+                teardown
+                    .dependency()
+                    .map(|d| d.as_str())
+                    .unwrap_or("preload_temporary_destructor")
+            } else if let Some(outputs) = &outputs {
+                outputs
+                    .pending_dependency
+                    .unwrap_or("preload_temporary_bone_outputs")
+            } else if let Some(post) = &post_bind {
                 post.pending_dependency
                     .unwrap_or("preload_temporary_post_bind")
+            } else if let Some(dependency) =
+                temporary.as_ref().and_then(|t| match t.pending_dependency {
+                    Some("temporary_evaluation_sampling") => {
+                        Some("preload_temporary_evaluation_sampling")
+                    }
+                    Some("temporary_evaluation_skin") => Some("preload_temporary_evaluation_skin"),
+                    Some("temporary_evaluation_auxiliary_clear") => {
+                        Some("preload_temporary_evaluation_auxiliary_clear")
+                    }
+                    Some("temporary_evaluation_layers") => {
+                        Some("preload_temporary_evaluation_layers")
+                    }
+                    _ => None,
+                })
+            {
+                dependency
             } else if owner
                 .temporary
                 .as_ref()
@@ -471,9 +544,11 @@ pub(super) fn build(
             call_in_row: state.call_in_row(),
             completed_calls,
             current_call,
-            temporary: owner.temporary.as_ref().map(temporary::build).transpose()?,
+            temporary: temporary.clone(),
             post_bind: post_bind.clone(),
             script_publication: script_publication.clone(),
+            outputs: outputs.clone(),
+            completion: completion.clone(),
             allocations,
             caches: initializer_prefix::current_caches(caches)?,
             flag_cleared: state.flag_cleared(),
@@ -511,12 +586,22 @@ pub(super) fn build(
                     emit(u32::from(publication.native_history_verified));
                 }
                 emit(u32::from(owner.post_bind.is_some()));
-                if let Some(post) = &owner.post_bind {
+                if owner.pre_teardown.is_none()
+                    && let Some(post) = &owner.post_bind
+                {
                     post.visit_state_words(&mut emit);
                 }
                 emit(u32::from(owner.temporary.is_some()));
-                if let Some(temporary) = &owner.temporary {
+                if owner.pre_teardown.is_none()
+                    && let Some(temporary) = &owner.temporary
+                {
                     temporary.visit_state_words(&mut emit);
+                }
+                for byte in &completion_bytes {
+                    emit(u32::from(*byte));
+                }
+                if let Some(outputs) = &owner.outputs {
+                    outputs.visit_state_words(&mut emit);
                 }
                 for actual in &owner.calls {
                     actual.request.visit_state_words(&mut emit);

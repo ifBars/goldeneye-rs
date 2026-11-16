@@ -20,6 +20,8 @@ pub use pose::EnableWrite;
 mod repeat;
 pub use repeat::AnimationPosition;
 mod temporary;
+#[cfg(test)]
+pub(crate) use temporary::fixtures;
 
 pub const SOURCE_BYTES: usize = 0x1b8;
 

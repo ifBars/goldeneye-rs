@@ -74,6 +74,50 @@ impl Edb {
     }
 }
 
+impl Edb {
+    /// The source tag walk (80339ae0) over a resolved base-resident body, with
+    /// no topology parse. Only the low 16 bits of `tag` are compared. `Some` is
+    /// the first match; `None` is the `0xffff` sentinel reached before any
+    /// match, and is the only missing result. A body from another owner or
+    /// directory state, a zero table pointer, malformed ranges, an exhausted
+    /// `budget` or a matched bone at or beyond the body's bone count are errors.
+    pub fn base_skin_tag(
+        &self,
+        body: &crate::skin::Body,
+        tag: u32,
+        budget: usize,
+    ) -> Result<Option<crate::skin::Tag>> {
+        ensure!(
+            body.file() == self.header.hash,
+            "skin tag body belongs to another resource"
+        );
+        let current = self
+            .base_skin_body(body.reference())?
+            .context("skin tag body descriptor disappeared")?;
+        ensure!(
+            current.directory_index() == body.directory_index()
+                && current.address() == body.address()
+                && current.stored_hash() == body.stored_hash(),
+            "skin tag body binding changed"
+        );
+        let base = self.base_bytes()?;
+        let found = crate::skin::tag_walk(base, body.address(), tag, budget)?;
+        if let Some(tag) = &found {
+            // The count is read only for a match; a sentinel never needs it.
+            let count_at = body
+                .address()
+                .checked_add(4)
+                .context("skin body count overflow")?;
+            let count = usize::try_from(Bytes(base).u32(count_at)?)?;
+            ensure!(
+                usize::from(tag.bone_index) < count,
+                "skin tag bone index is out of bounds"
+            );
+        }
+        Ok(found)
+    }
+}
+
 #[cfg(test)]
 #[path = "tests/skin_reference.rs"]
 mod tests;

@@ -65,8 +65,11 @@ and zero-time callback return. Its nonempty evaluation visits the real node,
 releases the shared scratch scope and returns from the bind without sampling a
 pose. The caller then writes its parameter, captures the unknown process scalar
 and stores a deferred phase expression. Its separate second evaluation returns
-through the same MAX guard and releases its scope. Six bone outputs, teardown
-and the rest of preload remain. See
+through the same MAX guard and releases its scope. Preload now copies current
+bone locals, destroys those temporaries and commits their entries before
+continuing. The native checkpoint completes162 calls and32 temporary entries;
+the next resident script waits for real frame sampling during bind. Its live
+lease remains subject to cancellation and shutdown cleanup. See
 [animation preload](animation-preload.md). Earlier action and helper receipts stay
 immutable as later operations change the live owners. See
 [player pose setup](player-pose-setup.md) for the current source order and limits.

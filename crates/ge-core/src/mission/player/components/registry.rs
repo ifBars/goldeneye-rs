@@ -10,6 +10,8 @@ pub struct Identity {
 }
 pub struct Registry {
     identities: Vec<Identity>,
+    /// Additive marker for owners whose source destructor completed.
+    retired: Vec<bool>,
     counter: u64,
     limit: usize,
 }
@@ -17,6 +19,7 @@ impl Registry {
     pub fn from_constructor(limit: usize) -> Self {
         Self {
             identities: Vec::new(),
+            retired: Vec::new(),
             counter: 0,
             limit,
         }
@@ -35,7 +38,9 @@ impl Registry {
             player,
         };
         self.identities.try_reserve(1)?;
+        self.retired.try_reserve(1)?;
         self.identities.push(identity);
+        self.retired.push(false);
         self.counter = next;
         Ok(identity)
     }
@@ -45,6 +50,25 @@ impl Registry {
             .get(index)
             .copied()
             .filter(|identity| identity.id == id)
+    }
+    /// Marks a destroyed owner. Identities are never reused or removed, so
+    /// `resolve` still returns this historical identity.
+    pub fn retire(&mut self, identity: Identity) -> Result<()> {
+        ensure!(
+            self.resolve(identity.id) == Some(identity),
+            "retired identity does not belong to this registry"
+        );
+        let index = (identity.id.get() - 1) as usize;
+        ensure!(
+            !self.retired[index],
+            "component identity is already retired"
+        );
+        self.retired[index] = true;
+        Ok(())
+    }
+    pub fn is_retired(&self, identity: Identity) -> bool {
+        self.resolve(identity.id) == Some(identity)
+            && self.retired[(identity.id.get() - 1) as usize]
     }
     pub fn len(&self) -> usize {
         self.identities.len()

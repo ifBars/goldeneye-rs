@@ -41,6 +41,7 @@ pub use initializer_prefix::InitializerPrefix;
 pub use pose_setup::PoseSetup;
 pub use postbind::VisualPostbind;
 pub use preload::Preload;
+pub(in crate::game::player) use preload::{PreloadSnapshot, capture_preload_snapshot};
 pub use refresh::BindRefresh;
 pub use repeat::RepeatAction;
 pub use selector::ThirdPersonSelector;

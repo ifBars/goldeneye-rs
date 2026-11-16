@@ -118,6 +118,35 @@ impl Animator {
         );
         Ok(())
     }
+    /// Skeleton virtual destructor (803322b0, delete=1): the retained runtime
+    /// has no linked owner or LOD arrays by construction. +0x114 is not cleared.
+    pub(in crate::mission::player::components) fn take_temporary_skeleton(
+        &mut self,
+    ) -> Result<SkeletonRuntime> {
+        ensure!(
+            self.skeleton
+                .as_ref()
+                .is_some_and(|s| s.animator() == Some(self.identity)),
+            "temporary skeleton destructor requires its actual bound skeleton"
+        );
+        Ok(self.skeleton.take().expect("validated temporary skeleton"))
+    }
+    /// Component binding words written by the animator destructor.
+    pub(in crate::mission::player::components) fn clear_temporary_component_words(&mut self) {
+        self.word_store(0x1c, 0);
+        self.word_store(0x20, 0);
+        self.word_store(0x24, u32::MAX);
+        self.component = None;
+    }
+    /// Script store and node identities mutated by slot-child destruction.
+    pub(in crate::mission::player::components) fn temporary_children_mut(
+        &mut self,
+    ) -> (
+        &mut crate::animation::nodes::Ids,
+        &mut crate::animation::script_child::Store,
+    ) {
+        (&mut self.node_ids, &mut self.script_children)
+    }
     pub(in crate::mission::player::components) fn temporary_empty_refresh(
         &self,
         context: &mut crate::animation::scratch::Context,
@@ -141,6 +170,9 @@ impl Animator {
     }
 }
 
+#[cfg(test)]
+#[path = "temporary/tests/fixtures.rs"]
+pub(crate) mod fixtures;
 #[cfg(test)]
 #[path = "temporary/tests.rs"]
 mod tests;

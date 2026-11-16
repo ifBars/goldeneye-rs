@@ -54,6 +54,36 @@ impl Allocation {
         self.put_payload(offset, &value.to_be_bytes())
     }
 
+    /// One aligned native half-word store (sth).
+    pub(in crate::mission::player::constructor) fn put_payload_half(
+        &mut self,
+        offset: usize,
+        value: u16,
+    ) -> Result<()> {
+        ensure!(
+            offset.is_multiple_of(2),
+            "unaligned constructor payload half-word"
+        );
+        self.put_payload(offset, &value.to_be_bytes())
+    }
+
+    /// One 8-byte paired-single store of two raw lanes, in lane order.
+    pub(in crate::mission::player::constructor) fn put_payload_pair(
+        &mut self,
+        offset: usize,
+        lanes: [u32; 2],
+    ) -> Result<()> {
+        // Entry translations start at +4: word alignment, as paired stores allow.
+        ensure!(
+            offset.is_multiple_of(4),
+            "unaligned constructor payload pair"
+        );
+        let mut bytes = [0; 8];
+        bytes[..4].copy_from_slice(&lanes[0].to_be_bytes());
+        bytes[4..].copy_from_slice(&lanes[1].to_be_bytes());
+        self.put_payload(offset, &bytes)
+    }
+
     fn payload_range(&self, offset: usize, bytes: usize) -> Result<Range<usize>> {
         let end = offset
             .checked_add(bytes)

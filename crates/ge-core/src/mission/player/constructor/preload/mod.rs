@@ -3,9 +3,11 @@
 use super::{Lease, ResetStage, Shared, initializer_prefix};
 use crate::mission::player::{components::Identity, identity::PlayerId, transform_cache};
 use anyhow::{Context, Result, ensure};
+pub mod bone_outputs;
 mod call;
 pub mod post_bind;
 mod state;
+pub mod teardown;
 pub use call::{Call, CallStage, ReturnReason};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -80,6 +82,7 @@ pub struct Pending {
     row_flags: Vec<u8>,
     enabled_rows: usize,
     weapon: Option<u32>,
+    weapon_reads: usize,
     call_in_row: u8,
     completed: Vec<Call>,
     current: Option<Call>,
@@ -114,6 +117,7 @@ impl Pending {
             row_flags: Vec::new(),
             enabled_rows: 0,
             weapon: None,
+            weapon_reads: 0,
             call_in_row: 0,
             completed: Vec::new(),
             current: None,
@@ -189,17 +193,19 @@ impl Pending {
                         self.row += 1;
                     } else {
                         self.enabled_rows += 1;
+                        self.call_in_row = 0;
                         self.stage = Stage::Weapon;
                     }
                 }
                 Stage::Weapon => {
+                    // Source re-reads the row's weapon word before EACH call.
                     let weapon = source.weapon(self.row)?;
+                    self.weapon_reads += 1;
                     ensure!(
                         weapon != 0,
                         "preload reached an invalid terminated registry row"
                     );
                     self.weapon = Some(weapon);
-                    self.call_in_row = 0;
                     self.stage = Stage::Call;
                 }
                 Stage::Call => {
@@ -231,12 +237,15 @@ impl Pending {
                     );
                     self.completed
                         .push(self.current.take().expect("completed preload call"));
+                    // Return words are evidence only; the source loop ignores them.
                     self.call_in_row += 1;
                     if self.call_in_row == 6 {
                         self.row += 1;
                         self.weapon = None;
                         self.call_in_row = 0;
                         self.stage = Stage::Row;
+                    } else {
+                        self.stage = Stage::Weapon;
                     }
                 }
                 Stage::AwaitingTemporary | Stage::Returned => return Ok(()),
@@ -294,6 +303,31 @@ impl Pending {
     }
     pub fn current_weapon(&self) -> Option<u32> {
         self.weapon
+    }
+    /// Completes the current call from its destroyed temporary, then resumes
+    /// the source six-call cursor (next call, next row or the final flag).
+    pub fn resume_call(
+        &mut self,
+        shared: &mut Shared,
+        caches: &mut transform_cache::Owner,
+        source: &mut impl Source,
+        budget: Budget,
+        tombstone: &teardown::Tombstone,
+    ) -> Result<()> {
+        ensure!(
+            self.stage == Stage::AwaitingTemporary,
+            "preload resume precedes an actual temporary wait"
+        );
+        let lease = self.lease;
+        self.current
+            .as_mut()
+            .context("preload resumed without a current call")?
+            .complete_temporary(lease, shared, tombstone)?;
+        self.stage = Stage::Call;
+        self.advance(shared, caches, source, budget)
+    }
+    pub fn weapon_reads(&self) -> usize {
+        self.weapon_reads
     }
     pub fn call_in_row(&self) -> u8 {
         self.call_in_row

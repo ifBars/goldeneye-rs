@@ -2602,7 +2602,7 @@ function preloadFixture(historical) {
     allocations:[{kind:'raw',native_bytes:512,payload_bytes:512,known_payload_bytes:44,header_words:[null,null,null,null]},
       {kind:'array34',native_bytes:7088,payload_bytes:7072,known_payload_bytes:136,header_words:[208,34,null,null]},
       {kind:'array64',native_bytes:56080,payload_bytes:56064,known_payload_bytes:0,header_words:[876,64,null,null]}],
-    caches,flag_cleared:false,helper_returned:false,post_bind:null,script_publication:null,state_sha256:'f'.repeat(64)};
+    caches,flag_cleared:false,helper_returned:false,post_bind:null,script_publication:null,outputs:null,completion:{history_limit:16,completed_temporary_count:0,discarded_temporary_count:0,found_output_count:0,missing_output_count:0,destroyed_temporary_count:0,entry_commit_count:0,history:[],pending_snapshot:null,first_completed_snapshot:null,destruction:null},state_sha256:'f'.repeat(64)};
 }
 function withPreload(report) {
   withInitializerPrefix(report);
@@ -3949,7 +3949,7 @@ test('pending nonempty evaluation rejects an unbound skeletal owner',async()=>{
     Object.assign(t,{stage:'evaluating_bind',pending_dependency:'temporary_evaluation_skin',bind_return:null});
     Object.assign(e,{stage:'pending',pending_boundary:'Prepare',released:false,lease_live:true,node_visits:0,nonempty_layers:0,guards:[],prepares:[]});
     Object.assign(e.slots[0],{nodes:[],prepared:false,masks_cleared:false});
-    c.preload.pending_dependency='preload_temporary_bind';c.pending_dependency='preload_temporary_bind';p.pending_dependency=c.pending_dependency;
+    c.preload.pending_dependency='preload_temporary_evaluation_skin';c.pending_dependency='preload_temporary_evaluation_skin';p.pending_dependency=c.pending_dependency;
   });
   await inspect(embed(report),d=>assert.doesNotMatch(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
   forPlayerComponents(report,c=>Object.assign(c.preload.temporary,{skeleton_bound:false,skeleton_backlink_bound:false,bones:null,auxiliary_words:null}));
@@ -3972,6 +3972,35 @@ function withPostBindCaller(report) {
     c.preload.pending_dependency='preload_temporary_bone_outputs';c.pending_dependency='preload_temporary_bone_outputs';p.pending_dependency=c.pending_dependency;
   });
 }
+function withPreloadOutputs(report) {
+  withPostBindCaller(report);
+  return forPlayerComponents(report,(c,player)=>{
+    const p=c.preload,call=p.current_call,t=p.temporary;
+    p.outputs={stage:'done',pending_dependency:'preload_temporary_destructor',iteration:6,hash_cursor:4,hash_reads:6,lookups:4,body_reads:4,tag_walks:4,stores:18,found:3,missing:3,outcomes:['found','sentinel','found','found','zero_hash','zero_hash'],state_sha256:'6'.repeat(64)};
+    p.completion.pending_snapshot={ordinal:call.ordinal,source_ordinal:call.source_ordinal,player:t.player,receiver:t.source_receiver,weapon:call.weapon,generic:call.generic,alternate:call.alternate,variant:call.variant,entry:call.entry_index,mapped:call.mapping.output,reference:call.reference,temporary_identity:t.identity,temporary:structuredClone(t),post_bind:structuredClone(p.post_bind),outputs:structuredClone(p.outputs),script_publication:structuredClone(p.script_publication)};
+    Object.assign(p.completion,{found_output_count:3,missing_output_count:3,destruction:{stage:'slot_children',pending_dependency:'preload_teardown_child_reference_list',temporary_identity:t.identity,ordinal:call.ordinal,children:0,skeleton:null,snapshot_words:100,snapshot_digest:'0123456789abcdef',state_sha256:'5'.repeat(64)}});
+    p.pending_dependency='preload_teardown_child_reference_list';c.pending_dependency=p.pending_dependency;player.pending_dependency=p.pending_dependency;
+  });
+}
+test('six-bone progress separates outputs destruction and entry commit',async()=>{
+  const report=withPreloadOutputs(withPlayerPrelude(gameSessionFixture()));
+  await inspect(embed(report),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.doesNotMatch(text,/has not been recorded completely|undefined/);
+    assert.match(text,/3 bone outputs found and 3 missing/);
+    assert.match(text,/0 temporaries destroyed; 0 entry keys committed/);
+    assert.match(text,/saved pre-destruction receipt/);
+    assert.match(text,/preload teardown child reference list/);
+  });
+});
+test('six-bone diagnostics reject copied call identities fake cleanup and store counts',async()=>{
+  const changes=[p=>{p.completion.first_completed_snapshot=structuredClone(p.completion.pending_snapshot);},p=>{p.outputs.stores=6;},p=>{p.outputs.hash_cursor=2;},p=>{p.completion.entry_commit_count=1;},p=>{p.completion.destroyed_temporary_count=1;},p=>{p.completion.missing_output_count=2;},p=>{p.completion.pending_snapshot.entry++;},p=>{p.completion.pending_snapshot.weapon++;},p=>{p.completion.pending_snapshot.post_bind.evaluation.released=false;},p=>{p.completion.pending_snapshot=null;},p=>{p.completion.history_limit=34;}];
+  for(const change of changes){
+    const report=withPreloadOutputs(withPlayerPrelude(gameSessionFixture()));
+    change(report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization.preload);
+    await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+  }
+});
 test('post-bind caller preserves unknown scalar and releases a separate second evaluation',async()=>{
   const report=withPostBindCaller(withPlayerPrelude(gameSessionFixture()));
   const c=report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization;

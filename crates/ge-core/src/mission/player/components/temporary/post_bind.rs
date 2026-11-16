@@ -31,7 +31,7 @@ pub enum PostBindHead {
 impl Pending {
     fn ensure_bind_returned(&self) -> Result<()> {
         ensure!(
-            self.stage() == Stage::BindReturned && self.bind_return() == Some(1),
+            self.stage() == Stage::BindReturned && self.bind_return() == Some(1) && !self.teardown,
             "post-bind suffix precedes the actual temporary bind return"
         );
         Ok(())

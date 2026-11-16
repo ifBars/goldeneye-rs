@@ -52,6 +52,9 @@ pub(super) struct Sources {
 }
 
 impl Sources {
+    pub fn preload_bone_tags(&self) -> supplied_data::BoneTagTable {
+        self.supplied.preload_bone_tags()
+    }
     pub fn metadata_at_selected_slot(&self, slot: u8, inventory: &Inventory) -> Result<&Metadata> {
         selected_metadata(&self.metadata, slot, inventory)
     }

@@ -52,6 +52,10 @@ impl Call {
         optional(self.reference, &mut emit);
         optional(self.return_word, &mut emit);
         optional(self.return_reason.map(|r| r as u32), &mut emit);
+        emit(u32::from(self.temporary_completed.is_some()));
+        if let Some(identity) = self.temporary_completed {
+            identity.visit_state_words(&mut emit);
+        }
     }
 }
 impl Pending {
@@ -86,6 +90,7 @@ impl Pending {
         if let Some(call) = &self.current {
             call.visit_state_words(&mut emit);
         }
+        emit(self.weapon_reads as u32);
         emit(u32::from(self.flag_cleared));
     }
 }

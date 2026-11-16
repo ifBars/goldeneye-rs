@@ -103,6 +103,69 @@ impl Shared {
             .put_payload_word(entry_offset(index)?, key)
     }
 
+    /// Six-bone output index (entry +0xc4 + 2*ordinal).
+    pub fn store_preload_entry_bone_index(
+        &mut self,
+        lease: Lease,
+        entry: u8,
+        ordinal: u8,
+        index: u16,
+    ) -> Result<()> {
+        let offset = bone_index_offset(entry, ordinal)?;
+        self.preload_allocation_mut(lease, Kind::Array34)?
+            .put_payload_half(offset, index)
+    }
+
+    /// One paired-single store of a translation or rotation half.
+    pub fn store_preload_entry_pose_pair(
+        &mut self,
+        lease: Lease,
+        entry: u8,
+        region: PoseRegion,
+        ordinal: u8,
+        high: bool,
+        lanes: [u32; 2],
+    ) -> Result<()> {
+        let offset = pose_offset(entry, region, ordinal, if high { 2 } else { 0 })?;
+        self.preload_allocation_mut(lease, Kind::Array34)?
+            .put_payload_pair(offset, lanes)
+    }
+
+    /// None when the half-word was never stored.
+    pub fn preload_entry_bone_index(
+        &self,
+        lease: Lease,
+        entry: u8,
+        ordinal: u8,
+    ) -> Result<Option<u16>> {
+        let offset = bone_index_offset(entry, ordinal)?;
+        let allocation = self.preload_allocation(lease, Kind::Array34)?;
+        Ok(
+            match (
+                allocation.payload_byte(offset)?,
+                allocation.payload_byte(offset + 1)?,
+            ) {
+                (Some(high), Some(low)) => Some(u16::from_be_bytes([high, low])),
+                _ => None,
+            },
+        )
+    }
+
+    /// None when the lane was never stored.
+    pub fn preload_entry_pose_word(
+        &self,
+        lease: Lease,
+        entry: u8,
+        region: PoseRegion,
+        ordinal: u8,
+        lane: u8,
+    ) -> Result<Option<u32>> {
+        ensure!(lane < 4, "preload pose lane outside the vector");
+        let offset = pose_offset(entry, region, ordinal, lane)?;
+        self.preload_allocation(lease, Kind::Array34)?
+            .payload_word(offset)
+    }
+
     fn validate_preload_lease(&self, lease: Lease) -> Result<()> {
         ensure!(
             self.reset_stage(lease)? == ResetStage::Complete,
@@ -132,6 +195,28 @@ fn raw_offset(index: u8, field: u8) -> Result<usize> {
         "preload raw entry is outside the cache"
     );
     Ok(usize::from(index) * 16 + usize::from(field))
+}
+
+/// Translation (+0x04) or rotation (+0x64) vectors of the six bone outputs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PoseRegion {
+    Translation,
+    Rotation,
+}
+const BONE_OUTPUTS: u8 = 6;
+
+fn bone_index_offset(entry: u8, ordinal: u8) -> Result<usize> {
+    ensure!(ordinal < BONE_OUTPUTS, "preload bone output outside six");
+    Ok(entry_offset(entry)? + 0xc4 + 2 * usize::from(ordinal))
+}
+
+fn pose_offset(entry: u8, region: PoseRegion, ordinal: u8, lane: u8) -> Result<usize> {
+    ensure!(ordinal < BONE_OUTPUTS, "preload bone output outside six");
+    let base = match region {
+        PoseRegion::Translation => 4,
+        PoseRegion::Rotation => 0x64,
+    };
+    Ok(entry_offset(entry)? + base + 16 * usize::from(ordinal) + 4 * usize::from(lane))
 }
 
 fn entry_offset(index: u8) -> Result<usize> {
