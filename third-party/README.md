@@ -22,3 +22,12 @@ texts only, not game code or game assets.
 Apache texts are from its `.cargo_vcs_info.json` revision
 `97c3bb9b2363c0b46ac1633858bf1054fd02a980`:
 https://github.com/RustAudio/dasp/tree/97c3bb9b2363c0b46ac1633858bf1054fd02a980
+
+`asn1-rs-impl` 0.2.0 is published from a subdirectory and omits the
+workspace-root licenses. Its unmodified MIT and Apache texts are from its
+`.cargo_vcs_info.json` revision `a20e5f7319c896737ad0f2557037817b91ad854f`:
+https://github.com/rusticata/asn1-rs/tree/a20e5f7319c896737ad0f2557037817b91ad854f
+
+It is reachable only through an optional `rcgen` feature that this workspace
+does not enable, so it is not compiled. The notice generator lists every
+package Cargo resolves, including such optional ones.

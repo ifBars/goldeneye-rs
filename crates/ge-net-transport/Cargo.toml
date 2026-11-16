@@ -1,0 +1,24 @@
+[package]
+name = "ge-net-transport"
+description = "QUIC transport backend for the ge-net session core."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# The one production backend. It owns the socket, the async runtime and the
+# TLS identity; ge-net itself stays free of all three.
+[dependencies]
+ge-net = { path = "../ge-net" }
+quinn.workspace = true
+rustls.workspace = true
+rcgen.workspace = true
+tokio.workspace = true
+bytes.workspace = true
+sha2.workspace = true
+
+# Host and client processes for the loopback acceptance test. They run the
+# authored synthetic simulation and need no game image.
+[[bin]]
+name = "ge-net-loopback"
+path = "src/bin/ge-net-loopback.rs"
