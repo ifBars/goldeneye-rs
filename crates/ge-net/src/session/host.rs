@@ -55,8 +55,10 @@ pub enum HostEvent {
         slots: Vec<PlayerSlot>,
         extensions: Vec<u32>,
     },
-    /// The peer applied a snapshot at or after the accepted tick. Its
-    /// commands are accepted from now on.
+    /// The peer reported applying a snapshot at or after the accepted tick.
+    /// `tick` is that reported tick, checked to lie between the accepted tick
+    /// and the newest published one; the host cannot know what the
+    /// application actually applied. Its commands are accepted from now on.
     PeerActive {
         attempt: AttemptId,
         peer: PeerId,
@@ -149,6 +151,9 @@ struct HostPeer {
     transfer: Option<Transfer>,
     /// A fully queued transfer that the peer has not acknowledged yet.
     transferred: Option<StoredSnapshot>,
+    /// The tick of the `Activate` sent to this peer: the accepted tick that
+    /// its `Ready` must reach. Set only when `Activate` is queued.
+    activation_tick: Option<Tick>,
     /// An outstanding full-state recovery for a replicating peer: the
     /// snapshot it sends, and when an acknowledgement at or after that
     /// snapshot must have arrived.
@@ -512,6 +517,7 @@ impl HostSession {
                 baseline: None,
                 transfer: None,
                 transferred: None,
+                activation_tick: None,
                 recovery: None,
                 bulk_credit: u64::from(self.budget.bulk_burst_bytes)
                     .saturating_mul(MICROS_PER_SECOND),
@@ -959,17 +965,7 @@ impl HostSession {
             Message::SyncApplied(id) if stage == Stage::AwaitingApplied => {
                 self.on_sync_applied(attempt, id)
             }
-            Message::Ready if stage == Stage::CatchingUp => {
-                let peer = self.peers.get_mut(&attempt).expect("live peer");
-                peer.stage = Stage::Active;
-                let peer_id = peer.peer.expect("accepted peer");
-                self.events.push_back(HostEvent::PeerActive {
-                    attempt,
-                    peer: peer_id,
-                    tick: tick.unwrap_or_default(),
-                });
-                Ok(Ingested::Accepted)
-            }
+            Message::Ready if stage == Stage::CatchingUp => self.on_ready(attempt, tick),
             Message::StateAck(id) if stage.replicating() => {
                 let history = &self.history;
                 let mut shared = Shared {
@@ -1149,6 +1145,7 @@ impl HostSession {
         peer.recovery = None;
         peer.stage = Stage::CatchingUp;
         let latest = latest.expect("a transfer implies a published snapshot");
+        peer.activation_tick = Some(latest.tick);
         let result = peer
             .link
             .send(
@@ -1159,6 +1156,46 @@ impl HostSession {
             )
             .and_then(|()| peer.replicate(&latest, &mut shared));
         Ok(self.after_send(attempt, result))
+    }
+
+    /// Activate a catching-up peer on its `Ready`.
+    ///
+    /// `Activate` announced the accepted tick `A`. The client reports the
+    /// newest snapshot tick its application applied, which must be at least
+    /// `A` (ticks are `u64` and never wrap, so this is a plain comparison, not
+    /// serial arithmetic). The client holds only snapshots this host sent, so
+    /// the claim also cannot exceed the newest published tick. A missing tick
+    /// or accepted tick is never defaulted: the claim is refused.
+    fn on_ready(
+        &mut self,
+        attempt: AttemptId,
+        claimed: Option<Tick>,
+    ) -> Result<Ingested, Violation> {
+        let Some(claimed) = claimed else {
+            return Err(Violation::Decode(
+                crate::protocol::DecodeError::TickPresence {
+                    kind: Message::Ready.kind().wire(),
+                },
+            ));
+        };
+        let newest = self.history.latest().map(|stored| stored.tick);
+        let peer = self.peers.get_mut(&attempt).expect("live peer");
+        let Some(accepted) = peer.activation_tick else {
+            return Err(Violation::UnexpectedMessage(Message::Ready.kind()));
+        };
+        if claimed < accepted || newest.is_none_or(|newest| claimed > newest) {
+            return Err(Violation::Decode(
+                crate::protocol::DecodeError::InvalidField("ready tick"),
+            ));
+        }
+        peer.stage = Stage::Active;
+        let peer_id = peer.peer.expect("accepted peer");
+        self.events.push_back(HostEvent::PeerActive {
+            attempt,
+            peer: peer_id,
+            tick: claimed,
+        });
+        Ok(Ingested::Accepted)
     }
 
     fn after_send(&mut self, attempt: AttemptId, result: Result<(), QueueOverflow>) -> Ingested {

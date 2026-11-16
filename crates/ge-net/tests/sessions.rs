@@ -864,6 +864,129 @@ fn commands_for_a_slot_the_connection_does_not_own_close_it() {
     assert_eq!(pair.host.diagnostics().commands_accepted, 0);
 }
 
+/// Drive one client to the point where its genuine `Ready` is on the wire
+/// towards the host but not yet delivered. The host sent `Activate` at
+/// `accepted`, the only snapshot published so far.
+fn ready_in_flight(accepted: u64, seed: u64) -> (Pair, Wire) {
+    use ge_net::protocol::message::Message;
+    let mut pair = Pair::new(SessionBudget::small_session(), 0, seed);
+    pair.auto_apply = false;
+    pair.settle();
+    let id = pair.publish(accepted, empty());
+    pair.client.acknowledge_applied(id).unwrap();
+    pair.flush_client();
+    pair.deliver_to_host();
+    pair.flush_host();
+    pair.deliver_to_client();
+    pair.flush_client();
+    let position = pair
+        .to_host
+        .iter()
+        .position(|wire| matches!(wire.message(), Some(Message::Ready)))
+        .expect("the client reported readiness");
+    let ready = pair.to_host.remove(position).unwrap();
+    // The host is waiting for it; nothing else may reach the host first.
+    pair.to_host.clear();
+    assert_eq!(
+        pair.host.phase(pair.host_attempt),
+        Some(Phase::Synchronizing)
+    );
+    assert_eq!(
+        ready.envelope().header.tick,
+        Some(Tick::new(accepted)),
+        "an honest client reports the tick it applied"
+    );
+    (pair, ready)
+}
+
+/// The same authenticated connection and sequence, with another tick claim.
+fn ready_claiming(genuine: &Wire, tick: u64) -> Wire {
+    use ge_net::protocol::envelope;
+    let original = genuine.envelope();
+    let mut header = original.header;
+    header.tick = Some(Tick::new(tick));
+    let mut bytes = Vec::new();
+    envelope::encode(&header, original.payload, 1_200, &mut bytes).unwrap();
+    Wire {
+        lane: genuine.lane,
+        bytes,
+    }
+}
+
+fn ready_tick_violation() -> Result<Ingested, IngestError> {
+    Ok(Ingested::Closed(CloseReason::Violation(
+        ge_net::Violation::Decode(ge_net::protocol::DecodeError::InvalidField("ready tick")),
+    )))
+}
+
+fn assert_not_activated(pair: &Pair) {
+    assert_eq!(pair.host.phase(pair.host_attempt), Some(Phase::Closing));
+    assert!(
+        !pair
+            .host_events
+            .iter()
+            .any(|event| matches!(event, HostEvent::PeerActive { .. })),
+        "no activation event"
+    );
+}
+
+#[test]
+fn a_ready_below_the_accepted_tick_does_not_activate() {
+    let (mut pair, genuine) = ready_in_flight(5, 61);
+    let stale = ready_claiming(&genuine, 4);
+    assert_eq!(pair.give_host(&stale), ready_tick_violation());
+    assert_not_activated(&pair);
+}
+
+#[test]
+fn a_ready_above_the_newest_published_tick_does_not_activate() {
+    let (mut pair, genuine) = ready_in_flight(5, 62);
+    // Nothing newer than tick 5 was ever sent to this client.
+    let invented = ready_claiming(&genuine, 6);
+    assert_eq!(pair.give_host(&invented), ready_tick_violation());
+    assert_not_activated(&pair);
+}
+
+#[test]
+fn a_ready_at_the_accepted_tick_activates_with_that_tick() {
+    let (mut pair, genuine) = ready_in_flight(5, 63);
+    assert_eq!(pair.give_host(&genuine), Ok(Ingested::Accepted));
+    assert_eq!(pair.host.phase(pair.host_attempt), Some(Phase::Active));
+    assert!(matches!(
+        pair.host_events.last(),
+        Some(HostEvent::PeerActive { tick, .. }) if *tick == Tick::new(5)
+    ));
+}
+
+#[test]
+fn a_ready_between_the_accepted_and_newest_ticks_activates_with_its_claim() {
+    let (mut pair, genuine) = ready_in_flight(5, 64);
+    // The host publishes on while the client catches up: accepted 5, newest 7.
+    pair.host
+        .publish_snapshot(Tick::new(7), empty())
+        .expect("newer snapshot");
+    // Applied tick 6 is later than accepted (a plain u64 comparison, no
+    // wraparound) and not the newest: the requirement is "at least".
+    let caught_up = ready_claiming(&genuine, 6);
+    assert_eq!(pair.give_host(&caught_up), Ok(Ingested::Accepted));
+    assert_eq!(pair.host.phase(pair.host_attempt), Some(Phase::Active));
+    assert!(matches!(
+        pair.host_events.last(),
+        Some(HostEvent::PeerActive { tick, .. }) if *tick == Tick::new(6)
+    ));
+}
+
+#[test]
+fn a_ready_beyond_a_newer_published_tick_still_does_not_activate() {
+    let (mut pair, genuine) = ready_in_flight(5, 65);
+    pair.host
+        .publish_snapshot(Tick::new(7), empty())
+        .expect("newer snapshot");
+    let invented = ready_claiming(&genuine, 8);
+    assert_eq!(pair.give_host(&invented), ready_tick_violation());
+    assert_not_activated(&pair);
+}
+
 #[test]
 fn inbound_work_and_events_are_bounded_per_update() {
     let mut budget = SessionBudget::small_session();
