@@ -6,6 +6,7 @@ use ge_core::{
     mission::player::components::temporary::{Pending, Stage},
 };
 use serde::Serialize;
+mod evaluation;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Clip {
@@ -68,6 +69,7 @@ pub struct Temporary {
     pub reverse_skipped: bool,
     pub bind_return: Option<u32>,
     pub refresh_returned: bool,
+    pub evaluation: Option<evaluation::Evaluation>,
     pub state_sha256: String,
 }
 fn script(header: &script_child::Header) -> Result<Script> {
@@ -115,6 +117,8 @@ pub(super) fn build(pending: &Pending) -> Result<Temporary> {
             Stage::AwaitingForwardTick => "awaiting_forward_tick",
             Stage::ForwardTick => "forward_tick",
             Stage::AwaitingEvaluation => "awaiting_evaluation",
+            Stage::EvaluatingBind => "evaluating_bind",
+            Stage::Aborted => "aborted",
             Stage::BindReturned => "bind_returned",
             Stage::Failed => "failed",
         },
@@ -152,6 +156,7 @@ pub(super) fn build(pending: &Pending) -> Result<Temporary> {
         reverse_skipped: pending.reverse_skipped(),
         bind_return: pending.bind_return(),
         refresh_returned: pending.refresh().is_some(),
+        evaluation: evaluation::build(pending)?,
         state_sha256: super::super::super::words(b"ge_player_preload_temporary_v1\0", |emit| {
             pending.visit_state_words(emit)
         }),

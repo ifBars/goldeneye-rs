@@ -61,7 +61,9 @@ shared transform caches for the actual first- and third-person skeletons. Their
 matrix payloads remain unwritten. Preload now performs its narrow cache writes
 and creates a distinct temporary animator and skeleton. The same wrapper's
 checked fresh-base publication proves its first script body is NULL; its factory
-and zero-time callback return before nonempty evaluation remains pending. See
+and zero-time callback return. Its nonempty evaluation visits the real node,
+releases the shared scratch scope and returns from the bind without sampling a
+pose. The caller remains at its post-bind work. See
 [animation preload](animation-preload.md). Earlier action and helper receipts stay
 immutable as later operations change the live owners. See
 [player pose setup](player-pose-setup.md) for the current source order and limits.

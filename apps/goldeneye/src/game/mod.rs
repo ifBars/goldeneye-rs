@@ -282,7 +282,9 @@ impl Controller {
         for handle in std::mem::take(&mut self.retired) {
             panicked |= handle.join().is_err();
         }
+        let cleanup = self.world_hooks.abort_pending_evaluation();
         ensure!(!panicked, "session worker failed during shutdown");
+        cleanup?;
         Ok(())
     }
 }

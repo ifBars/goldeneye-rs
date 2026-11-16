@@ -6,8 +6,9 @@ unfinished.
 
 The initializer's earlier pose helpers and FP/TP transform-cache construction
 have returned. Animation preload now runs against those retained owners. Its
-current native checkpoint completes the first temporary script factory and
-zero-time forward callback, then waits for nonempty animation evaluation.
+current native checkpoint completes the first temporary script factory,
+zero-time forward callback and nonempty evaluation, then returns from the bind.
+The caller's post-bind work remains unfinished.
 
 ## What runs now
 
@@ -53,15 +54,27 @@ does not prove script publication or completed body initialization.
 The NULL-body initializer returns without scanning clips. Its real class-four
 node is inserted, and its zero-time forward callback clears the reached phase
 fields and returns without reading duration or FPS. Fresh maintenance and reverse
-branches skip. The list still contains a node, so this path awaits
-`temporary_animation_evaluation`; it cannot use the empty-list refresh.
+branches skip. The list still contains a node, so this path runs the nonempty
+evaluator rather than the empty-list refresh.
+
+That evaluator reserves the existing shared scratch arena and stores its context
+regions. It resolves the temporary skeleton's current primary skin before clearing
+the two shared masks. It then visits the real script node. The constructor's
+current clip reference is MAX, so the node returns zero before reading animation
+coordinates or sampling frames. One nonempty layer is visited, with zero samples,
+blends or pose commits. The actual reservation releases before the bind returns1.
+
+Pending evaluations retain their scope through a cancellation lease. The lease
+checks the actual arena and context instances, even when semantic IDs match.
+New scratch operations reap stale attempts; shutdown aborts remaining scopes
+after workers join. Cleanup never counts as a completed evaluation or bind.
 
 ## What remains
 
-The next work is the nonempty evaluation path and its bind return. A real script
-node requires that path even when its body is NULL. Its actual sampling guard,
-skeleton preparation, shared scratch stores and release must run in source
-order. Constructor locals and allocated matrices are not sampled poses.
+The next work is the caller's parameter write and ordered clamp, another
+evaluation, six bone outputs and teardown. The mutable process scalar's current
+value remains unresolved. Its startup value alone cannot supply a current value.
+Constructor locals and allocated matrices are not sampled poses.
 
 Later preload work still needs its remaining temporary operations, teardown,
 entry commit and subsequent registry calls. Full player initialization and the
@@ -73,8 +86,11 @@ or original-game parity is claimed.
 Core tests cover narrow storage writes, lazy reads, partial failures, mapping
 order, distinct temporary ownership, fresh NULL proofs and pending body states.
 Tests also cover retained wrappers across cancellation/reentry and failed request
-prefixes. A native hidden New Game probe completes the direct factory and forward
-callback without a loading failure. Player and camera readiness remain false.
+prefixes. Tests cover pending evaluations, exact-owner cancellation and immediate
+reentry. Native hidden New Game probes complete the direct factory, forward
+callback, nonempty evaluation and bind without a loading failure. Their scopes
+are released, with no sampled pose or commit. Player and camera readiness remain
+false.
 
 The progress report keeps the returned initializer snapshot separate from current
 preload mutations. See [player pose setup](player-pose-setup.md) for the earlier

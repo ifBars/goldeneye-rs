@@ -32,15 +32,33 @@ fn fixture() -> Value {
         b["descendant_visits"] = json!(visits);
         b["descendant_bytes"] = json!(desc);
     }
+    // Earlier helper fixtures intentionally omit presentation-independent
+    // arena receipts. Supply authored prior scopes for this native-order gate.
+    for (path, ordinal) in [
+        (vec!["bind_refresh"], 1),
+        (vec!["first_person", "bind_refresh"], 2),
+        (vec!["initial_action", "tp_capture", "refresh"], 3),
+        (
+            vec!["initial_action", "fp_dispatch", "mask_capture", "refresh"],
+            4,
+        ),
+    ] {
+        let mut field = &mut c;
+        for key in path {
+            field = &mut field[key];
+        }
+        *field = json!({"scope_released":true,"live_reservations_after":0,
+            "refresh_ordinal":ordinal,"allocation_ordinal":ordinal});
+    }
     c["preload"] = super::super::player_preload::tests::native_preload(&c);
     c["stage"] = json!("player_preload_temporary_pending");
-    c["pending_dependency"] = json!("preload_temporary_bind");
+    c["pending_dependency"] = json!("preload_temporary_post_bind");
     c["attachment"] = super::super::player_attachment::tests::fixture();
     c["attachment"]["registry_identities"] = json!(3);
-    json!({"pending_dependency":"preload_temporary_bind","component_initialization":c})
+    json!({"pending_dependency":"preload_temporary_post_bind","component_initialization":c})
 }
 #[test]
-fn observed_tutorial_retains_fresh_null_publication_and_real_evaluation_dependency() {
+fn observed_tutorial_retains_fresh_null_and_nonempty_bind_return() {
     let p = fixture();
     validate(&p, 1).unwrap();
     for (key, value) in [
@@ -73,7 +91,7 @@ fn observed_tutorial_retains_fresh_null_publication_and_real_evaluation_dependen
     validate(&reused, 1).unwrap();
 }
 #[test]
-fn native_gate_requires_actual_new_owner_and_null_proof_without_evaluation_return() {
+fn native_gate_requires_actual_new_owner_and_proven_nonempty_bind_return() {
     let p = fixture();
     validate(&p, 1).unwrap();
     for (key, value) in [
@@ -86,7 +104,7 @@ fn native_gate_requires_actual_new_owner_and_null_proof_without_evaluation_retur
         ("bones", json!(37)),
         ("attached", json!(true)),
         ("frame_stamp_known", json!(true)),
-        ("bind_return", json!(1)),
+        ("bind_return", Value::Null),
     ] {
         let mut bad = p.clone();
         bad["component_initialization"]["preload"]["temporary"][key] = value;
@@ -149,7 +167,55 @@ fn native_gate_requires_exact_fresh_same_wrapper_publication_receipt() {
     bad["component_initialization"]["preload"]["script_publication"] = Value::Null;
     assert!(validate(&bad, 1).is_err());
     let mut bad = p;
-    bad["component_initialization"]["preload"]["temporary"]["stage"] = json!("bind_returned");
+    bad["component_initialization"]["preload"]["temporary"]["stage"] = json!("awaiting_evaluation");
     bad["component_initialization"]["preload"]["temporary"]["bind_return"] = json!(1);
     assert!(validate(&bad, 1).is_err());
+}
+
+#[test]
+fn native_gate_requires_measured_no_sample_effects_and_ordered_scope_release() {
+    let p = fixture();
+    validate(&p, 1).unwrap();
+    for (key, value) in [
+        ("arena_owner", json!(2)),
+        ("ordinal", json!(1)),
+        ("allocation_ordinal", json!(1)),
+        ("released", json!(false)),
+        ("lease_live", json!(true)),
+        ("aborted", json!(true)),
+        ("nonempty_layers", json!(0)),
+        ("successful_samples", json!(1)),
+        ("commit_register", json!(0x4000)),
+    ] {
+        let mut bad = p.clone();
+        bad["component_initialization"]["preload"]["temporary"]["evaluation"][key] = value;
+        assert!(
+            validate(&bad, 1).is_err(),
+            "accepted native evaluation {key}"
+        );
+    }
+    for (section, key, value) in [
+        ("prepares", "file", json!(0x010a0056)),
+        ("prepares", "generation", json!(1)),
+        ("prepares", "lookups", json!(2)),
+        ("prepares", "body_reads", json!(2)),
+        ("guards", "pointer", json!("record")),
+        ("guards", "record", json!(0)),
+        ("guards", "node", json!(2)),
+        ("slots", "weight_bits", json!(0x3f000000)),
+        ("slots", "masks_cleared", json!(false)),
+    ] {
+        let mut bad = p.clone();
+        bad["component_initialization"]["preload"]["temporary"]["evaluation"][section][0][key] =
+            value;
+        assert!(
+            validate(&bad, 1).is_err(),
+            "accepted native evaluation {section}.{key}"
+        );
+    }
+    let mut later = p;
+    later["component_initialization"]["preload"]["temporary"]["evaluation"]["ordinal"] = json!(105);
+    later["component_initialization"]["preload"]["temporary"]["evaluation"]["allocation_ordinal"] =
+        json!(110);
+    validate(&later, 1).unwrap(); // Ordinals may grow on reentry; matching release still required.
 }

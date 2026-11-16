@@ -1,8 +1,18 @@
 //! A new preload animator and skeleton. Live player receivers are inputs only.
+mod evaluation;
+pub mod prepare;
 mod state;
 use super::{Animator, Identity, Registry, ResourceBinding, SkeletonBudget, SkeletonInput};
-use crate::animation::{layers::NodeId, scratch, script_child};
-use anyhow::{Context, Result, ensure};
+use crate::animation::{
+    layers::NodeId,
+    scratch::{
+        self,
+        evaluation::{Boundary, CancellationLease, Evaluation, Progress},
+    },
+    script_child,
+};
+use anyhow::{Context, Result, bail, ensure};
+pub use prepare::{SkinBody, SkinDescriptor, SkinLookup, SkinSource};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stage {
@@ -15,8 +25,12 @@ pub enum Stage {
     AwaitingForwardTick,
     ForwardTick,
     AwaitingEvaluation,
+    /// A nonempty evaluation holds its reserved scope at a reached pause.
+    EvaluatingBind,
     BindReturned,
     Failed,
+    /// Explicit cancellation released the retained scope; no bind return.
+    Aborted,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Dependency {
@@ -27,6 +41,10 @@ pub enum Dependency {
     ScriptBodyResidency,
     ForwardTick,
     Evaluation,
+    EvaluationSkin,
+    EvaluationAuxiliary,
+    EvaluationSampling,
+    EvaluationLayers,
 }
 impl Dependency {
     pub fn as_str(self) -> &'static str {
@@ -38,6 +56,10 @@ impl Dependency {
             Self::ScriptBodyResidency => "temporary_script_body_residency",
             Self::ForwardTick => "temporary_forward_tick",
             Self::Evaluation => "temporary_animation_evaluation",
+            Self::EvaluationSkin => "temporary_evaluation_skin",
+            Self::EvaluationAuxiliary => "temporary_evaluation_auxiliary_clear",
+            Self::EvaluationSampling => "temporary_evaluation_sampling",
+            Self::EvaluationLayers => "temporary_evaluation_layers",
         }
     }
 }
@@ -55,6 +77,9 @@ pub struct Pending {
     maintenance_skipped: bool,
     reverse_skipped: bool,
     refresh: Option<scratch::Refresh>,
+    evaluation: Option<Evaluation>,
+    prepares: Vec<prepare::Prepare>,
+    guards: Vec<script_child::evaluation::Trace>,
 }
 impl Pending {
     /// Capture CURRENT FP wrapper and skeletal secondary pair. The supplied
@@ -94,6 +119,9 @@ impl Pending {
             maintenance_skipped: false,
             reverse_skipped: false,
             refresh: None,
+            evaluation: None,
+            prepares: Vec::new(),
+            guards: Vec::new(),
         })
     }
     pub fn bind_skeleton(
@@ -287,8 +315,124 @@ impl Pending {
             }
         }
     }
+    /// Nonempty direct list: runs the actual shared evaluator through the real
+    /// node and primary-skin provider. Pauses keep the reserved scope and
+    /// resume at the same cursor; only the evaluator's release returns bind1.
+    /// After the first call the cloned `evaluation_lease` is available.
+    pub fn evaluate_bind_zero_time(
+        &mut self,
+        context: &mut scratch::Context,
+        arena: &mut scratch::Arena,
+        skin: &mut impl SkinSource,
+    ) -> Result<()> {
+        match self.stage() {
+            Stage::AwaitingEvaluation => {
+                ensure!(
+                    self.head.is_some() && self.evaluation.is_none(),
+                    "empty temporary list uses the empty refresh"
+                );
+                let begun = self
+                    .animator
+                    .ensure_temporary_evaluation_owner()
+                    .and_then(|()| {
+                        let mut bridge = evaluation::Bridge {
+                            animator: &self.animator,
+                            head: self.head,
+                            skin: &mut *skin,
+                            prepares: &mut self.prepares,
+                            guards: &mut self.guards,
+                        };
+                        let budget = self.animator.script_children().len();
+                        Evaluation::begin(context, arena, &mut bridge, budget)
+                    });
+                match begun {
+                    Ok(evaluation) => {
+                        self.evaluation = Some(evaluation);
+                        self.stage = Stage::EvaluatingBind;
+                    }
+                    Err(error) => {
+                        self.stage = Stage::Failed;
+                        return Err(error);
+                    }
+                }
+            }
+            Stage::EvaluatingBind => {}
+            Stage::Aborted => {
+                self.stage = Stage::Aborted;
+                bail!("temporary evaluation scope was cancelled");
+            }
+            _ => bail!("temporary nonempty evaluation is out of order"),
+        }
+        let evaluation = self
+            .evaluation
+            .as_mut()
+            .context("temporary evaluation scope absent")?;
+        let mut bridge = evaluation::Bridge {
+            animator: &self.animator,
+            head: self.head,
+            skin,
+            prepares: &mut self.prepares,
+            guards: &mut self.guards,
+        };
+        match evaluation.advance(context, arena, &mut bridge) {
+            Ok(Progress::Returned) => {
+                self.stage = Stage::BindReturned;
+                Ok(())
+            }
+            Ok(Progress::Pending(_)) => Ok(()),
+            Err(error) => {
+                self.stage = if evaluation.stage() == scratch::evaluation::Stage::Aborted {
+                    Stage::Aborted
+                } else {
+                    Stage::Failed
+                };
+                Err(error)
+            }
+        }
+    }
+    /// Explicit cancellation of a paused or failed nonempty evaluation. The
+    /// retained prefix stays as evidence; nothing is replayed or returned.
+    /// A scope already reaped through its lease is observed, not released.
+    pub fn abort_evaluation(
+        &mut self,
+        context: &mut scratch::Context,
+        arena: &mut scratch::Arena,
+    ) -> Result<()> {
+        ensure!(
+            matches!(
+                self.stage(),
+                Stage::EvaluatingBind | Stage::Failed | Stage::Aborted
+            ),
+            "temporary evaluation has no retained scope to abort"
+        );
+        self.evaluation
+            .as_mut()
+            .context("temporary evaluation scope absent")?
+            .abort(context, arena)?;
+        self.stage = Stage::Aborted;
+        Ok(())
+    }
+    /// Cloneable host cancellation handle for the reserved scope.
+    pub fn evaluation_lease(&self) -> Option<CancellationLease> {
+        self.evaluation.as_ref()?.lease()
+    }
+    pub fn evaluation(&self) -> Option<&Evaluation> {
+        self.evaluation.as_ref()
+    }
+    pub fn skin_prepares(&self) -> &[prepare::Prepare] {
+        &self.prepares
+    }
+    pub fn node_guards(&self) -> &[script_child::evaluation::Trace] {
+        &self.guards
+    }
+    /// Reports Aborted once a host reaped the cloned lease.
     pub fn stage(&self) -> Stage {
-        self.stage
+        let reaped = matches!(self.stage, Stage::EvaluatingBind | Stage::Failed)
+            && self
+                .evaluation
+                .as_ref()
+                .is_some_and(|e| e.stage() == scratch::evaluation::Stage::Aborted);
+        if reaped { Stage::Aborted } else { self.stage }
     }
     pub fn animator(&self) -> &Animator {
         &self.animator
@@ -341,7 +485,7 @@ impl Pending {
         {
             return Some(Dependency::ScriptBodyResidency);
         }
-        match self.stage {
+        match self.stage() {
             Stage::AwaitingSkeleton if self.skin.reference >> 24 != 0x0d => {
                 Some(Dependency::SkinRemap)
             }
@@ -354,8 +498,31 @@ impl Pending {
             }
             Stage::AwaitingForwardTick | Stage::ForwardTick => Some(Dependency::ForwardTick),
             Stage::AwaitingEvaluation => Some(Dependency::Evaluation),
+            Stage::EvaluatingBind => self.evaluation_dependency(),
             _ => None,
         }
+    }
+}
+
+impl Pending {
+    fn evaluation_dependency(&self) -> Option<Dependency> {
+        let scratch::evaluation::Stage::Pending(boundary) = self.evaluation.as_ref()?.stage()
+        else {
+            return None;
+        };
+        Some(match boundary {
+            Boundary::Prepare => match self.prepares.last().and_then(|p| p.pause()) {
+                Some(prepare::Pause::Auxiliary) => Dependency::EvaluationAuxiliary,
+                _ => Dependency::EvaluationSkin,
+            },
+            Boundary::Node => Dependency::EvaluationSampling,
+            Boundary::ActiveCount
+            | Boundary::Weight
+            | Boundary::Tail
+            | Boundary::Previous
+            | Boundary::LayerBlend
+            | Boundary::Commit => Dependency::EvaluationLayers,
+        })
     }
 }
 

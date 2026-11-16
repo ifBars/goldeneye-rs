@@ -82,6 +82,25 @@ impl Animator {
         self.bytes[0x138..0x140].fill(None);
         Ok(())
     }
+    /// Supported nonempty direct-list owner: bound skeleton backlink, no item,
+    /// callbacks, mode command layers or controls. Slot fields are then read
+    /// from this owner's actual bytes and node links, never from live FP.
+    pub(in crate::mission::player::components) fn ensure_temporary_evaluation_owner(
+        &self,
+    ) -> Result<()> {
+        ensure!(
+            self.skeleton
+                .as_ref()
+                .is_some_and(|s| s.animator() == Some(self.identity))
+                && self.item.is_none()
+                && self.callbacks.is_none()
+                && self.layers.is_none()
+                && self.controls.is_empty()
+                && !self.script_children.is_empty(),
+            "temporary nonempty evaluation requires its actual bound direct list"
+        );
+        Ok(())
+    }
     pub(in crate::mission::player::components) fn temporary_empty_refresh(
         &self,
         context: &mut crate::animation::scratch::Context,

@@ -1,9 +1,13 @@
-//! Shared animation scratch and the reached empty-control refresh. Regions are
-//! semantic offsets into real aligned backing, never original addresses. The
-//! source leaves context pointers after release; their regions become unreadable.
+//! Shared animation scratch, the reached empty-control refresh and the retained
+//! nonempty evaluator. Regions are semantic offsets into real aligned backing,
+//! never original addresses. The source leaves context pointers after release;
+//! their regions become unreadable.
+pub mod evaluation;
 mod refresh;
 use anyhow::{Context as _, Result, ensure};
+pub use evaluation::{CancellationLease, Evaluation};
 pub use refresh::{Context, Refresh};
+use std::sync::Arc;
 
 pub const ARENA_BYTES: usize = 0x4000;
 #[repr(align(16))]
@@ -25,6 +29,8 @@ pub struct Region {
 }
 pub struct Arena {
     owner: u64,
+    // Host instance provenance, independent of semantic/native identities.
+    identity: Arc<()>,
     backing: Box<Backing>,
     cursor: usize,
     scopes: Vec<(u64, usize, usize)>,
@@ -38,6 +44,7 @@ impl Arena {
         ensure!(owner != 0, "scratch arena identity is zero");
         Ok(Self {
             owner,
+            identity: Arc::new(()),
             backing: Box::new(Backing([0; ARENA_BYTES])),
             cursor: 0,
             scopes: Vec::new(),

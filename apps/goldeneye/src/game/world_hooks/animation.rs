@@ -3,6 +3,7 @@
 use super::{Attempt, State};
 use anyhow::Result;
 use ge_core::mission::player::components::Preparation;
+pub(super) mod evaluation;
 mod repeat;
 
 impl Attempt {
@@ -19,6 +20,7 @@ impl Attempt {
             .lock()
             .map_err(|_| anyhow::anyhow!("FP mask scratch owner lock is poisoned"))?;
         self.ensure_current()?;
+        state.reap_animation_scope(Some(self.identity))?;
         let State {
             animation_context,
             animation_scratch,
@@ -104,6 +106,7 @@ impl Attempt {
             .lock()
             .map_err(|_| anyhow::anyhow!("TP capture shared owner lock is poisoned"))?;
         self.ensure_current()?;
+        state.reap_animation_scope(Some(self.identity))?;
         let State {
             animation_context,
             animation_scratch,
@@ -142,6 +145,7 @@ impl Attempt {
             .lock()
             .map_err(|_| anyhow::anyhow!("FP animation scratch owner lock is poisoned"))?;
         self.ensure_current()?;
+        state.reap_animation_scope(Some(self.identity))?;
         let State {
             animation_context,
             animation_scratch,
@@ -156,6 +160,7 @@ impl Attempt {
     pub fn finish_preload_bind(
         &self,
         temporary: &mut ge_core::mission::player::components::temporary::Pending,
+        skin: &mut impl ge_core::mission::player::components::temporary::SkinSource,
     ) -> Result<()> {
         self.ensure_current()?;
         let mut state = self
@@ -165,12 +170,22 @@ impl Attempt {
             .lock()
             .map_err(|_| anyhow::anyhow!("preload animation scratch owner lock is poisoned"))?;
         self.ensure_current()?;
+        state.reap_animation_scope(Some(self.identity))?;
         let State {
             animation_context,
             animation_scratch,
             ..
         } = &mut *state;
-        temporary.finish_bind_zero_time(animation_context, animation_scratch)?;
+        let result = if temporary.head().is_some() {
+            temporary.evaluate_bind_zero_time(animation_context, animation_scratch, skin)
+        } else {
+            temporary.finish_bind_zero_time(animation_context, animation_scratch)
+        };
+        // Register even a failed/pending invocation before releasing State.
+        // A new attempt must be able to reclaim its exact reservation without
+        // waiting for the old worker to wake up and drop its player.
+        state.retain_animation_scope(self.identity, temporary.evaluation_lease())?;
+        result?;
         self.ensure_current()?;
         Ok(())
     }
@@ -196,6 +211,7 @@ impl Attempt {
             .lock()
             .map_err(|_| anyhow::anyhow!("animation scratch owner lock is poisoned"))?;
         self.ensure_current()?;
+        state.reap_animation_scope(Some(self.identity))?;
         let State {
             animation_context,
             animation_scratch,

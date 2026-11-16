@@ -55,6 +55,7 @@ impl Attempt {
             .lock()
             .map_err(|_| anyhow::anyhow!("repeat mask scratch owner poisoned"))?;
         self.ensure_current()?;
+        state.reap_animation_scope(Some(self.identity))?;
         let State {
             animation_context,
             animation_scratch,

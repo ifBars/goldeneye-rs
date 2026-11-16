@@ -3,6 +3,7 @@ use super::{closed, count, player_initializer_prefix};
 use anyhow::{Context, Result, ensure};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
+mod evaluation;
 
 fn hash(v: &Value) -> bool {
     v.as_str().is_some_and(|s| {
@@ -83,7 +84,11 @@ fn script_publication(v: &Value, t: &Value) -> Result<()> {
 }
 pub(super) fn dependency(p: &Value) -> Option<&'static str> {
     match p["stage"].as_str()? {
-        "awaiting_temporary" => Some("preload_temporary_bind"),
+        "awaiting_temporary" => Some(if p["temporary"]["bind_return"] == 1 {
+            "preload_temporary_post_bind"
+        } else {
+            "preload_temporary_bind"
+        }),
         "returned" => Some("player_initializer_post_preload"),
         "entry" | "raw_flags" | "entry_keys" | "registry_count" | "row" | "weapon" | "call"
         | "final_flag" => Some("player_animation_preload"),
@@ -451,6 +456,7 @@ fn temporary(t: &Value, p: &Value, c: &Value) -> Result<()> {
             "reverse_skipped",
             "bind_return",
             "refresh_returned",
+            "evaluation",
             "state_sha256",
         ],
     )?;
@@ -466,6 +472,8 @@ fn temporary(t: &Value, p: &Value, c: &Value) -> Result<()> {
         "awaiting_evaluation",
         "bind_returned",
         "failed",
+        "evaluating_bind",
+        "aborted",
     ]
     .iter()
     .position(|s| t["stage"] == *s)
@@ -544,6 +552,20 @@ fn temporary(t: &Value, p: &Value, c: &Value) -> Result<()> {
         3 | 4 => Some("temporary_script_initializer"),
         6 | 7 => Some("temporary_forward_tick"),
         8 => Some("temporary_animation_evaluation"),
+        11 => match t["evaluation"]["pending_boundary"].as_str() {
+            Some("Prepare")
+                if t["evaluation"]["prepares"]
+                    .as_array()
+                    .and_then(|a| a.last())
+                    .is_some_and(|p| p["pause"] == "Auxiliary") =>
+            {
+                Some("temporary_evaluation_auxiliary_clear")
+            }
+            Some("Prepare") => Some("temporary_evaluation_skin"),
+            Some("Node") => Some("temporary_evaluation_sampling"),
+            Some(_) => Some("temporary_evaluation_layers"),
+            None => None,
+        },
         _ => None,
     };
     ensure!(
@@ -571,6 +593,7 @@ fn temporary(t: &Value, p: &Value, c: &Value) -> Result<()> {
             "temporary head aliases an unreturned script"
         );
     }
+    evaluation::validate(&t["evaluation"], t)?;
     if stage == 8 {
         ensure!(
             t["maintenance_skipped"] == true
@@ -581,7 +604,12 @@ fn temporary(t: &Value, p: &Value, c: &Value) -> Result<()> {
         );
     } else if stage == 9 {
         ensure!(
-            t["head_inserted"] == false && t["bind_return"] == 1 && t["refresh_returned"] == true,
+            t["bind_return"] == 1
+                && if t["head_inserted"] == true {
+                    t["refresh_returned"] == false && t["evaluation"]["stage"] == "returned"
+                } else {
+                    t["refresh_returned"] == true && t["evaluation"].is_null()
+                },
             "empty temporary return lacks actual refresh"
         );
     } else {
@@ -1101,7 +1129,7 @@ pub(super) fn validate(p: &Value, c: &Value) -> Result<()> {
     Ok(())
 }
 
-/// Exact supplied Tutorial boundary: fresh fixup proves NULL; evaluation waits.
+/// Exact supplied Tutorial boundary: nonempty evaluation releases before bind return.
 pub(super) fn validate_native(p: &Value, c: &Value, expected_player: u64) -> Result<()> {
     validate(p, c)?;
     ensure!(
@@ -1172,8 +1200,8 @@ pub(super) fn validate_native(p: &Value, c: &Value, expected_player: u64) -> Res
     );
     let t = &p["temporary"];
     ensure!(
-        t["stage"] == "awaiting_evaluation"
-            && t["pending_dependency"] == "temporary_animation_evaluation"
+        t["stage"] == "bind_returned"
+            && t["pending_dependency"].is_null()
             && t["identity"] == 3
             && t["source_receiver"] == 2
             && t["player"] == expected_player
@@ -1199,11 +1227,11 @@ pub(super) fn validate_native(p: &Value, c: &Value, expected_player: u64) -> Res
                 "body_bound":false,"duration_raw":null,"fps_bits":null,"result_bits":null})
             && t["maintenance_skipped"] == true
             && t["reverse_skipped"] == true
-            && t["bind_return"].is_null()
+            && t["bind_return"] == 1
             && t["refresh_returned"] == false
             && c["attachment"]["registry_identities"] == 3
             && c["attachment"]["item_components"] == 2,
-        "Tutorial temporary owner was fabricated, attached, evaluated or returned"
+        "Tutorial temporary owner or completed inner bind differs"
     );
     let s = &t["script"];
     ensure!(
@@ -1227,6 +1255,7 @@ pub(super) fn validate_native(p: &Value, c: &Value, expected_player: u64) -> Res
             "raw_job":0,"body_state":"known_null","native_history_verified":false}),
         "Tutorial current same-owner publication proof differs"
     );
+    evaluation::validate_native(&t["evaluation"], t, c)?;
     Ok(())
 }
 

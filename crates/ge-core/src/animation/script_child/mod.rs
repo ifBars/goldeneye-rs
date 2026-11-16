@@ -1,5 +1,6 @@
 //! Retained class-four headers and phase-zero initialization. Source pointer
 //! roles are typed bindings; unwritten bytes and unperformed effects stay unknown.
+pub mod evaluation;
 pub mod forward_tick;
 pub mod initialization;
 pub mod parameters;
@@ -41,6 +42,17 @@ pub trait Provider {
         })
     }
 }
+/// Typed role of the current clip pointer at header+5c. The constructor's
+/// self-relative store selects the inline +40 record and clip setup selects
+/// record0 of its storage; `clips == None` alone never implies a NULL pointer
+/// or an arbitrary reference. Unknown is reserved for unmodeled writers.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ClipPointer {
+    ConstructorInline,
+    Record(usize),
+    Null,
+    Unknown,
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Stage {
     Constructed,
@@ -78,6 +90,7 @@ pub struct Header {
     body_bound: Option<bool>,
     initialization: Option<initialization::Trace>,
     clips: Option<initialization::Storage>,
+    current_clip: ClipPointer,
     position: Option<position::Trace>,
     updates: Vec<update::Trace>,
     update_count: u64,
@@ -165,6 +178,9 @@ impl Header {
             body_bound: None,
             initialization: None,
             clips: None,
+            // Base constructor stores header+40 into +5c; class-four stores do
+            // not overwrite it. The record's +4 is the later MAX store at +44.
+            current_clip: ClipPointer::ConstructorInline,
             position: None,
             updates: Vec::new(),
             update_count: 0,
@@ -277,6 +293,9 @@ impl Header {
     }
     pub fn body_bound(&self) -> Option<bool> {
         self.body_bound
+    }
+    pub fn current_clip(&self) -> ClipPointer {
+        self.current_clip
     }
     pub fn byte(&self, at: usize) -> Option<u8> {
         self.bytes.get(at).copied().flatten()

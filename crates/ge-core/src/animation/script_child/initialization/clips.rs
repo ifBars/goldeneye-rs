@@ -19,6 +19,7 @@ impl Header {
             let mut records = Vec::new();
             if let Err(error) = records.try_reserve_exact(total) {
                 self.w(0x5c, 0);
+                self.current_clip = ClipPointer::Null;
                 return Err(error).context("clip-reference allocation failed");
             }
             records.resize_with(total, || Record {
@@ -29,7 +30,10 @@ impl Header {
             self.bytes[0x76] = Some(1);
             Storage::Heap(records)
         });
+        // Both branches store the selected storage base at +5c: the inline +40
+        // record or the allocated heap base. Either is record0 of `clips`.
         self.bytes[0x5c..0x60].fill(None);
+        self.current_clip = ClipPointer::Record(0);
         self.bytes[0x74] = Some(0);
         for secondary in [false, true] {
             let kind = usize::from(secondary);

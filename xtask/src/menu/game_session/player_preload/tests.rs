@@ -35,7 +35,7 @@ fn temporary(reference: u32) -> Value {
         "factory_returned":true,"head_inserted":true,"script":{"stage":"ReturnedWithoutBody","slot":0,"factory_flags":3,"reference":reference,
             "descriptor_index":3,"body_bound":false,"initializer_returned":true,"phase_zero":null,"clips":[],"state_sha256":"a".repeat(64)},
         "forward":{"stage":"Returned","phase_cleared":true,"body_bound":false,"duration_raw":null,"fps_bits":null,"result_bits":null},
-        "maintenance_skipped":true,"reverse_skipped":true,"bind_return":null,"refresh_returned":false,"state_sha256":"b".repeat(64)})
+        "maintenance_skipped":true,"reverse_skipped":true,"bind_return":null,"refresh_returned":false,"evaluation":null,"state_sha256":"b".repeat(64)})
 }
 pub(in crate::menu::game_session) fn native_preload(c: &Value) -> Value {
     let mut p = preload(c);
@@ -53,6 +53,37 @@ pub(in crate::menu::game_session) fn native_preload(c: &Value) -> Value {
     t["bones"] = json!(48);
     let s = &mut t["script"];
     s["descriptor_index"] = json!(239);
+    t["stage"] = json!("bind_returned");
+    t["pending_dependency"] = Value::Null;
+    t["bind_return"] = json!(1);
+    let mut e = returned_evaluation(&t);
+    let receipts = [
+        &c["bind_refresh"],
+        &c["first_person"]["bind_refresh"],
+        &c["initial_action"]["tp_capture"]["refresh"],
+        &c["initial_action"]["fp_dispatch"]["mask_capture"]["refresh"],
+    ];
+    e["ordinal"] = json!(
+        receipts
+            .iter()
+            .filter_map(|r| r["refresh_ordinal"].as_u64())
+            .max()
+            .unwrap_or(0)
+            + 1
+    );
+    e["allocation_ordinal"] = json!(
+        receipts
+            .iter()
+            .filter_map(|r| r["allocation_ordinal"].as_u64())
+            .max()
+            .unwrap_or(0)
+            + 1
+    );
+    e["slots"][0]["tail"] = json!(1);
+    e["slots"][0]["nodes"][0]["node"] = json!(1);
+    e["guards"][0]["node"] = json!(1);
+    t["evaluation"] = e;
+    p["pending_dependency"] = json!("preload_temporary_post_bind");
     p["temporary"] = t;
     p["script_publication"] = json!({"file":0x0102_0016,"generation":0,
         "descriptor_index":239,"section_index":9,"section_key":0x0800_0009,
@@ -360,6 +391,7 @@ fn pending_forward_body_keeps_factory_history_and_stops_callbacks() {
 fn current_publication_proof_is_owner_bound_and_distinct_from_initializer_history() {
     let mut c = component();
     c["preload"] = native_preload(&c);
+    c["pending_dependency"] = json!("preload_temporary_post_bind");
     let history = c["initializer_prefix"].clone();
     validate(&c["preload"], &c).unwrap();
     assert_eq!(c["initializer_prefix"], history);
@@ -412,4 +444,91 @@ fn current_publication_proof_is_owner_bound_and_distinct_from_initializer_histor
     pending["preload"]["script_publication"]["raw_job"] = Value::Null;
     pending["preload"]["script_publication"]["history_unknown"] = json!(true);
     validate(&pending["preload"], &pending).unwrap();
+}
+
+fn returned_evaluation(t: &Value) -> Value {
+    json!({"stage":"returned","pending_boundary":null,"reserved":true,"released":true,"lease_live":false,"aborted":false,"arena_owner":1,"ordinal":4,"allocation_ordinal":4,"reservation_start":0,"cursor_after":0,"live_after":0,
+      "slots":[{"slot":0,"weight_bits":0x3f800000,"branch":"nonempty","tail":8,"prepared":true,"masks_cleared":true,"nodes":[{"node":8,"result":0}],"successes":0,"flags_after":0}],
+      "prepares":[{"file":t["skin_file"],"reference":t["skin_reference"],"generation":0,"descriptor_bound":true,"body_resident":true,"auxiliary_words":0,"lookups":1,"body_reads":1,"returned":"AuxiliaryZero","pause":null}],
+      "guards":[{"node":8,"pointer":"constructor_inline","record":null,"clip_reference":u32::MAX,"animator_reference_read":false,"animator_reference":null,"result":0,"pending_boundary":null}],
+      "node_visits":1,"nonempty_layers":1,"successful_samples":0,"advanced_context":true,"commit_register":0,"blended_layers":0,"committed":false,"state_sha256":"9".repeat(64)})
+}
+#[test]
+fn genuine_nonempty_bind_requires_its_own_release_and_preserves_unfinished_caller() {
+    let mut c = component();
+    let mut t = temporary(0x8400_0101);
+    t["stage"] = json!("bind_returned");
+    t["pending_dependency"] = Value::Null;
+    t["bind_return"] = json!(1);
+    t["evaluation"] = returned_evaluation(&t);
+    c["preload"]["temporary"] = t;
+    c["preload"]["pending_dependency"] = json!("preload_temporary_post_bind");
+    c["pending_dependency"] = json!("preload_temporary_post_bind");
+    validate(&c["preload"], &c).unwrap();
+    for (field, value) in [
+        ("released", json!(false)),
+        ("lease_live", json!(true)),
+        ("committed", json!(true)),
+        ("live_after", json!(1)),
+        ("node_visits", json!(0)),
+        ("successful_samples", json!(1)),
+    ] {
+        let mut bad = c.clone();
+        bad["preload"]["temporary"]["evaluation"][field] = value;
+        assert!(
+            validate(&bad["preload"], &bad).is_err(),
+            "accepted forged {field}"
+        );
+    }
+    let mut bad = c.clone();
+    bad["preload"]["temporary"]["evaluation"]["slots"][0]["masks_cleared"] = json!(false);
+    assert!(validate(&bad["preload"], &bad).is_err());
+    let mut bad = c.clone();
+    bad["preload"]["temporary"]["evaluation"]["guards"][0]["animator_reference_read"] = json!(true);
+    assert!(validate(&bad["preload"], &bad).is_err());
+    let mut bad = c.clone();
+    bad["preload"]["temporary"]["evaluation"] = Value::Null;
+    assert!(validate(&bad["preload"], &bad).is_err());
+    assert_eq!(c["preload"]["entry_flag"], 1);
+    assert_eq!(c["preload"]["helper_returned"], false);
+}
+#[test]
+fn pending_and_aborted_nonempty_evaluation_cannot_claim_bind_return() {
+    let mut c = component();
+    let mut t = temporary(0x8400_0101);
+    let mut e = returned_evaluation(&t);
+    e["stage"] = json!("pending");
+    e["pending_boundary"] = json!("Prepare");
+    e["released"] = json!(false);
+    e["lease_live"] = json!(true);
+    e["node_visits"] = json!(0);
+    e["nonempty_layers"] = json!(0);
+    e["guards"] = json!([]);
+    e["prepares"] = json!([]);
+    e["slots"][0]["nodes"] = json!([]);
+    e["slots"][0]["prepared"] = json!(false);
+    e["slots"][0]["masks_cleared"] = json!(false);
+    t["stage"] = json!("evaluating_bind");
+    t["pending_dependency"] = json!("temporary_evaluation_skin");
+    t["evaluation"] = e;
+    c["preload"]["temporary"] = t;
+    validate(&c["preload"], &c).unwrap();
+    // EvaluatingBind is outside the legacy numeric stage range which checked
+    // skeleton binding. Its retained scope must enforce that owner itself.
+    let mut unbound = c.clone();
+    let temporary = &mut unbound["preload"]["temporary"];
+    temporary["skeleton_bound"] = json!(false);
+    temporary["skeleton_backlink_bound"] = json!(false);
+    temporary["bones"] = Value::Null;
+    temporary["auxiliary_words"] = Value::Null;
+    assert!(validate(&unbound["preload"], &unbound).is_err());
+    c["preload"]["temporary"]["evaluation"]["stage"] = json!("aborted");
+    c["preload"]["temporary"]["evaluation"]["pending_boundary"] = Value::Null;
+    c["preload"]["temporary"]["evaluation"]["lease_live"] = json!(false);
+    c["preload"]["temporary"]["evaluation"]["aborted"] = json!(true);
+    c["preload"]["temporary"]["stage"] = json!("aborted");
+    c["preload"]["temporary"]["pending_dependency"] = Value::Null;
+    validate(&c["preload"], &c).unwrap();
+    c["preload"]["temporary"]["bind_return"] = json!(1);
+    assert!(validate(&c["preload"], &c).is_err());
 }

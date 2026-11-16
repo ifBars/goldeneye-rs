@@ -2598,7 +2598,7 @@ function preloadFixture(historical) {
       semantic_flags:[0,11],component_flags:0,active_slots:1,factory_returned:false,head_inserted:false,
       script:{stage:'AwaitingScriptBody',slot:0,factory_flags:3,reference:0x84000003,descriptor_index:3,body_bound:null,
         initializer_returned:false,phase_zero:null,clips:[],state_sha256:'c'.repeat(64)},forward:null,maintenance_skipped:false,
-      reverse_skipped:false,bind_return:null,refresh_returned:false,state_sha256:'d'.repeat(64)},
+      reverse_skipped:false,bind_return:null,refresh_returned:false,evaluation:null,state_sha256:'d'.repeat(64)},
     allocations:[{kind:'raw',native_bytes:512,payload_bytes:512,known_payload_bytes:44,header_words:[null,null,null,null]},
       {kind:'array34',native_bytes:7088,payload_bytes:7072,known_payload_bytes:136,header_words:[208,34,null,null]},
       {kind:'array64',native_bytes:56080,payload_bytes:56064,known_payload_bytes:0,header_words:[876,64,null,null]}],
@@ -3908,4 +3908,50 @@ test('frontend counters reject fabricated current passes and incomplete sample m
       assert.match(d.querySelector('#reference-count').textContent,/No trustworthy current comparison count/);
     });
   }
+});
+
+function withReturnedNonemptyEvaluation(report) {
+  withFreshScriptPublication(report);
+  return forPlayerComponents(report,(c,p)=>{
+    const t=c.preload.temporary;
+    t.stage='bind_returned';t.pending_dependency=null;t.bind_return=1;
+    t.evaluation={stage:'returned',pending_boundary:null,reserved:true,released:true,lease_live:false,aborted:false,arena_owner:1,ordinal:4,allocation_ordinal:4,reservation_start:0,cursor_after:0,live_after:0,
+      slots:[{slot:0,weight_bits:0x3f800000,branch:'nonempty',tail:8,prepared:true,masks_cleared:true,nodes:[{node:8,result:0}],successes:0,flags_after:0}],
+      prepares:[{file:t.skin_file,reference:t.skin_reference,generation:0,descriptor_bound:true,body_resident:true,auxiliary_words:0,lookups:1,body_reads:1,returned:'AuxiliaryZero',pause:null}],
+      guards:[{node:8,pointer:'constructor_inline',record:null,clip_reference:0xffffffff,animator_reference_read:false,animator_reference:null,result:0,pending_boundary:null}],
+      node_visits:1,nonempty_layers:1,successful_samples:0,advanced_context:true,commit_register:0,blended_layers:0,committed:false,state_sha256:'9'.repeat(64)};
+    c.preload.pending_dependency='preload_temporary_post_bind';c.pending_dependency='preload_temporary_post_bind';p.pending_dependency=c.pending_dependency;
+  });
+}
+test('nonempty evaluation proves release and bind while preload caller stays unfinished',async()=>{
+  const report=withReturnedNonemptyEvaluation(withPlayerPrelude(gameSessionFixture()));
+  await inspect(embed(report),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.doesNotMatch(text,/has not been recorded completely|undefined/);
+    assert.match(text,/Nonempty animation evaluation returned after releasing its own scratch scope/);
+    assert.match(text,/0 samples, no pose commit/);assert.match(text,/preload has not returned/);
+  });
+});
+test('nonempty evaluation rejects fabricated release masks samples and early bind',async()=>{
+  const changes=[e=>{e.released=false;},e=>{e.lease_live=true;},e=>{e.committed=true;},e=>{e.live_after=1;},e=>{e.slots[0].masks_cleared=false;},e=>{e.guards[0].animator_reference_read=true;},e=>{e.successful_samples=1;},e=>{e.prepares[0].generation=null;}];
+  for(const change of changes){
+    const report=withReturnedNonemptyEvaluation(withPlayerPrelude(gameSessionFixture()));
+    change(report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization.preload.temporary.evaluation);
+    await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+  }
+});
+
+
+test('pending nonempty evaluation rejects an unbound skeletal owner',async()=>{
+  const report=withReturnedNonemptyEvaluation(withPlayerPrelude(gameSessionFixture()));
+  forPlayerComponents(report,(c,p)=>{
+    const t=c.preload.temporary,e=t.evaluation;
+    Object.assign(t,{stage:'evaluating_bind',pending_dependency:'temporary_evaluation_skin',bind_return:null});
+    Object.assign(e,{stage:'pending',pending_boundary:'Prepare',released:false,lease_live:true,node_visits:0,nonempty_layers:0,guards:[],prepares:[]});
+    Object.assign(e.slots[0],{nodes:[],prepared:false,masks_cleared:false});
+    c.preload.pending_dependency='preload_temporary_bind';c.pending_dependency='preload_temporary_bind';p.pending_dependency=c.pending_dependency;
+  });
+  await inspect(embed(report),d=>assert.doesNotMatch(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+  forPlayerComponents(report,c=>Object.assign(c.preload.temporary,{skeleton_bound:false,skeleton_backlink_bound:false,bones:null,auxiliary_words:null}));
+  await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
 });

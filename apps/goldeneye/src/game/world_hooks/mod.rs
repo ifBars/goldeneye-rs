@@ -28,6 +28,7 @@ struct State {
     player: player::Persistent,
     animation_context: ge_core::animation::scratch::Context,
     animation_scratch: ge_core::animation::scratch::Arena,
+    animation_pending_evaluation: Option<animation::evaluation::PendingScope>,
     animation_callbacks: Arc<ge_core::mission::player::components::callbacks::Table>,
     animation_fallback: ge_core::animation::dispatch::Fallback,
     animation_slot_override: ge_core::animation::layers::SlotOverride,
@@ -77,6 +78,7 @@ impl Shared {
                 loader: loader::Persistent::new(),
                 player: player::Persistent::from_constructor(),
                 animation_context: ge_core::animation::scratch::Context::default(),
+                animation_pending_evaluation: None,
                 animation_scratch: ge_core::animation::scratch::Arena::from_constructor(1)
                     .expect("nonzero shared animation scratch identity"),
                 animation_callbacks: Arc::new(

@@ -433,7 +433,15 @@ pub(super) fn build(
         .map(|kind| allocation(shared.allocation(kind)));
         Ok(Some(Preload {
             stage,
-            pending_dependency: state.dependency(),
+            pending_dependency: if owner
+                .temporary
+                .as_ref()
+                .is_some_and(|t| t.bind_return() == Some(1))
+            {
+                "preload_temporary_post_bind"
+            } else {
+                state.dependency()
+            },
             entry_flag: state.entry_flag(),
             cache_enabled: shared.cache_enabled(),
             raw_flags_written: state.raw_flags_written(),

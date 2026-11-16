@@ -1,7 +1,7 @@
 use super::*;
 impl Header {
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(4);
+        emit(5);
         self.owner.visit_state_words(&mut emit);
         emit(self.file);
         emit(self.reference);
@@ -35,6 +35,16 @@ impl Header {
         // embedded clip reference and phase storage. No native addresses.
         for role in [1, 0x34, 0x3c, 0x40, 0x64] {
             emit(role);
+        }
+        match self.current_clip {
+            ClipPointer::ConstructorInline => emit(0),
+            ClipPointer::Record(index) => {
+                emit(1);
+                emit(((index as u64) >> 32) as u32);
+                emit(index as u32);
+            }
+            ClipPointer::Null => emit(2),
+            ClipPointer::Unknown => emit(3),
         }
         self.visit_initialization(&mut emit);
         self.visit_position(&mut emit);

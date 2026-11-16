@@ -7,6 +7,7 @@ use anyhow::{Context, Result, ensure};
 use serde::Serialize;
 pub mod script_publication;
 mod script_reference;
+pub mod skin_reference;
 
 impl Edb {
     pub(crate) fn base_bytes(&self) -> Result<&[u8]> {

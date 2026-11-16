@@ -124,7 +124,7 @@ pub(super) fn initialize(
         if temporary.stage()
             == ge_core::mission::player::components::temporary::Stage::AwaitingEvaluation
         {
-            hook.finish_preload_bind(temporary)?;
+            hook.finish_preload_bind(temporary, &mut skin_source.evaluation_skin())?;
         }
     }
     hook.ensure_current()?;

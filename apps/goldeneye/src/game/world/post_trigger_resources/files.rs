@@ -8,6 +8,7 @@ mod bone_mask;
 mod modes;
 mod preload;
 mod script_child;
+mod skin_evaluation;
 
 pub(crate) struct FileBinding {
     source: Arc<LoadedFile>,

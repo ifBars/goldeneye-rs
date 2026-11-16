@@ -83,8 +83,13 @@ skeleton use the same identity registry and current FP secondary skin pair. Its
 new class-four header resolves its real descriptor through a controller-lived
 wrapper registry. Checked fresh-base callback inputs and retained same-owner
 request history now prove the first script's NULL runtime body. The actual
-factory inserts its node and the zero-time forward callback returns before
-nonempty evaluation remains pending. Unknown/failed request or dependency state
+factory inserts its node, the zero-time forward callback returns, and real
+nonempty evaluation visits that node through the constructor clip's MAX guard.
+Its primary-skin preparation, mask clears and shared-scope release precede bind
+return1, with zero samples and no pose commit. The caller remains pending at
+preload_temporary_post_bind. Cancellation leases bind actual arena/context
+instances and are reaped before later scratch use; shutdown cleans them after
+joining workers. Unknown/failed request or dependency state
 still stays Pending. Do not invent a load at the getter or read cached nonresident
 bytes. Cancellation/reentry must retain the wrapper and publication history.
 No entry key commit, completed preload or player/camera readiness is inferred.

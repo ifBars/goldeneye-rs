@@ -178,7 +178,10 @@ pub(super) fn build(
     let preload = preload::build(player, world, hook)?;
     let (stage, pending_dependency) = if let Some(preload) = &preload {
         if preload.stage == "awaiting_temporary" {
-            ("player_preload_temporary_pending", "preload_temporary_bind")
+            (
+                "player_preload_temporary_pending",
+                preload.pending_dependency,
+            )
         } else {
             (
                 "player_animation_preload_pending",

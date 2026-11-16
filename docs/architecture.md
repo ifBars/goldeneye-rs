@@ -739,8 +739,13 @@ owner binds a new skeleton from the current FP secondary skin pair and retains
 its own direct-factory header. Controller-lived file wrappers retain publication
 and request history across attempts. The checked fresh-base script-fixup branch
 now proves the first script's NULL body without loading another section. Its
-factory inserts the actual node and the forward callback returns before nonempty
-evaluation remains pending. Failed requests or unresolved dependency work preserve
+factory inserts the actual node and the forward callback returns. Nonempty
+evaluation then prepares the current primary skin, clears shared masks and visits
+that node. Its MAX clip guard returns zero without sampling or committing a pose.
+The same scratch scope releases before bind returns. Cancellation retains an
+exact-instance lease; later scratch users reap stale attempts, and shutdown aborts
+remaining scopes after workers join. The caller's post-bind work remains pending.
+Failed requests or unresolved dependency work preserve
 Pending rather than making cached bytes resident. The returned initializer receipt
 stays immutable while current preload storage and publication history change.
 The shared flag remains one, and no player or camera completion is inferred.
