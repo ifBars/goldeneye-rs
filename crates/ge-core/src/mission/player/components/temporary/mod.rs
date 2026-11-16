@@ -1,5 +1,6 @@
 //! A new preload animator and skeleton. Live player receivers are inputs only.
 mod evaluation;
+mod post_bind;
 pub mod prepare;
 mod state;
 use super::{Animator, Identity, Registry, ResourceBinding, SkeletonBudget, SkeletonInput};
@@ -12,6 +13,7 @@ use crate::animation::{
     script_child,
 };
 use anyhow::{Context, Result, bail, ensure};
+pub use post_bind::PostBindHead;
 pub use prepare::{SkinBody, SkinDescriptor, SkinLookup, SkinSource};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -506,25 +508,35 @@ impl Pending {
 
 impl Pending {
     fn evaluation_dependency(&self) -> Option<Dependency> {
-        let scratch::evaluation::Stage::Pending(boundary) = self.evaluation.as_ref()?.stage()
-        else {
-            return None;
-        };
-        Some(match boundary {
-            Boundary::Prepare => match self.prepares.last().and_then(|p| p.pause()) {
-                Some(prepare::Pause::Auxiliary) => Dependency::EvaluationAuxiliary,
-                _ => Dependency::EvaluationSkin,
-            },
-            Boundary::Node => Dependency::EvaluationSampling,
-            Boundary::ActiveCount
-            | Boundary::Weight
-            | Boundary::Tail
-            | Boundary::Previous
-            | Boundary::LayerBlend
-            | Boundary::Commit => Dependency::EvaluationLayers,
-        })
+        evaluation_dependency(self.evaluation.as_ref()?, &self.prepares)
     }
 }
+/// Maps a paused evaluation to its reached dependency. Shared by the bind's
+/// own evaluation and the caller's separate post-bind evaluation.
+pub fn evaluation_dependency(
+    evaluation: &Evaluation,
+    prepares: &[prepare::Prepare],
+) -> Option<Dependency> {
+    let scratch::evaluation::Stage::Pending(boundary) = evaluation.stage() else {
+        return None;
+    };
+    Some(match boundary {
+        Boundary::Prepare => match prepares.last().and_then(|p| p.pause()) {
+            Some(prepare::Pause::Auxiliary) => Dependency::EvaluationAuxiliary,
+            _ => Dependency::EvaluationSkin,
+        },
+        Boundary::Node => Dependency::EvaluationSampling,
+        Boundary::ActiveCount
+        | Boundary::Weight
+        | Boundary::Tail
+        | Boundary::Previous
+        | Boundary::LayerBlend
+        | Boundary::Commit => Dependency::EvaluationLayers,
+    })
+}
 
+#[cfg(test)]
+#[path = "tests/fixtures.rs"]
+pub(crate) mod fixtures;
 #[cfg(test)]
 mod tests;

@@ -4,6 +4,7 @@ use anyhow::{Context, Result, ensure};
 use serde_json::{Value, json};
 use std::collections::BTreeSet;
 mod evaluation;
+mod post_bind;
 
 fn hash(v: &Value) -> bool {
     v.as_str().is_some_and(|s| {
@@ -83,6 +84,11 @@ fn script_publication(v: &Value, t: &Value) -> Result<()> {
     Ok(())
 }
 pub(super) fn dependency(p: &Value) -> Option<&'static str> {
+    if !p["post_bind"].is_null() {
+        return Some(
+            post_bind::dependency(&p["post_bind"]).unwrap_or("preload_temporary_post_bind"),
+        );
+    }
     match p["stage"].as_str()? {
         "awaiting_temporary" => Some(if p["temporary"]["bind_return"] == 1 {
             "preload_temporary_post_bind"
@@ -884,6 +890,7 @@ pub(super) fn validate(p: &Value, c: &Value) -> Result<()> {
             "helper_returned",
             "state_sha256",
             "temporary",
+            "post_bind",
             "script_publication",
         ],
     )?;
@@ -1126,6 +1133,7 @@ pub(super) fn validate(p: &Value, c: &Value) -> Result<()> {
         temporary(&p["temporary"], p, c)?;
     }
     script_publication(&p["script_publication"], &p["temporary"])?;
+    post_bind::validate(&p["post_bind"], &p["temporary"])?;
     Ok(())
 }
 
@@ -1256,6 +1264,7 @@ pub(super) fn validate_native(p: &Value, c: &Value, expected_player: u64) -> Res
         "Tutorial current same-owner publication proof differs"
     );
     evaluation::validate_native(&t["evaluation"], t, c)?;
+    post_bind::validate_native(&p["post_bind"], t, c)?;
     Ok(())
 }
 

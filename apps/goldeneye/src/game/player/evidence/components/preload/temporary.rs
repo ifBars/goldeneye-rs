@@ -6,7 +6,7 @@ use ge_core::{
     mission::player::components::temporary::{Pending, Stage},
 };
 use serde::Serialize;
-mod evaluation;
+pub(super) mod evaluation;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Clip {

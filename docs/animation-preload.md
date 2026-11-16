@@ -8,7 +8,8 @@ The initializer's earlier pose helpers and FP/TP transform-cache construction
 have returned. Animation preload now runs against those retained owners. Its
 current native checkpoint completes the first temporary script factory,
 zero-time forward callback and nonempty evaluation, then returns from the bind.
-The caller's post-bind work remains unfinished.
+The caller updates that same temporary and completes a second evaluation. It
+now waits at `preload_temporary_bone_outputs`.
 
 ## What runs now
 
@@ -69,12 +70,34 @@ checks the actual arena and context instances, even when semantic IDs match.
 New scratch operations reap stale attempts; shutdown aborts remaining scopes
 after workers join. Cleanup never counts as a completed evaluation or bind.
 
+## The caller's second evaluation
+
+After bind return, the caller reads the actual slot-zero head and checks its
+class through the same animator's node registry and script store. For a matching
+head, it writes 0.5 through the header's constructor-owned parameter pointer into
+that header's coordinate word.
+
+It then reads the persistent process scalar. Its startup value is known, but its
+current value is not proved. The read therefore captures an unknown current value
+with its owner, sequence and revision. The ordered clamp is retained as an
+expression in the script phase field, replacing its stale known zero. Numeric
+phase reads fail while that expression is unresolved. No startup-value fallback
+is used.
+
+The second evaluator uses a new scope in the same shared arena. It repeats the
+required skin preparation, mask clears and actual node visit. The reached MAX
+clip guard returns before reading either updated field, so the unknown phase
+does not prevent this evaluation from returning. Its scope releases with zero
+samples and no pose commit. The first bind's history remains unchanged. A NULL
+head skips both writes and the scalar read, while still running its own second
+evaluation.
+
 ## What remains
 
-The next work is the caller's parameter write and ordered clamp, another
-evaluation, six bone outputs and teardown. The mutable process scalar's current
-value remains unresolved. Its startup value alone cannot supply a current value.
-Constructor locals and allocated matrices are not sampled poses.
+The next work is copying six bone outputs from the actual temporary skeleton,
+then teardown and entry commit. Constructor locals and allocated matrices are
+not sampled poses. The output helper must read the current local bone records
+through its real tag lookup; a missing tag writes only its missing index.
 
 Later preload work still needs its remaining temporary operations, teardown,
 entry commit and subsequent registry calls. Full player initialization and the
@@ -88,9 +111,10 @@ order, distinct temporary ownership, fresh NULL proofs and pending body states.
 Tests also cover retained wrappers across cancellation/reentry and failed request
 prefixes. Tests cover pending evaluations, exact-owner cancellation and immediate
 reentry. Native hidden New Game probes complete the direct factory, forward
-callback, nonempty evaluation and bind without a loading failure. Their scopes
-are released, with no sampled pose or commit. Player and camera readiness remain
-false.
+callback, nonempty evaluation and bind without a loading failure. A direct
+native probe also completes the caller's parameter store, captured unknown clamp
+and separate second evaluation. Both scopes release, with no sampled pose or
+commit. Player and camera readiness remain false.
 
 The progress report keeps the returned initializer snapshot separate from current
 preload mutations. See [player pose setup](player-pose-setup.md) for the earlier

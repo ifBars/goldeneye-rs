@@ -52,10 +52,10 @@ fn fixture() -> Value {
     }
     c["preload"] = super::super::player_preload::tests::native_preload(&c);
     c["stage"] = json!("player_preload_temporary_pending");
-    c["pending_dependency"] = json!("preload_temporary_post_bind");
+    c["pending_dependency"] = json!("preload_temporary_bone_outputs");
     c["attachment"] = super::super::player_attachment::tests::fixture();
     c["attachment"]["registry_identities"] = json!(3);
-    json!({"pending_dependency":"preload_temporary_post_bind","component_initialization":c})
+    json!({"pending_dependency":"preload_temporary_bone_outputs","component_initialization":c})
 }
 #[test]
 fn observed_tutorial_retains_fresh_null_and_nonempty_bind_return() {
@@ -217,5 +217,43 @@ fn native_gate_requires_measured_no_sample_effects_and_ordered_scope_release() {
     later["component_initialization"]["preload"]["temporary"]["evaluation"]["ordinal"] = json!(105);
     later["component_initialization"]["preload"]["temporary"]["evaluation"]["allocation_ordinal"] =
         json!(110);
+    later["component_initialization"]["preload"]["post_bind"]["first_scope"]["ordinal"] =
+        json!(105);
+    later["component_initialization"]["preload"]["post_bind"]["first_scope"]["allocation_ordinal"] =
+        json!(110);
+    later["component_initialization"]["preload"]["post_bind"]["evaluation"]["ordinal"] = json!(106);
+    later["component_initialization"]["preload"]["post_bind"]["evaluation"]["allocation_ordinal"] =
+        json!(111);
     validate(&later, 1).unwrap(); // Ordinals may grow on reentry; matching release still required.
+}
+
+#[test]
+fn native_caller_rejects_initial_value_fallback_phase_staleness_and_first_scope_reuse() {
+    let p = fixture();
+    validate(&p, 1).unwrap();
+    for (section, key, value) in [
+        ("process", "current_bits", json!(0x3f800000)),
+        ("capture", "current_bits", json!(0x3f800000)),
+        ("capture", "read_sequence", json!(0)),
+        ("process", "capture_issued", json!(false)),
+        ("phase", "header_known_bits", json!(0)),
+        ("phase", "header_expression_bound", json!(false)),
+        ("parameter", "previous", json!(0x3f000000)),
+        ("head", "node", json!(2)),
+        ("evaluation", "ordinal", json!(5)),
+        ("evaluation", "allocation_ordinal", json!(5)),
+        ("evaluation", "released", json!(false)),
+    ] {
+        let mut bad = p.clone();
+        bad["component_initialization"]["preload"]["post_bind"][section][key] = value;
+        assert!(
+            validate(&bad, 1).is_err(),
+            "accepted native caller {section}.{key}"
+        );
+    }
+    let mut prior_reads = p;
+    prior_reads["component_initialization"]["preload"]["post_bind"]["process"]["reads"] = json!(12);
+    prior_reads["component_initialization"]["preload"]["post_bind"]["capture"]["read_sequence"] =
+        json!(12);
+    validate(&prior_reads, 1).unwrap(); // Retained process reads grow across attempts.
 }

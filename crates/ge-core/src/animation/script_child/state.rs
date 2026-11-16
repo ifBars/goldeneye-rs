@@ -1,7 +1,7 @@
 use super::*;
 impl Header {
     pub fn visit_state_words(&self, mut emit: impl FnMut(u32)) {
-        emit(5);
+        emit(6);
         self.owner.visit_state_words(&mut emit);
         emit(self.file);
         emit(self.reference);
@@ -45,6 +45,11 @@ impl Header {
             }
             ClipPointer::Null => emit(2),
             ClipPointer::Unknown => emit(3),
+        }
+        emit(self.parameter as u32);
+        emit(u32::from(self.phase_expression.is_some()));
+        if let Some(expression) = &self.phase_expression {
+            expression.visit_state_words(&mut emit);
         }
         self.visit_initialization(&mut emit);
         self.visit_position(&mut emit);

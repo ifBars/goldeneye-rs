@@ -101,6 +101,23 @@ impl Animator {
         );
         Ok(())
     }
+    /// Caller-suffix evaluation: the same bound owner, whether or not its
+    /// direct list is empty. No item, callbacks, mode layers or controls.
+    pub(in crate::mission::player::components) fn ensure_temporary_post_bind_owner(
+        &self,
+    ) -> Result<()> {
+        ensure!(
+            self.skeleton
+                .as_ref()
+                .is_some_and(|s| s.animator() == Some(self.identity))
+                && self.item.is_none()
+                && self.callbacks.is_none()
+                && self.layers.is_none()
+                && self.controls.is_empty(),
+            "temporary post-bind evaluation requires its actual bound owner"
+        );
+        Ok(())
+    }
     pub(in crate::mission::player::components) fn temporary_empty_refresh(
         &self,
         context: &mut crate::animation::scratch::Context,

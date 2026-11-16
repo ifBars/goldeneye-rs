@@ -2602,7 +2602,7 @@ function preloadFixture(historical) {
     allocations:[{kind:'raw',native_bytes:512,payload_bytes:512,known_payload_bytes:44,header_words:[null,null,null,null]},
       {kind:'array34',native_bytes:7088,payload_bytes:7072,known_payload_bytes:136,header_words:[208,34,null,null]},
       {kind:'array64',native_bytes:56080,payload_bytes:56064,known_payload_bytes:0,header_words:[876,64,null,null]}],
-    caches,flag_cleared:false,helper_returned:false,script_publication:null,state_sha256:'f'.repeat(64)};
+    caches,flag_cleared:false,helper_returned:false,post_bind:null,script_publication:null,state_sha256:'f'.repeat(64)};
 }
 function withPreload(report) {
   withInitializerPrefix(report);
@@ -3954,4 +3954,101 @@ test('pending nonempty evaluation rejects an unbound skeletal owner',async()=>{
   await inspect(embed(report),d=>assert.doesNotMatch(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
   forPlayerComponents(report,c=>Object.assign(c.preload.temporary,{skeleton_bound:false,skeleton_backlink_bound:false,bones:null,auxiliary_words:null}));
   await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+});
+
+
+function withPostBindCaller(report) {
+  withReturnedNonemptyEvaluation(report);
+  return forPlayerComponents(report,(c,p)=>{
+    const t=c.preload.temporary,first=t.evaluation;
+    const second=structuredClone(first);second.ordinal++;second.allocation_ordinal++;second.state_sha256='8'.repeat(64);
+    c.preload.post_bind={stage:'awaiting_bone_outputs',pending_dependency:'preload_temporary_bone_outputs',temporary_identity:t.identity,head_reads:1,
+      first_scope:{arena_owner:first.arena_owner,ordinal:first.ordinal,allocation_ordinal:first.allocation_ordinal},
+      head:{kind:'class_four',node:8},parameter:{node:8,pointer:'constructor_inline_phase',offset:0x64,previous:0,bits:0x3f000000},
+      process:{owner:1,initial_bits:0x3f800000,current_bits:null,revision:0,reads:1,capture_issued:true},
+      capture:{owner:1,read_sequence:1,revision:0,current_bits:null},
+      phase:{upper_bits:0,selected_bits:null,assignment:'deferred',header_known_bits:null,header_expression_bound:true},
+      evaluation:second,state_sha256:'7'.repeat(64)};
+    c.preload.pending_dependency='preload_temporary_bone_outputs';c.pending_dependency='preload_temporary_bone_outputs';p.pending_dependency=c.pending_dependency;
+  });
+}
+test('post-bind caller preserves unknown scalar and releases a separate second evaluation',async()=>{
+  const report=withPostBindCaller(withPlayerPrelude(gameSessionFixture()));
+  const c=report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization;
+  const first=JSON.stringify(c.preload.temporary.evaluation);
+  await inspect(embed(report),d=>{
+    const text=d.querySelector('#game-session-summary').textContent;
+    assert.doesNotMatch(text,/has not been recorded completely|undefined/);
+    assert.match(text,/KnownInitial 1.0 remains separate from UnknownCurrent/);
+    assert.match(text,/separate second evaluation returned and released/);
+    assert.match(text,/Six-bone outputs, teardown and entry commit remain pending/);
+    assert.match(text,/preload has not returned/);
+  });
+  assert.equal(JSON.stringify(c.preload.temporary.evaluation),first);
+});
+test('post-bind caller rejects current-value fallback stale phase and reused first scope',async()=>{
+  const changes=[
+    p=>{p.process.current_bits=p.process.initial_bits;},p=>{p.capture.current_bits=0x3f800000;},p=>{p.phase.header_known_bits=0;},
+    p=>{p.phase.selected_bits=0;},p=>{p.phase.assignment='known';},p=>{p.phase.header_expression_bound=false;},
+    p=>{p.capture.owner++;},p=>{p.capture.read_sequence=2;},p=>{p.process.capture_issued=false;},
+    p=>{p.parameter.pointer='unknown';},p=>{p.parameter.node++;},p=>{p.parameter.bits=0;},p=>{p.parameter.offset=0x80;},
+    p=>{p.evaluation.ordinal=p.first_scope.ordinal;},p=>{p.evaluation.allocation_ordinal=p.first_scope.allocation_ordinal;},
+    p=>{p.first_scope.arena_owner++;},p=>{p.evaluation.released=false;},p=>{p.evaluation.committed=true;},
+  ];
+  for(const change of changes){
+    const report=withPostBindCaller(withPlayerPrelude(gameSessionFixture()));
+    change(report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization.preload.post_bind);
+    await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+  }
+});
+
+test('caller second-scope cancellation never erases or returns the first bind again',async()=>{
+  const report=withPostBindCaller(withPlayerPrelude(gameSessionFixture()));
+  forPlayerComponents(report,(c,p)=>{
+    const post=c.preload.post_bind,e=post.evaluation;
+    Object.assign(post,{stage:'evaluating',pending_dependency:'preload_post_bind_evaluation_skin'});
+    Object.assign(e,{stage:'pending',pending_boundary:'Prepare',released:false,lease_live:true,node_visits:0,nonempty_layers:0,guards:[],prepares:[]});
+    Object.assign(e.slots[0],{nodes:[],prepared:false,masks_cleared:false});
+    c.preload.pending_dependency=post.pending_dependency;c.pending_dependency=post.pending_dependency;p.pending_dependency=c.pending_dependency;
+  });
+  await inspect(embed(report),d=>assert.doesNotMatch(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+  forPlayerComponents(report,(c,p)=>{
+    const post=c.preload.post_bind;
+    Object.assign(post,{stage:'aborted',pending_dependency:null});
+    Object.assign(post.evaluation,{stage:'aborted',pending_boundary:null,aborted:true,lease_live:false});
+    c.preload.pending_dependency='preload_temporary_post_bind';c.pending_dependency='preload_temporary_post_bind';p.pending_dependency=c.pending_dependency;
+    assert.equal(c.preload.temporary.bind_return,1);assert.equal(c.preload.temporary.evaluation.stage,'returned');
+  });
+  await inspect(embed(report),d=>assert.doesNotMatch(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+  forPlayerComponents(report,c=>{c.preload.post_bind.stage='awaiting_bone_outputs';c.preload.post_bind.pending_dependency='preload_temporary_bone_outputs';});
+  await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+});
+
+function withEmptyPostBindCaller(report) {
+  withPostBindCaller(report);
+  return forPlayerComponents(report,c=>{
+    const root=c.preload,t=root.temporary,post=root.post_bind,e=post.evaluation;
+    Object.assign(root.current_call,{reference_outcome:'no_reference',reference:null,extraction:null});root.script_publication=null;
+    Object.assign(t,{reference:0,head_inserted:false,reverse_skipped:false,refresh_returned:true,script:null,forward:null,evaluation:null});
+    Object.assign(post,{head:{kind:'null',node:null},parameter:null,capture:null,phase:null});post.process.capture_issued=null;post.process.reads=0;
+    Object.assign(e,{node_visits:0,nonempty_layers:0,advanced_context:false,prepares:[],guards:[]});
+    Object.assign(e.slots[0],{branch:'empty_tail',tail:null,nodes:[],prepared:false,masks_cleared:false});
+  });
+}
+test('empty second evaluator skips preparation masks and has no pending return boundary',async()=>{
+  const make=()=>withEmptyPostBindCaller(withPlayerPrelude(gameSessionFixture()));
+  await inspect(embed(make()),d=>assert.doesNotMatch(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+  for(const change of [e=>{e.slots[0].prepared=true;},e=>{e.slots[0].prepared=true;e.slots[0].masks_cleared=true;},e=>{e.pending_boundary='Prepare';}]) {
+    const report=make();change(report.menu.details.game_session.cancel_reentry.window.game_session.active.world_initialization.player_initialization.component_initialization.preload.post_bind.evaluation);
+    await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+  }
+});
+test('unknown and null caller heads cannot borrow a completed nonempty second evaluation',async()=>{
+  for(const kind of ['unknown','null']) {
+    const report=withPostBindCaller(withPlayerPrelude(gameSessionFixture()));
+    forPlayerComponents(report,c=>{
+      const p=c.preload.post_bind;p.head={kind,node:null};p.parameter=null;p.capture=null;p.phase=null;p.process.capture_issued=null;
+    });
+    await inspect(embed(report),d=>assert.match(d.querySelector('#game-session-summary').textContent,/has not been recorded completely/));
+  }
 });

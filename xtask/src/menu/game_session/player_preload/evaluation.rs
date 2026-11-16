@@ -4,6 +4,12 @@ use anyhow::{Context, Result, ensure};
 use serde_json::Value;
 
 pub(super) fn validate(v: &Value, temporary: &Value) -> Result<()> {
+    validate_scope(v, temporary, false)
+}
+pub(super) fn validate_caller(v: &Value, temporary: &Value) -> Result<()> {
+    validate_scope(v, temporary, true)
+}
+fn validate_scope(v: &Value, temporary: &Value, caller: bool) -> Result<()> {
     if v.is_null() {
         ensure!(
             temporary["stage"] != "evaluating_bind" && temporary["stage"] != "aborted",
@@ -41,11 +47,11 @@ pub(super) fn validate(v: &Value, temporary: &Value) -> Result<()> {
     )?;
     ensure!(
         temporary["skeleton_bound"] == true
-            && temporary["head_inserted"] == true
+            && (temporary["head_inserted"] == true || caller)
             && temporary["factory_returned"] == true
             && temporary["maintenance_skipped"] == true
-            && temporary["reverse_skipped"] == true
-            && temporary["refresh_returned"] == false,
+            && temporary["reverse_skipped"] == temporary["head_inserted"]
+            && temporary["refresh_returned"] == (temporary["head_inserted"] == false),
         "nonempty evaluation borrowed an empty or unreturned owner"
     );
     for k in [
@@ -242,6 +248,38 @@ pub(super) fn validate(v: &Value, temporary: &Value) -> Result<()> {
             );
         }
     }
+    if caller && temporary["head_inserted"] == false {
+        ensure!(
+            prepares.is_empty()
+                && guards.is_empty()
+                && v["node_visits"] == 0
+                && v["nonempty_layers"] == 0
+                && v["advanced_context"] == false,
+            "empty caller fabricated nonempty work"
+        );
+        if v["stage"] == "returned" {
+            ensure!(
+                v["pending_boundary"].is_null()
+                    && slots.len() == 1
+                    && slots[0]["prepared"] == false
+                    && slots[0]["masks_cleared"] == false
+                    && slots[0]["tail"].is_null()
+                    && slots[0]["nodes"]
+                        .as_array()
+                        .is_some_and(|nodes| nodes.is_empty())
+                    && slots[0]["branch"] == "empty_tail"
+                    && slots[0]["flags_after"] == 0
+                    && v["released"] == true
+                    && v["lease_live"] == false
+                    && v["aborted"] == false
+                    && v["cursor_after"] == v["reservation_start"]
+                    && v["live_after"] == 0
+                    && v["commit_register"] == 0,
+                "empty caller omitted own scope release"
+            );
+            return Ok(());
+        }
+    }
     if v["stage"] == "returned" {
         ensure!(
             v["pending_boundary"].is_null()
@@ -266,7 +304,7 @@ pub(super) fn validate(v: &Value, temporary: &Value) -> Result<()> {
         );
     } else {
         ensure!(
-            v["released"] == false && temporary["bind_return"].is_null(),
+            v["released"] == false && (caller || temporary["bind_return"].is_null()),
             "pending/aborted evaluation fabricated return"
         );
         if v["stage"] == "aborted" {

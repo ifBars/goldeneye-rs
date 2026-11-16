@@ -4,6 +4,7 @@ use super::{Lease, ResetStage, Shared, initializer_prefix};
 use crate::mission::player::{components::Identity, identity::PlayerId, transform_cache};
 use anyhow::{Context, Result, ensure};
 mod call;
+pub mod post_bind;
 mod state;
 pub use call::{Call, CallStage, ReturnReason};
 

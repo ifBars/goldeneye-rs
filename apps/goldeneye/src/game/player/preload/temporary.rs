@@ -4,6 +4,7 @@ use ge_core::{
     animation::{script_child, skeleton::BoneInput},
     mission::player::components::{Registry, SkeletonBudget, SkeletonInput, temporary::Pending},
 };
+mod post_bind;
 
 pub(super) fn initialize(
     player: &mut Player,
@@ -128,5 +129,5 @@ pub(super) fn initialize(
         }
     }
     hook.ensure_current()?;
-    Ok(())
+    post_bind::advance(owned, skin_source, hook)
 }

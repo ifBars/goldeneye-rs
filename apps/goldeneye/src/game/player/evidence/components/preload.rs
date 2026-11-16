@@ -12,6 +12,7 @@ use ge_core::mission::player::{
     world::World,
 };
 use serde::Serialize;
+mod post_bind;
 mod temporary;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -90,6 +91,7 @@ pub struct Preload {
     pub completed_calls: Vec<Call>,
     pub current_call: Option<Call>,
     pub temporary: Option<temporary::Temporary>,
+    pub post_bind: Option<post_bind::Caller>,
     pub script_publication: Option<crate::game::world::post_trigger_resources::ScriptPublication>,
     pub allocations: [Option<AllocationState>; 3],
     pub caches: CacheState,
@@ -386,6 +388,18 @@ pub(super) fn build(
         .map(|binding| file.script_publication_evidence(binding))
         .transpose()?
         .flatten();
+    let post_bind = owner
+        .post_bind
+        .as_ref()
+        .map(|post| {
+            let temporary = owner
+                .temporary
+                .as_ref()
+                .context("post-bind caller lacks actual temporary")?;
+            let process = hook.preload_scalar_facts(post.capture())?;
+            post_bind::build(post, temporary, process)
+        })
+        .transpose()?;
     hook.with_player_preload(|shared, caches| {
         ensure!(
             shared.reset_stage(state.lease())? == constructor::ResetStage::Complete,
@@ -433,7 +447,10 @@ pub(super) fn build(
         .map(|kind| allocation(shared.allocation(kind)));
         Ok(Some(Preload {
             stage,
-            pending_dependency: if owner
+            pending_dependency: if let Some(post) = &post_bind {
+                post.pending_dependency
+                    .unwrap_or("preload_temporary_post_bind")
+            } else if owner
                 .temporary
                 .as_ref()
                 .is_some_and(|t| t.bind_return() == Some(1))
@@ -455,6 +472,7 @@ pub(super) fn build(
             completed_calls,
             current_call,
             temporary: owner.temporary.as_ref().map(temporary::build).transpose()?,
+            post_bind: post_bind.clone(),
             script_publication: script_publication.clone(),
             allocations,
             caches: initializer_prefix::current_caches(caches)?,
@@ -491,6 +509,10 @@ pub(super) fn build(
                     }
                     emit(u32::from(publication.body_state == "known_null"));
                     emit(u32::from(publication.native_history_verified));
+                }
+                emit(u32::from(owner.post_bind.is_some()));
+                if let Some(post) = &owner.post_bind {
+                    post.visit_state_words(&mut emit);
                 }
                 emit(u32::from(owner.temporary.is_some()));
                 if let Some(temporary) = &owner.temporary {

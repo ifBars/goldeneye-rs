@@ -4,6 +4,7 @@ use super::{Attempt, State};
 use anyhow::Result;
 use ge_core::mission::player::components::Preparation;
 pub(super) mod evaluation;
+pub(super) mod post_bind;
 mod repeat;
 
 impl Attempt {

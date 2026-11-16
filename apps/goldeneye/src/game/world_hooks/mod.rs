@@ -17,6 +17,7 @@ use std::{
     time::Duration,
 };
 
+pub(in crate::game) use animation::post_bind::ScalarFacts;
 pub use evidence::Evidence;
 
 struct State {
@@ -29,6 +30,8 @@ struct State {
     animation_context: ge_core::animation::scratch::Context,
     animation_scratch: ge_core::animation::scratch::Arena,
     animation_pending_evaluation: Option<animation::evaluation::PendingScope>,
+    animation_preload_scalar:
+        ge_core::mission::player::constructor::preload::post_bind::ProcessScalar,
     animation_callbacks: Arc<ge_core::mission::player::components::callbacks::Table>,
     animation_fallback: ge_core::animation::dispatch::Fallback,
     animation_slot_override: ge_core::animation::layers::SlotOverride,
@@ -79,6 +82,8 @@ impl Shared {
                 player: player::Persistent::from_constructor(),
                 animation_context: ge_core::animation::scratch::Context::default(),
                 animation_pending_evaluation: None,
+                animation_preload_scalar: ge_core::mission::player::constructor::preload::post_bind::ProcessScalar::from_startup(1)
+                    .expect("nonzero process preload scalar owner"),
                 animation_scratch: ge_core::animation::scratch::Arena::from_constructor(1)
                     .expect("nonzero shared animation scratch identity"),
                 animation_callbacks: Arc::new(

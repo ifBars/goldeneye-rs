@@ -86,8 +86,15 @@ request history now prove the first script's NULL runtime body. The actual
 factory inserts its node, the zero-time forward callback returns, and real
 nonempty evaluation visits that node through the constructor clip's MAX guard.
 Its primary-skin preparation, mask clears and shared-scope release precede bind
-return1, with zero samples and no pose commit. The caller remains pending at
-preload_temporary_post_bind. Cancellation leases bind actual arena/context
+return1, with zero samples and no pose commit. The caller validates that same
+head, writes through its real parameter pointer and captures the process scalar
+from a persistent owner. UnknownCurrent stays separate from KnownInitial; the
+ordered clamp clears stale phase bytes and retains a time-local expression.
+A separate second evaluation repeats skin preparation and the MAX guard, then
+releases its own scope. Both bind history and first evaluation remain immutable.
+The caller now waits at preload_temporary_bone_outputs. Read current bone locals
+through the real tag lookup; no sampled pose or matrix work is implied.
+Cancellation leases bind actual arena/context
 instances and are reaped before later scratch use; shutdown cleans them after
 joining workers. Unknown/failed request or dependency state
 still stays Pending. Do not invent a load at the getter or read cached nonresident

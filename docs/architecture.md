@@ -744,7 +744,15 @@ evaluation then prepares the current primary skin, clears shared masks and visit
 that node. Its MAX clip guard returns zero without sampling or committing a pose.
 The same scratch scope releases before bind returns. Cancellation retains an
 exact-instance lease; later scratch users reap stale attempts, and shutdown aborts
-remaining scopes after workers join. The caller's post-bind work remains pending.
+remaining scopes after workers join. The call owns a separate post-bind suffix:
+it validates the actual head, stores through its typed parameter pointer and
+captures the process scalar from a controller-lived owner. A deferred ordered
+clamp invalidates the old numeric phase; later numeric getters remain fallible.
+The second evaluator owns new traces and a new scope, repeats mandatory skin
+preparation and visits the real MAX guard without reading the unknown phase.
+It releases before stopping at the bone-output provider. The first bind's
+evaluation and return remain historical. Scalar snapshots for diagnostics do
+not issue source reads. No key commit, teardown or flag clear follows yet.
 Failed requests or unresolved dependency work preserve
 Pending rather than making cached bytes resident. The returned initializer receipt
 stays immutable while current preload storage and publication history change.

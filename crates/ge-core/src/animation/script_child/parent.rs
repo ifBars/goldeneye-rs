@@ -9,6 +9,8 @@ impl Store {
             h.initializer_returned(),
             "dispatch coordinate precedes factory return"
         );
+        // Source re-stores +60 = header+64 with this +64 store.
+        h.parameter = pointee::ParameterPointer::ConstructorInlinePhase;
         h.w(0x64, bits);
         Ok(())
     }
@@ -21,7 +23,7 @@ impl Store {
             h.initializer_returned(),
             "phase copy precedes actual factory return"
         );
-        h.w(0x80, bits);
+        h.store_phase(bits);
         h.w(0x84, bits);
         Ok(())
     }

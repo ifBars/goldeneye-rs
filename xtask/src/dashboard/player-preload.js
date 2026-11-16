@@ -4,7 +4,7 @@ const playerPreloadDashboard = (() => {
   const callStages = ['remap','raw_flag','raw_key','raw_indices','entry_scan','raw_occupied','raw_weapon','raw_mapping','entry_key','invalidate','reference','awaiting_temporary','returned'];
   const temporaryStages = ['awaiting_skeleton','binding_skeleton','awaiting_factory','initializing_factory','awaiting_initializer','awaiting_insertion','awaiting_forward_tick','forward_tick','awaiting_evaluation','bind_returned','failed','evaluating_bind','aborted'];
   const scriptStages = ['Constructed','AwaitingScript','ResolvingScript','AwaitingScriptBody','AwaitingInitializer','Initializing','AwaitingClipFile','AwaitingClipRange','AwaitingFrameCount','AwaitingAnimation','PreparingPosition','AwaitingAnimationOwner','AwaitingClipCache','AwaitingAnimationBody','AwaitingTimingCurve','AwaitingRootMotion','ReturnedWithoutPlay','ReturnedInitialized','ReturnedWithoutBody','Failed'];
-  const dependency = p => p?.stage === 'awaiting_temporary' ? (p.temporary?.bind_return===1?'preload_temporary_post_bind':'preload_temporary_bind') : p?.stage === 'returned' ? 'player_initializer_post_preload' : stages.includes(p?.stage) ? 'player_animation_preload' : null;
+  const dependency = p => p?.post_bind ? (postDependency(p.post_bind)??'preload_temporary_post_bind') : p?.stage === 'awaiting_temporary' ? (p.temporary?.bind_return===1?'preload_temporary_post_bind':'preload_temporary_bind') : p?.stage === 'returned' ? 'player_initializer_post_preload' : stages.includes(p?.stage) ? 'player_animation_preload' : null;
   const root = p => p?.stage === 'awaiting_temporary' ? 'player_preload_temporary_pending' : 'player_animation_preload_pending';
   const equivalent = (a,b) => {
     if(a===b) return true;
@@ -62,11 +62,11 @@ const playerPreloadDashboard = (() => {
     if(v.body_state==='known_null') return v.fresh_base&&v.callback_mask!==null&&(v.callback_mask&8)!==0&&v.active_requests===0&&v.retained_sections===0&&!v.history_unknown&&v.raw_job===0&&(v.section_key>>>24)===8&&v.section_key!==0x08000000&&v.section_index>0;
     return v.body_state==='pending';
   }
-  function evaluation(t,h) {
-    const v=t.evaluation,{closed,count,hash}=h,word=n=>count(n)&&n<=0xffffffff;
+  function evaluation(t,h,caller=false,trace=t.evaluation) {
+    const v=trace,{closed,count,hash}=h,word=n=>count(n)&&n<=0xffffffff;
     if(v===null) return !['evaluating_bind','aborted'].includes(t.stage);
     if(!closed(v,['stage','pending_boundary','reserved','released','lease_live','aborted','arena_owner','ordinal','allocation_ordinal','reservation_start','cursor_after','live_after','slots','prepares','guards','node_visits','nonempty_layers','successful_samples','advanced_context','commit_register','blended_layers','committed','state_sha256'])) return false;
-    if(!t.skeleton_bound||!t.head_inserted||!t.factory_returned||!t.maintenance_skipped||!t.reverse_skipped||t.refresh_returned||!['running','pending','returned','failed','aborted'].includes(v.stage)||!hash(v.state_sha256)||!['reserved','released','lease_live','aborted','advanced_context','committed'].every(k=>typeof v[k]==='boolean')||!['node_visits','nonempty_layers','successful_samples','blended_layers'].every(k=>count(v[k]))||!word(v.commit_register)||v.successful_samples!==0||v.blended_layers!==0||v.committed) return false;
+    if(!t.skeleton_bound||!t.head_inserted&&!caller||!t.factory_returned||!t.maintenance_skipped||t.reverse_skipped!==t.head_inserted||t.refresh_returned===t.head_inserted||!['running','pending','returned','failed','aborted'].includes(v.stage)||!hash(v.state_sha256)||!['reserved','released','lease_live','aborted','advanced_context','committed'].every(k=>typeof v[k]==='boolean')||!['node_visits','nonempty_layers','successful_samples','blended_layers'].every(k=>count(v[k]))||!word(v.commit_register)||v.successful_samples!==0||v.blended_layers!==0||v.committed) return false;
     if(!v.reserved||!['arena_owner','ordinal','allocation_ordinal'].every(k=>count(v[k])&&v[k]>0)||!count(v.reservation_start)||v.reservation_start%16!==0||!Array.isArray(v.slots)||v.slots.length>1||!Array.isArray(v.prepares)||v.prepares.length>1||!Array.isArray(v.guards)||v.guards.length>4096) return false;
     let visits=0;
     for(const s of v.slots) {
@@ -85,8 +85,51 @@ const playerPreloadDashboard = (() => {
       if(g.result===0&&(g.pending_boundary!==null||!v.slots.some(s=>s.nodes.some(n=>n.node===g.node))||g.clip_reference!==0xffffffff&&!(g.animator_reference_read&&g.animator_reference===0xffffffff))) return false;
       if(g.clip_reference===0xffffffff&&(g.animator_reference_read||g.animator_reference!==null)) return false;
     }
+    if(caller&&!t.head_inserted) {
+      if(v.prepares.length||v.guards.length||v.node_visits!==0||v.nonempty_layers!==0||v.advanced_context) return false;
+      if(v.stage==='returned') return v.pending_boundary===null&&v.slots.length===1&&!v.slots[0].prepared&&!v.slots[0].masks_cleared&&v.slots[0].tail===null&&v.slots[0].nodes.length===0&&v.slots[0].branch==='empty_tail'&&v.slots[0].flags_after===0&&v.released&&!v.lease_live&&!v.aborted&&v.cursor_after===v.reservation_start&&v.live_after===0&&v.commit_register===0;
+    }
     if(v.stage==='returned') return v.pending_boundary===null&&v.released&&!v.lease_live&&!v.aborted&&v.nonempty_layers===1&&v.node_visits===1&&v.advanced_context&&v.commit_register===0&&v.cursor_after===v.reservation_start&&v.live_after===0&&v.prepares.length===1&&v.prepares[0].returned!==null&&v.slots.length===1&&v.slots[0].flags_after===0&&v.guards.filter(g=>g.result===0).length===visits;
-    return !v.released&&t.bind_return===null&&(v.stage==='aborted'?v.aborted&&!v.lease_live:!v.aborted&&v.lease_live);
+    return !v.released&&(caller||t.bind_return===null)&&(v.stage==='aborted'?v.aborted&&!v.lease_live:!v.aborted&&v.lease_live);
+  }
+  function postDependency(p) {
+    if(p.stage==='awaiting_head') return 'preload_post_bind_head';
+    if(p.stage==='awaiting_parameter') return 'preload_post_bind_parameter_pointer';
+    if(p.stage==='awaiting_bone_outputs') return 'preload_temporary_bone_outputs';
+    if(p.stage!=='evaluating') return null;
+    const boundary=p.evaluation?.pending_boundary;
+    return boundary==='Prepare'?(p.evaluation.prepares.at(-1)?.pause==='Auxiliary'?'preload_post_bind_evaluation_auxiliary_clear':'preload_post_bind_evaluation_skin'):boundary==='Node'?'preload_post_bind_evaluation_sampling':boundary?'preload_post_bind_evaluation_layers':null;
+  }
+  function postBind(p,t,h) {
+    if(p===null) return true;
+    const {closed,count,hash}=h,word=n=>count(n)&&n<=0xffffffff;
+    if(!closed(p,['stage','pending_dependency','temporary_identity','head_reads','first_scope','head','parameter','process','capture','phase','evaluation','state_sha256'])||t?.bind_return!==1||p.temporary_identity!==t.identity||!hash(p.state_sha256)||!['awaiting_head','awaiting_parameter','reading_scalar','assigning_phase','evaluating','awaiting_bone_outputs','failed','aborted'].includes(p.stage)||p.pending_dependency!==postDependency(p)) return false;
+    const process=p.process;
+    if(!closed(process,['owner','initial_bits','current_bits','revision','reads','capture_issued'])||!count(process.owner)||process.owner===0||process.initial_bits!==0x3f800000||process.current_bits!==null||!count(process.revision)||!count(process.reads)) return false;
+    if(p.head!==null&&(!closed(p.head,['kind','node'])||!count(p.head_reads)||!['class_four','nonmatching','null','unknown'].includes(p.head.kind))) return false;
+    if(p.head!==null) {
+      const kind=p.head.kind;
+      if(kind==='unknown'&&(p.head.node!==null||p.stage!=='awaiting_head'||p.parameter!==null||p.capture!==null||p.phase!==null||p.evaluation!==null)) return false;
+      if(kind==='null'&&(p.head.node!==null||t.head_inserted||p.parameter!==null||p.capture!==null||p.phase!==null)) return false;
+      if(['class_four','nonmatching'].includes(kind)&&(!count(p.head.node)||p.head.node===0)) return false;
+    }
+    const v=p.parameter;
+    if(v!==null&&(!closed(v,['node','pointer','offset','previous','bits'])||p.head?.kind!=='class_four'||v.node!==p.head.node||v.pointer!=='constructor_inline_phase'||v.offset!==0x64||v.bits!==0x3f000000||v.previous!==null&&!word(v.previous))) return false;
+    const r=p.capture;
+    if(r!==null) {
+      if(!closed(r,['owner','read_sequence','revision','current_bits'])||v===null||r.owner!==process.owner||!count(r.read_sequence)||r.read_sequence===0||r.read_sequence>process.reads||!count(r.revision)||r.revision>process.revision||r.current_bits!==null||process.capture_issued!==true) return false;
+    } else if(process.capture_issued!==null) return false;
+    if(p.phase!==null) {
+      const phase=p.phase;
+      if(!closed(phase,['upper_bits','selected_bits','assignment','header_known_bits','header_expression_bound'])||r===null||phase.upper_bits!==0||phase.selected_bits!==null||phase.assignment!=='deferred'||phase.header_known_bits!==null||phase.header_expression_bound!==true) return false;
+    }
+    if(p.evaluation!==null) {
+      if(p.head===null||p.head.kind==='class_four'&&p.phase===null||!evaluation(t,h,true,p.evaluation)) return false;
+      const first=p.first_scope,e=p.evaluation;
+      if(!closed(first,['arena_owner','ordinal','allocation_ordinal'])||!['arena_owner','ordinal','allocation_ordinal'].every(k=>count(first[k])&&first[k]>0)||first.arena_owner!==e.arena_owner||e.ordinal<=first.ordinal||e.allocation_ordinal<=first.allocation_ordinal) return false;
+      if(t.evaluation!==null ? !['arena_owner','ordinal','allocation_ordinal'].every(k=>first[k]===t.evaluation[k])||t.evaluation.stage!=='returned'||!t.evaluation.released : !t.refresh_returned||t.head_inserted) return false;
+    }
+    return p.stage!=='awaiting_bone_outputs'||p.evaluation?.stage==='returned'&&p.evaluation.released;
   }
   function temporary(t,p,c,h) {
     const {closed,count,hash,phaseZeroValid}=h,word=v=>count(v)&&v<=0xffffffff,index=(v,n)=>v===null||count(v)&&v<n;
@@ -127,7 +170,7 @@ const playerPreloadDashboard = (() => {
     try {
       if(p===null) return c.stage!=='player_preload_temporary_pending';
       const {closed,count,hash,cacheStateValid}=h,word=v=>count(v)&&v<=0xffffffff;
-      if(!closed(p,['stage','pending_dependency','entry_flag','cache_enabled','raw_flags_written','entry_keys_written','registry_count','source_row','rows_visited','enabled_rows','current_weapon','call_in_row','completed_calls','current_call','temporary','script_publication','allocations','caches','flag_cleared','helper_returned','state_sha256'])) return false;
+      if(!closed(p,['stage','pending_dependency','entry_flag','cache_enabled','raw_flags_written','entry_keys_written','registry_count','source_row','rows_visited','enabled_rows','current_weapon','call_in_row','completed_calls','current_call','temporary','post_bind','script_publication','allocations','caches','flag_cleared','helper_returned','state_sha256'])) return false;
       const s=stages.indexOf(p.stage),prefix=c.initializer_prefix;
       if(s<0||prefix?.stage!=='awaiting_preload'||prefix.cache_enabled!==1||prefix.invalidated!==false||!equivalent(prefix.receivers_found,[true,true])||!hash(p.state_sha256)||!count(p.cache_enabled)||p.cache_enabled>255||typeof p.flag_cleared!=='boolean'||p.helper_returned!==(s===9)||!count(p.raw_flags_written)||p.raw_flags_written>32||!count(p.entry_keys_written)||p.entry_keys_written>34||!count(p.call_in_row)||p.call_in_row>=6||p.pending_dependency!==dependency(p)||c.pending_dependency!==dependency(p)||c.stage!==root(p)) return false;
       if(s===0?p.entry_flag!==null:!count(p.entry_flag)||p.entry_flag>255) return false;
@@ -165,7 +208,7 @@ const playerPreloadDashboard = (() => {
       }
       currentCache.state_sha256=historical.state_sha256;
       if(!equivalent(currentCache,historical)) return false;
-      return (p.temporary===null||s===7&&temporary(p.temporary,p,c,h))&&publication(p.script_publication,p.temporary,h);
+      return (p.temporary===null||s===7&&temporary(p.temporary,p,c,h))&&publication(p.script_publication,p.temporary,h)&&postBind(p.post_bind,p.temporary,h);
     } catch { return false; }
   }
   function summary(p) {
@@ -174,9 +217,10 @@ const playerPreloadDashboard = (() => {
     const history=selected===null?'No cache is selected.':`Current selected-cache validity reads: ${p.caches.headers[selected].invalidation_count_reads}; the initializer cache receipt remains historical.`;
     const callText=current?` Current preload call ${current.ordinal+1} is ${current.stage.replaceAll('_',' ')}. ${current.selected_key_empty===true?'The selected animation-entry key is still empty; no key commit has occurred.':''} ${current.extraction_returned?current.reference_outcome==='class_four'?`Class-four reference 0x${current.reference.toString(16).padStart(8,'0')} was extracted.`:'The extractor returned a known no-reference result; temporary binding is still required.':'Reference extraction has not returned.'}`:'';
     const temp=t?` A distinct temporary animator ${t.identity} retains ${t.bones??'unknown'} bones and ${t.auxiliary_words??'unknown'} auxiliary words. ${t.script?.stage==='AwaitingScriptBody'?'Its script descriptor is retained, but body residency is unknown. No head insertion, forward tick or evaluation has run.':`Its reached dependency is ${(t.pending_dependency??t.stage).replaceAll('_',' ')}.`} No player attachment or callback was borrowed.`:' No temporary animator has been allocated yet.';
-    const evaluationText=t?.evaluation?.stage==='returned'?` Nonempty animation evaluation returned after releasing its own scratch scope: ${t.evaluation.node_visits} node visited, ${t.evaluation.successful_samples} samples, no pose commit. Inner bind returned; caller parameter patch, evaluation, bone outputs and teardown remain pending.`:t?.evaluation?.stage==='aborted'?' The retained evaluation scope was canceled; cleanup is not a bind return.':'';
+    const evaluationText=t?.evaluation?.stage==='returned'?` Nonempty animation evaluation returned after releasing its own scratch scope: ${t.evaluation.node_visits} node visited, ${t.evaluation.successful_samples} samples, no pose commit. Inner bind returned.`:t?.evaluation?.stage==='aborted'?' The retained evaluation scope was canceled; cleanup is not a bind return.':'';
+    const postText=p.post_bind?.stage==='awaiting_bone_outputs'?`${p.post_bind.parameter!==null?' The caller stored 0.5 through its actual parameter pointee. KnownInitial 1.0 remains separate from UnknownCurrent; header phase retains a deferred expression.':' The known NULL or nonmatching head skipped the parameter store and scalar read.'} A separate second evaluation returned and released with zero samples or commits. Six-bone outputs, teardown and entry commit remain pending.`:'';
     const publicationText=p.script_publication===null?'':p.script_publication.body_state==='known_null'?` Fresh base publication proves a NULL script body for descriptor ${p.script_publication.descriptor_index} in section ${p.script_publication.section_index}; original runtime history remains unverified.`:' Current script publication is pending; historical initializer state remains separate.';
-    return ` Preload wrote ${p.raw_flags_written} Raw flags and ${p.entry_keys_written} entry keys; ${p.rows_visited} registry rows were visited and ${p.enabled_rows} ${p.enabled_rows===1?'was':'were'} enabled. Shared payload knowledge: ${p.allocations.map(a=>a?.known_payload_bytes??'absent').join(' / ')} bytes (Raw / array34 / array64); other bytes remain unknown. ${history}${callText}${temp}${evaluationText}${publicationText} The shared preload flag remains ${p.cache_enabled}; ${p.helper_returned?'only the nested preload helper returned':'preload has not returned'}. No sampled pose, completed player or camera is claimed.`;
+    return ` Preload wrote ${p.raw_flags_written} Raw flags and ${p.entry_keys_written} entry keys; ${p.rows_visited} registry rows were visited and ${p.enabled_rows} ${p.enabled_rows===1?'was':'were'} enabled. Shared payload knowledge: ${p.allocations.map(a=>a?.known_payload_bytes??'absent').join(' / ')} bytes (Raw / array34 / array64); other bytes remain unknown. ${history}${callText}${temp}${evaluationText}${postText}${publicationText} The shared preload flag remains ${p.cache_enabled}; ${p.helper_returned?'only the nested preload helper returned':'preload has not returned'}. No sampled pose, completed player or camera is claimed.`;
   }
   return {validate,summary,dependency,root};
 })();

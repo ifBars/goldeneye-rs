@@ -5,6 +5,8 @@ pub mod forward_tick;
 pub mod initialization;
 pub mod parameters;
 mod parent;
+pub mod phase;
+pub mod pointee;
 pub mod position;
 pub mod rate;
 mod state;
@@ -91,6 +93,8 @@ pub struct Header {
     initialization: Option<initialization::Trace>,
     clips: Option<initialization::Storage>,
     current_clip: ClipPointer,
+    parameter: pointee::ParameterPointer,
+    phase_expression: Option<phase::OrderedUpperClamp>,
     position: Option<position::Trace>,
     updates: Vec<update::Trace>,
     update_count: u64,
@@ -181,6 +185,10 @@ impl Header {
             // Base constructor stores header+40 into +5c; class-four stores do
             // not overwrite it. The record's +4 is the later MAX store at +44.
             current_clip: ClipPointer::ConstructorInline,
+            // Base constructor stores header+64 into +60; no class-four store
+            // replaces it.
+            parameter: pointee::ParameterPointer::ConstructorInlinePhase,
+            phase_expression: None,
             position: None,
             updates: Vec::new(),
             update_count: 0,

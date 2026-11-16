@@ -89,7 +89,7 @@ impl Store {
             header.initializer_returned() && trace.stage == Stage::Entering,
             "forward tick precedes initializer return or replays"
         );
-        header.w(0x80, 0);
+        header.store_phase(0);
         header.w(0x84, 0);
         trace.phase_cleared = true;
         trace.stage = Stage::Resolving;
@@ -126,7 +126,7 @@ impl Store {
             let numerator = 0.0f32 * f32::from_bits(fps);
             let value = numerator / duration as f32;
             let bits = value.to_bits();
-            header.w(0x80, bits);
+            header.store_phase(bits);
             header.w(0x84, bits);
             trace.result_bits = Some(bits);
             trace.stage = Stage::Returned;

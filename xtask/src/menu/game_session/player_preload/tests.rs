@@ -18,7 +18,7 @@ pub(in crate::menu::game_session) fn preload(c: &Value) -> Value {
     json!({"stage":"awaiting_temporary","pending_dependency":"preload_temporary_bind","entry_flag":1,"cache_enabled":1,
         "raw_flags_written":32,"entry_keys_written":34,"registry_count":4,"source_row":2,"rows_visited":3,"enabled_rows":1,
         "current_weapon":0x0200_0101,"call_in_row":0,"completed_calls":[],"current_call":current_call,"allocations":allocations,
-        "caches":caches,"flag_cleared":false,"helper_returned":false,"temporary":null,"script_publication":null,"state_sha256":"f".repeat(64)})
+        "caches":caches,"flag_cleared":false,"helper_returned":false,"temporary":null,"post_bind":null,"script_publication":null,"state_sha256":"f".repeat(64)})
 }
 pub(in crate::menu::game_session) fn component() -> Value {
     let mut c = super::super::player_initializer_prefix::tests::completed_component();
@@ -84,6 +84,11 @@ pub(in crate::menu::game_session) fn native_preload(c: &Value) -> Value {
     e["guards"][0]["node"] = json!(1);
     t["evaluation"] = e;
     p["pending_dependency"] = json!("preload_temporary_post_bind");
+    let mut caller = caller_fixture(&t);
+    caller["head"]["node"] = json!(1);
+    caller["parameter"]["node"] = json!(1);
+    p["post_bind"] = caller;
+    p["pending_dependency"] = json!("preload_temporary_bone_outputs");
     p["temporary"] = t;
     p["script_publication"] = json!({"file":0x0102_0016,"generation":0,
         "descriptor_index":239,"section_index":9,"section_key":0x0800_0009,
@@ -391,7 +396,7 @@ fn pending_forward_body_keeps_factory_history_and_stops_callbacks() {
 fn current_publication_proof_is_owner_bound_and_distinct_from_initializer_history() {
     let mut c = component();
     c["preload"] = native_preload(&c);
-    c["pending_dependency"] = json!("preload_temporary_post_bind");
+    c["pending_dependency"] = json!("preload_temporary_bone_outputs");
     let history = c["initializer_prefix"].clone();
     validate(&c["preload"], &c).unwrap();
     assert_eq!(c["initializer_prefix"], history);
@@ -531,4 +536,121 @@ fn pending_and_aborted_nonempty_evaluation_cannot_claim_bind_return() {
     validate(&c["preload"], &c).unwrap();
     c["preload"]["temporary"]["bind_return"] = json!(1);
     assert!(validate(&c["preload"], &c).is_err());
+}
+
+fn caller_fixture(t: &Value) -> Value {
+    let mut second = t["evaluation"].clone();
+    second["ordinal"] = json!(t["evaluation"]["ordinal"].as_u64().unwrap() + 1);
+    second["allocation_ordinal"] =
+        json!(t["evaluation"]["allocation_ordinal"].as_u64().unwrap() + 1);
+    second["state_sha256"] = json!("8".repeat(64));
+    json!({"stage":"awaiting_bone_outputs","pending_dependency":"preload_temporary_bone_outputs","temporary_identity":t["identity"],"head_reads":1,
+      "first_scope":{"arena_owner":t["evaluation"]["arena_owner"],"ordinal":t["evaluation"]["ordinal"],"allocation_ordinal":t["evaluation"]["allocation_ordinal"]},
+      "head":{"kind":"class_four","node":8},"parameter":{"node":8,"pointer":"constructor_inline_phase","offset":0x64,"previous":0,"bits":0x3f000000},
+      "process":{"owner":1,"initial_bits":0x3f800000,"current_bits":null,"revision":0,"reads":1,"capture_issued":true},
+      "capture":{"owner":1,"read_sequence":1,"revision":0,"current_bits":null},
+      "phase":{"upper_bits":0,"selected_bits":null,"assignment":"deferred","header_known_bits":null,"header_expression_bound":true},
+      "evaluation":second,"state_sha256":"7".repeat(64)})
+}
+#[test]
+fn caller_keeps_unknown_current_and_requires_separate_scope_before_bone_outputs() {
+    let mut c = component();
+    let mut t = temporary(0x84000101);
+    t["stage"] = json!("bind_returned");
+    t["pending_dependency"] = Value::Null;
+    t["bind_return"] = json!(1);
+    t["evaluation"] = returned_evaluation(&t);
+    let caller = caller_fixture(&t);
+    c["preload"]["temporary"] = t;
+    c["preload"]["post_bind"] = caller;
+    c["preload"]["pending_dependency"] = json!("preload_temporary_bone_outputs");
+    c["pending_dependency"] = json!("preload_temporary_bone_outputs");
+    let first = c["preload"]["temporary"]["evaluation"].clone();
+    validate(&c["preload"], &c).unwrap();
+    for (section, key, value) in [
+        ("process", "current_bits", json!(0x3f800000)),
+        ("process", "capture_issued", json!(false)),
+        ("capture", "current_bits", json!(0)),
+        ("capture", "owner", json!(2)),
+        ("phase", "header_known_bits", json!(0)),
+        ("phase", "selected_bits", json!(0)),
+        ("phase", "assignment", json!("known")),
+        ("phase", "header_expression_bound", json!(false)),
+        ("parameter", "offset", json!(0x80)),
+        ("parameter", "bits", json!(0)),
+    ] {
+        let mut bad = c.clone();
+        bad["preload"]["post_bind"][section][key] = value;
+        assert!(
+            validate(&bad["preload"], &bad).is_err(),
+            "accepted caller {section}.{key}"
+        );
+    }
+    for key in ["ordinal", "allocation_ordinal"] {
+        let mut bad = c.clone();
+        bad["preload"]["post_bind"]["evaluation"][key] = first[key].clone();
+        assert!(validate(&bad["preload"], &bad).is_err());
+    }
+    assert_eq!(c["preload"]["temporary"]["evaluation"], first);
+    assert_eq!(c["preload"]["entry_flag"], 1);
+    assert_eq!(c["preload"]["helper_returned"], false);
+}
+
+#[test]
+fn empty_caller_requires_skipped_preparation_and_clear_return_boundary() {
+    let mut t = temporary(0);
+    t["head_inserted"] = json!(false);
+    t["reverse_skipped"] = json!(false);
+    t["refresh_returned"] = json!(true);
+    t["bind_return"] = json!(1);
+    let mut e = returned_evaluation(&t);
+    e["node_visits"] = json!(0);
+    e["nonempty_layers"] = json!(0);
+    e["advanced_context"] = json!(false);
+    e["prepares"] = json!([]);
+    e["guards"] = json!([]);
+    e["slots"][0]["branch"] = json!("empty_tail");
+    e["slots"][0]["tail"] = Value::Null;
+    e["slots"][0]["nodes"] = json!([]);
+    e["slots"][0]["prepared"] = json!(false);
+    e["slots"][0]["masks_cleared"] = json!(false);
+    super::evaluation::validate_caller(&e, &t).unwrap();
+    let mut bad = e.clone();
+    bad["slots"][0]["prepared"] = json!(true);
+    assert!(super::evaluation::validate_caller(&bad, &t).is_err());
+    let mut bad = e.clone();
+    bad["slots"][0]["prepared"] = json!(true);
+    bad["slots"][0]["masks_cleared"] = json!(true);
+    assert!(super::evaluation::validate_caller(&bad, &t).is_err());
+    let mut bad = e;
+    bad["pending_boundary"] = json!("Prepare");
+    assert!(super::evaluation::validate_caller(&bad, &t).is_err());
+}
+#[test]
+fn unknown_or_null_head_cannot_borrow_completed_nonempty_second_evaluation() {
+    let mut t = temporary(0x84000101);
+    t["bind_return"] = json!(1);
+    t["stage"] = json!("bind_returned");
+    t["pending_dependency"] = Value::Null;
+    t["evaluation"] = returned_evaluation(&t);
+    let original = caller_fixture(&t);
+    for kind in ["unknown", "null"] {
+        let mut bad = original.clone();
+        bad["head"] = json!({"kind":kind,"node":null});
+        bad["parameter"] = Value::Null;
+        bad["capture"] = Value::Null;
+        bad["phase"] = Value::Null;
+        bad["process"]["capture_issued"] = Value::Null;
+        assert!(super::post_bind::validate(&bad, &t).is_err());
+    }
+    let mut pending = original;
+    pending["stage"] = json!("awaiting_head");
+    pending["pending_dependency"] = json!("preload_post_bind_head");
+    pending["head"] = json!({"kind":"unknown","node":null});
+    pending["parameter"] = Value::Null;
+    pending["capture"] = Value::Null;
+    pending["phase"] = Value::Null;
+    pending["evaluation"] = Value::Null;
+    pending["process"]["capture_issued"] = Value::Null;
+    super::post_bind::validate(&pending, &t).unwrap();
 }

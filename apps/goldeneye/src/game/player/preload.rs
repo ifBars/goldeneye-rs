@@ -22,6 +22,7 @@ pub(super) struct Owned {
     pub state: preload::Pending,
     pub calls: Vec<CallOwned>,
     pub temporary: Option<ge_core::mission::player::components::temporary::Pending>,
+    pub post_bind: Option<preload::post_bind::PostBind>,
 }
 struct Sources<'a> {
     loadout: &'a loadout::Sources,
@@ -130,6 +131,7 @@ pub(super) fn initialize(
         state: preload::Pending::begin(prefix, player.lease)?,
         calls: Vec::new(),
         temporary: None,
+        post_bind: None,
     });
     let owned = player.preload.as_mut().expect("retained preload");
     let mut source = Sources {
