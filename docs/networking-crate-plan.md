@@ -17,24 +17,22 @@ multiplayer.
 
 ## Current handoff
 
-The implementation was developed on
-[`claude/peaceful-shannon-0ued29`](https://github.com/ifBars/goldeneye-rs/tree/claude/peaceful-shannon-0ued29)
-and is proposed for `main` in
+The implementation was merged into `main` through
 [pull request 2](https://github.com/ifBars/goldeneye-rs/pull/2). It contains
 `ge-net`, a QUIC-based `ge-net-transport`, a wire specification, synthetic
 examples and the implementation notes below.
 
-The exact tested commit is
-[`f408cd8`](https://github.com/ifBars/goldeneye-rs/commit/f408cd80824b23342304238727c5d08eaf747860).
-`cargo xtask check` passed on it locally on Linux, and hosted CI passed its
-check and coverage steps on `ubuntu-latest` and `windows-latest`. Later commits
-on the branch only merge `main` and reconcile this document; they change no
-networking code.
+The reviewed branch tip was
+[`a036c43`](https://github.com/ifBars/goldeneye-rs/commit/a036c435d7c98185a3e84e91f35a76d4fb0e2706).
+Its hosted Windows and Linux checks passed. The coordinating workstream also
+ran `cargo test --locked -p ge-net -p ge-net-transport` on Windows at that tip,
+including the separate-process host/two-client test. The merge commit is
+[`6f1d73f`](https://github.com/ifBars/goldeneye-rs/commit/6f1d73fe269c8a8509850af1c8c6b0dbf909f8af).
+Its hosted checks are separate evidence from the branch-tip checks.
 
-These results were produced by the implementing workstream. The coordinating
-workstream has not independently validated them. Review the evidence against
-M0 to M5 before relying on it, and check the live branch and its owner before
-editing it. The merge decision belongs to the coordinating workstream.
+Earlier implementation evidence at `f408cd8` predates subsequent networking
+repairs. Use exact-commit results when assessing the milestones below. These
+tests exercise authored simulations and transport behavior, not game sessions.
 
 ## Target and first deliverable
 
